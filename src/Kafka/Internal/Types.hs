@@ -11,6 +11,9 @@ import           Kafka.Internal.RdKafkaEnum
 
 import qualified Data.ByteString            as BS
 
+-- | Comma separated broker:port string (e.g. @broker1:9092,broker2:9092@)
+newtype BrokersString = BrokersString String deriving (Show, Eq)
+
 --
 -- Pointer wrappers
 --
@@ -67,30 +70,6 @@ data KafkaMessage =
                , messageKey        :: Maybe BS.ByteString
                }
   deriving (Eq, Show, Read, Typeable)
-
---
--- Producer
---
-
--- | Represents messages /to be enqueued/ onto a Kafka broker (i.e. used for a producer)
-data KafkaProduceMessage =
-    -- | A message without a key, assigned to 'KafkaSpecifiedPartition' or 'KafkaUnassignedPartition'
-    KafkaProduceMessage
-      {-# UNPACK #-} !BS.ByteString -- message payload
-
-    -- | A message with a key, assigned to a partition based on the key
-  | KafkaProduceKeyedMessage
-      {-# UNPACK #-} !BS.ByteString -- message key
-      {-# UNPACK #-} !BS.ByteString -- message payload
-  deriving (Eq, Show, Typeable)
-
--- | Options for destination partition when enqueuing a message
-data KafkaProducePartition =
-  -- | A specific partition in the topic
-    KafkaSpecifiedPartition {-# UNPACK #-} !Int  -- the partition number of the topic
-
-  -- | A random partition within the topic
-  | KafkaUnassignedPartition
 
 --
 -- Metadata

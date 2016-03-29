@@ -24,8 +24,8 @@ module Kafka
 , IT.KafkaOffset(..)
 , IT.KafkaMessage(..)
 
-, IT.KafkaProduceMessage(..)
-, IT.KafkaProducePartition(..)
+, PIT.KafkaProduceMessage(..)
+, PIT.KafkaProducePartition(..)
 
 , IT.KafkaMetadata(..)
 , IT.KafkaBrokerMetadata(..)
@@ -47,18 +47,21 @@ import           Kafka.Internal.RdKafkaEnum
 import           Kafka.Internal.Setup
 import           Kafka.Internal.Shared
 import           Kafka.Internal.Types
+import           Kafka.Producer.Internal.Types
 
 import           Control.Exception
 import           Control.Monad
-import           Foreign hiding (void)
+import           Foreign                       hiding (void)
 import           Foreign.C.Error
 import           Foreign.C.String
 import           Foreign.C.Types
 
-import qualified Data.ByteString.Internal   as BSI
-import qualified Kafka.Internal.RdKafkaEnum as RDE
-import qualified Kafka.Internal.Setup       as IS
-import qualified Kafka.Internal.Types       as IT
+import qualified Data.ByteString.Internal      as BSI
+import qualified Kafka.Internal.RdKafkaEnum    as RDE
+import qualified Kafka.Internal.Setup          as IS
+import qualified Kafka.Internal.Types          as IT
+import qualified Kafka.Producer.Internal.Types as PIT
+
 
 -- | Produce a single unkeyed message to either a random partition or specified partition. Since
 -- librdkafka is backed by a queue, this function can return before messages are sent. See

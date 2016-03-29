@@ -16,9 +16,6 @@ newtype TopicName =
     TopicName String -- ^ a simple topic name or a regex if started with @^@
     deriving (Show, Eq)
 
--- | Comma separated broker:port string (e.g. @broker1:9092,broker2:9092@)
-newtype BrokersString = BrokersString String deriving (Show, Eq)
-
 -- | Indicates how offsets are to be synced to disk
 data OffsetStoreSync =
       OffsetSyncDisable       -- ^ Do not sync offsets (in Kafka: -1)

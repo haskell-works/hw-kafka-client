@@ -12,7 +12,7 @@ module Kafka.Consumer
 -- Types
 , CIT.ConsumerGroupId (..)
 , CIT.TopicName (..)
-, CIT.BrokersString (..)
+, IT.BrokersString (..)
 , CIT.KafkaTopicPartition (..)
 )
 where
@@ -29,6 +29,7 @@ import           Kafka.Internal.Shared
 import           Kafka.Internal.Types
 
 import qualified Kafka.Consumer.Internal.Types   as CIT
+import qualified Kafka.Internal.Types            as IT
 
 -- | Runs high-level kafka consumer.
 --
@@ -43,7 +44,7 @@ runConsumerConf c bs ts f =
     where
         mkConsumer = do
             kafka <- newKafkaConsumer bs c
-            setHlConsumer kafka
+            -- _ <- setHlConsumer kafka
             sErr  <- subscribe kafka ts
             return $ if hasError sErr
                          then Left (sErr, kafka)
