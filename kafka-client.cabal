@@ -1,0 +1,53 @@
+name:                kafka-client
+version:             1.0.0
+synopsis:            Kafka bindings for Haskell
+description:         Apache Kafka bindings backed by the librdkafka C library. 
+homepage:            http://github.com/alexeyraga/kafka-client
+license:             MIT
+license-file:        LICENSE
+author:              Alexey Raga <alexey.raga@gmail.com>
+maintainer:          Alexey Raga <alexey.raga@gmail.com>
+category:            Database
+build-type:          Simple
+cabal-version:       >=1.10
+
+source-repository head
+  type:     git
+  location: git://github.com/cosbynator/haskakafka.git
+
+library
+  Build-tools:       c2hs
+  build-depends:       base >=4.6 && < 5
+                     , bytestring
+                     , containers 
+                     , temporary
+                     , unix
+  exposed-modules:
+    Kafka
+    Kafka.Internal.RdKafka
+    Kafka.Internal.RdKafkaEnum
+    Kafka.Internal.Setup
+    Kafka.Internal.Types
+    Kafka.Consumer
+    Kafka.Examples.ConsumerExample
+  other-modules: 
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+  ghc-options:         -Wall 
+  include-dirs:        /usr/local/include/librdkafka
+  extra-lib-dirs:      /usr/local/lib
+  extra-libraries:     rdkafka
+
+test-suite tests
+  type:                exitcode-stdio-1.0
+  Default-language:    Haskell2010
+  Main-Is:             TestMain.hs
+  HS-Source-Dirs:      tests
+  ghc-options:         -Wall -threaded
+  build-depends:       base >=4.6 && < 5
+                     , bytestring
+                     , containers
+                     , haskakafka
+                     , hspec
+                     , regex-posix
+                     , either-unwrap
