@@ -1,8 +1,6 @@
 module Kafka
 ( fetchBrokerMetadata
 , withKafkaProducer
-, produceMessage
-, produceKeyedMessage
 , produceMessageBatch
 , getAllMetadata
 , getTopicMetadata
@@ -45,63 +43,21 @@ module Kafka
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.RdKafkaEnum
 import           Kafka.Internal.Setup
-import           Kafka.Internal.Shared
 import           Kafka.Internal.Types
+import           Kafka.Producer
+import           Kafka.Producer.Internal.Convert
 import           Kafka.Producer.Internal.Types
 
 import           Control.Exception
 import           Control.Monad
-import           Foreign                       hiding (void)
-import           Foreign.C.Error
+import           Foreign                         hiding (void)
 import           Foreign.C.String
-import           Foreign.C.Types
 
-import qualified Data.ByteString.Internal      as BSI
-import qualified Kafka.Internal.RdKafkaEnum    as RDE
-import qualified Kafka.Internal.Setup          as IS
-import qualified Kafka.Internal.Types          as IT
-import qualified Kafka.Producer.Internal.Types as PIT
-
-
--- | Produce a single unkeyed message to either a random partition or specified partition. Since
--- librdkafka is backed by a queue, this function can return before messages are sent. See
--- 'drainOutQueue' to wait for queue to empty.
-produceMessage :: KafkaTopic -- ^ topic pointer
-               -> KafkaProducePartition  -- ^ the partition to produce to. Specify 'KafkaUnassignedPartition' if you don't care.
-               -> KafkaProduceMessage  -- ^ the message to enqueue. This function is undefined for keyed messages.
-               -> IO (Maybe KafkaError) -- Nothing on success, error if something went wrong.
-produceMessage (KafkaTopic topicPtr _ _) partition (KafkaProduceMessage payload) = do
-    let (payloadFPtr, payloadOffset, payloadLength) = BSI.toForeignPtr payload
-
-    withForeignPtr payloadFPtr $ \payloadPtr -> do
-        let passedPayload = payloadPtr `plusPtr` payloadOffset
-
-        handleProduceErr =<<
-          rdKafkaProduce topicPtr (producePartitionInteger partition)
-            copyMsgFlags passedPayload (fromIntegral payloadLength)
-            nullPtr (CSize 0) nullPtr
-
-produceMessage _ _ (KafkaProduceKeyedMessage _ _) = undefined
-
--- | Produce a single keyed message. Since librdkafka is backed by a queue, this function can return
--- before messages are sent. See 'drainOutQueue' to wait for a queue to be empty
-produceKeyedMessage :: KafkaTopic -- ^ topic pointer
-                    -> KafkaProduceMessage  -- ^ keyed message. This function is undefined for unkeyed messages.
-                    -> IO (Maybe KafkaError) -- ^ Nothing on success, error if something went wrong.
-produceKeyedMessage _ (KafkaProduceMessage _) = undefined
-produceKeyedMessage (KafkaTopic topicPtr _ _) (KafkaProduceKeyedMessage key payload) = do
-    let (payloadFPtr, payloadOffset, payloadLength) = BSI.toForeignPtr payload
-        (keyFPtr, keyOffset, keyLength) = BSI.toForeignPtr key
-
-    withForeignPtr payloadFPtr $ \payloadPtr ->
-        withForeignPtr keyFPtr $ \keyPtr -> do
-          let passedPayload = payloadPtr `plusPtr` payloadOffset
-              passedKey = keyPtr `plusPtr` keyOffset
-
-          handleProduceErr =<<
-            rdKafkaProduce topicPtr (producePartitionInteger KafkaUnassignedPartition)
-              copyMsgFlags passedPayload (fromIntegral payloadLength)
-              passedKey (fromIntegral keyLength) nullPtr
+import qualified Data.ByteString.Internal        as BSI
+import qualified Kafka.Internal.RdKafkaEnum      as RDE
+import qualified Kafka.Internal.Setup            as IS
+import qualified Kafka.Internal.Types            as IT
+import qualified Kafka.Producer.Internal.Types   as PIT
 
 -- | Produce a batch of messages. Since librdkafka is backed by a queue, this function can return
 -- before messages are sent. See 'drainOutQueue' to wait for the queue to be empty.
@@ -177,21 +133,6 @@ withKafkaProducer configOverrides topicConfigOverrides brokerString tName cb =
     )
     (\(kafka, _) -> drainOutQueue kafka)
     (uncurry cb)
-
-{-# INLINE copyMsgFlags  #-}
-copyMsgFlags :: Int
-copyMsgFlags = rdKafkaMsgFlagCopy
-
-{-# INLINE producePartitionInteger #-}
-producePartitionInteger :: KafkaProducePartition -> CInt
-producePartitionInteger KafkaUnassignedPartition = -1
-producePartitionInteger (KafkaSpecifiedPartition n) = fromIntegral n
-
-{-# INLINE handleProduceErr #-}
-handleProduceErr :: Int -> IO (Maybe KafkaError)
-handleProduceErr (- 1) = liftM (Just . kafkaRespErr) getErrno
-handleProduceErr 0 = return Nothing
-handleProduceErr _ = return $ Just KafkaInvalidReturnValue
 
 -- | Opens a connection with brokers and returns metadata about topics, partitions and brokers.
 fetchBrokerMetadata :: ConfigOverrides -- ^ connection overrides, see <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md>
@@ -286,18 +227,6 @@ getMetadata (Kafka kPtr _) mTopic timeout = alloca $ \mdDblPtr -> do
               (map fromIntegral isrs)
           e -> return $ Left $ KafkaResponseError e
 
-pollEvents :: Kafka -> Int -> IO ()
-pollEvents (Kafka kPtr _) timeout = void (rdKafkaPoll kPtr timeout)
 
-outboundQueueLength :: Kafka -> IO Int
-outboundQueueLength (Kafka kPtr _) = rdKafkaOutqLen kPtr
-
--- | Drains the outbound queue for a producer. This function is called automatically at the end of
--- 'withKafkaProducer' and usually doesn't need to be called directly.
-drainOutQueue :: Kafka -> IO ()
-drainOutQueue k = do
-    pollEvents k 100
-    l <- outboundQueueLength k
-    unless (l == 0) $ drainOutQueue k
 
 
