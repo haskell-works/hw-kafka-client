@@ -13,7 +13,10 @@ module Kafka.Consumer
 , CIT.ConsumerGroupId (..)
 , CIT.TopicName (..)
 , IT.BrokersString (..)
+, IT.Kafka
+, IT.KafkaError (..)
 , CIT.KafkaTopicPartition (..)
+, RDE.RdKafkaRespErrT (..)
 )
 where
 
@@ -29,6 +32,7 @@ import           Kafka.Internal.Shared
 import           Kafka.Internal.Types
 
 import qualified Kafka.Consumer.Internal.Types   as CIT
+import qualified Kafka.Internal.RdKafkaEnum      as RDE
 import qualified Kafka.Internal.Types            as IT
 
 -- | Runs high-level kafka consumer.

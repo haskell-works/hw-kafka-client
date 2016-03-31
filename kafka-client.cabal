@@ -30,6 +30,7 @@ library
     Kafka.Internal.Types
     Kafka.Consumer
     Kafka.Examples.ConsumerExample
+    Kafka.Examples.ProducerExample
   other-modules: 
   hs-source-dirs:      src
   default-language:    Haskell2010

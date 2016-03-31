@@ -1,5 +1,18 @@
 module Kafka.Producer
-
+( runProducerConf
+, runProducer
+, newKafkaProducerConf
+, newKafkaProducer
+, produceMessage
+, drainOutQueue
+, IS.newKafkaTopic
+, IT.BrokersString (..)
+, IT.Kafka
+, IT.KafkaError (..)
+, PIT.KafkaProduceMessage (..)
+, PIT.KafkaProducePartition (..)
+, RDE.RdKafkaRespErrT (..)
+)
 where
 
 import           Control.Exception
@@ -13,6 +26,11 @@ import           Kafka.Internal.Setup
 import           Kafka.Internal.Types
 import           Kafka.Producer.Internal.Convert
 import           Kafka.Producer.Internal.Types
+
+import qualified Kafka.Internal.RdKafkaEnum      as RDE
+import qualified Kafka.Internal.Setup            as IS
+import qualified Kafka.Internal.Types            as IT
+import qualified Kafka.Producer.Internal.Types   as PIT
 
 runProducerConf :: KafkaConf
                 -> BrokersString
@@ -47,8 +65,6 @@ newKafkaProducer (BrokersString bs) conf = do
     kafka <- newKafkaPtr RdKafkaProducer conf
     addBrokers kafka bs
     return kafka
-
---------------------------------------------------------------
 
 -- | Produce a single unkeyed message to either a random partition or specified partition. Since
 -- librdkafka is backed by a queue, this function can return before messages are sent. See

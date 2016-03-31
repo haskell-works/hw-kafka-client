@@ -2,10 +2,8 @@ module Kafka.Examples.ConsumerExample
 
 where
 
-import           Control.Arrow              ((&&&))
-import           Kafka
+import           Control.Arrow  ((&&&))
 import           Kafka.Consumer
-import           Kafka.Internal.RdKafkaEnum
 
 iterator :: [Integer]
 iterator = [0 .. 20]
