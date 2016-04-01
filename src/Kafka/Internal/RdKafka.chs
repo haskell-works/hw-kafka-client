@@ -507,11 +507,11 @@ newRdKafkaQueue k = do
     -> `RdKafkaRespErrT' cIntToEnum #}
     
 {#fun unsafe rd_kafka_commit as ^
-    {`RdKafkaTPtr', `RdKafkaTopicPartitionListTPtr', `Int'}
+    {`RdKafkaTPtr', `RdKafkaTopicPartitionListTPtr', boolToCInt `Bool'}
     -> `RdKafkaRespErrT' cIntToEnum #}
     
 {#fun unsafe rd_kafka_commit_message as ^
-    {`RdKafkaTPtr', `RdKafkaMessageTPtr', `Int'}
+    {`RdKafkaTPtr', `RdKafkaMessageTPtr', boolToCInt `Bool'}
     -> `RdKafkaRespErrT' cIntToEnum #}
     
 {#fun unsafe rd_kafka_position as ^ 

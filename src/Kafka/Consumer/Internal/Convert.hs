@@ -5,9 +5,12 @@ where
 import           Control.Monad
 import           Data.Int
 import           Foreign
+import           Foreign.C.Error
 import           Foreign.C.String
 import           Kafka.Consumer.Internal.Types
 import           Kafka.Internal.RdKafka
+import           Kafka.Internal.RdKafkaEnum
+import           Kafka.Internal.Shared
 import           Kafka.Internal.Types
 
 -- | Converts offsets sync policy to integer (the way Kafka understands it):
@@ -69,3 +72,37 @@ toNativeTopicPartitionList ps = do
         rdKafkaTopicPartitionListSetOffset pl tn tp to) ps
     return pl
 
+topicPartitionFromMessage :: KafkaMessage -> KafkaTopicPartition
+topicPartitionFromMessage m =
+    KafkaTopicPartition (TopicName $ messageTopic m) (messagePartition m) (KafkaOffset $ messageOffset m)
+
+fromMessagePtr :: RdKafkaMessageTPtr -> IO (Either KafkaError KafkaMessage)
+fromMessagePtr ptr =
+    withForeignPtr ptr $ \realPtr ->
+    if realPtr == nullPtr then liftM (Left . kafkaRespErr) getErrno
+    else do
+        addForeignPtrFinalizer rdKafkaMessageDestroy ptr
+        s <- peek realPtr
+        if err'RdKafkaMessageT s /= RdKafkaRespErrNoError
+            then return $ Left . KafkaResponseError $ err'RdKafkaMessageT s
+            else Right <$> fromMessageStorable s
+
+fromMessageStorable :: RdKafkaMessageT -> IO KafkaMessage
+fromMessageStorable s = do
+    payload <- word8PtrToBS (len'RdKafkaMessageT s) (payload'RdKafkaMessageT s)
+    topic   <- newForeignPtr_ (topic'RdKafkaMessageT s) >>= rdKafkaTopicName
+
+    key <- if key'RdKafkaMessageT s == nullPtr
+               then return Nothing
+               else liftM Just $ word8PtrToBS (keyLen'RdKafkaMessageT s) (key'RdKafkaMessageT s)
+
+    return $ KafkaMessage
+             topic
+             (partition'RdKafkaMessageT s)
+             (offset'RdKafkaMessageT s)
+             payload
+             key
+
+offsetCommitToBool :: OffsetCommit -> Bool
+offsetCommitToBool OffsetCommit = False
+offsetCommitToBool OffsetCommitAsync = True

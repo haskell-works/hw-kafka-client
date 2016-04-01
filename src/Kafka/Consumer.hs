@@ -7,11 +7,14 @@ module Kafka.Consumer
 , assign
 , subscribe
 , pollMessage
+, commitOffsetMessage
+, commitAllOffsets
 , closeConsumer
 
 -- Types
 , CIT.ConsumerGroupId (..)
 , CIT.TopicName (..)
+, CIT.OffsetCommit (..)
 , IT.BrokersString (..)
 , IT.Kafka
 , IT.KafkaError (..)
@@ -137,35 +140,52 @@ subscribe (Kafka k _) ts = do
     mapM_ (\(TopicName t) -> rdKafkaTopicPartitionListAdd pl t (-1)) ts
     KafkaResponseError <$> rdKafkaSubscribe k pl
 
+-- | Commit message's offset on broker for the message's partition.
+commitOffsetMessage :: Kafka                   -- ^ Kafka handle
+                    -> OffsetCommit            -- ^ Offset commit mode, will block if `OffsetCommit`
+                    -> KafkaMessage
+                    -> IO (Maybe KafkaError)
+commitOffsetMessage k o m =
+    toNativeTopicPartitionList [topicPartitionFromMessage m] >>= commitOffsets k o
+
+-- | Commit offsets for all currently assigned partitions.
+commitAllOffsets :: Kafka                      -- ^ Kafka handle
+                 -> OffsetCommit               -- ^ Offset commit mode, will block if `OffsetCommit`
+                 -> IO (Maybe KafkaError)
+commitAllOffsets k o =
+    newForeignPtr_ nullPtr >>= commitOffsets k o
+
 -- | Closes the consumer and destroys it.
 closeConsumer :: Kafka -> IO KafkaError
 closeConsumer (Kafka k _) = KafkaResponseError <$> rdKafkaConsumerClose k
 
 -----------------------------------------------------------------------------
-setTopicValue :: KafkaTopic -> String -> String -> IO ()
-setTopicValue (KafkaTopic _ _ conf) = setKafkaTopicConfValue conf
-
 pollMessage :: Kafka
                -> Int -- ^ the timeout, in milliseconds (@10^3@ per second)
                -> IO (Either KafkaError KafkaMessage) -- ^ Left on error or timeout, right for success
 pollMessage (Kafka k _) timeout =
     rdKafkaConsumerPoll k (fromIntegral timeout) >>= fromMessagePtr
 
+commitOffsets :: Kafka -> OffsetCommit -> RdKafkaTopicPartitionListTPtr -> IO (Maybe KafkaError)
+commitOffsets (Kafka k _) o pl =
+    (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaCommit k pl (offsetCommitToBool o)
+
+
 -- | Redirects 'consumeMessage' to poll. Implementation details.
-setHlConsumer :: Kafka -> IO KafkaError
-setHlConsumer (Kafka k _) = KafkaResponseError <$> rdKafkaPollSetConsumer k
+-- setHlConsumer :: Kafka -> IO KafkaError
+-- setHlConsumer (Kafka k _) = KafkaResponseError <$> rdKafkaPollSetConsumer k
 
 -- | Sets the offset store for a specified topic.
 -- @librdkafka@ supports both @broker@ and @file@ but it seems that consumers with groups
 -- can only support @broker@. Which is good and enough.
-setOffsetStore :: KafkaTopic -> OffsetStoreMethod -> IO ()
-setOffsetStore t o =
-    let setValue = setTopicValue t
-    in  case o of
-          OffsetStoreBroker ->
-              setValue "offset.store.method" "broker"
+-- setOffsetStore :: KafkaTopic -> OffsetStoreMethod -> IO ()
+-- setOffsetStore t o =
+--     let setValue = setTopicValue t
+--     in  case o of
+--           OffsetStoreBroker ->
+--               setValue "offset.store.method" "broker"
 
-          OffsetStoreFile path sync -> do
-              setValue "offset.store.method" "file"
-              setValue "offset.store.file" path
-              setValue "offset.store.sync.interval.ms" (show $ offsetSyncToInt sync)
+--           OffsetStoreFile path sync -> do
+--               setValue "offset.store.method" "file"
+--               setValue "offset.store.file" path
+--               setValue "offset.store.sync.interval.ms" (show $ offsetSyncToInt sync)

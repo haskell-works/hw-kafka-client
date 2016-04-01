@@ -13,7 +13,7 @@ cabal-version:       >=1.10
 
 source-repository head
   type:     git
-  location: git://github.com/cosbynator/haskakafka.git
+  location: git://github.com/alexeyraga/kafka-client.git
 
 library
   Build-tools:       c2hs

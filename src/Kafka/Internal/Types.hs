@@ -55,22 +55,6 @@ data KafkaOffset =
   | KafkaOffsetInvalid
   deriving (Eq, Show)
 
--- | Represents /received/ messages from a Kafka broker (i.e. used in a consumer)
-data KafkaMessage =
-  KafkaMessage {
-                  messageTopic     :: !String
-                 -- | Kafka partition this message was received from
-               ,  messagePartition :: !Int
-                 -- | Offset within the 'messagePartition' Kafka partition
-               , messageOffset     :: !Int64
-                 -- | Contents of the message, as a 'ByteString'
-               , messagePayload    :: !BS.ByteString
-                 -- | Optional key of the message. 'Nothing' when the message
-                 -- was enqueued without a key
-               , messageKey        :: Maybe BS.ByteString
-               }
-  deriving (Eq, Show, Read, Typeable)
-
 --
 -- Metadata
 --

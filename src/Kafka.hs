@@ -20,7 +20,6 @@ module Kafka
 , IT.KafkaTopic
 
 , IT.KafkaOffset(..)
-, IT.KafkaMessage(..)
 
 , PIT.KafkaProduceMessage(..)
 , PIT.KafkaProducePartition(..)
@@ -46,7 +45,6 @@ import           Kafka.Internal.Setup
 import           Kafka.Internal.Types
 import           Kafka.Producer
 import           Kafka.Producer.Internal.Convert
-import           Kafka.Producer.Internal.Types
 
 import           Control.Exception
 import           Control.Monad

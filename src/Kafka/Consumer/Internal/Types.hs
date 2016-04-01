@@ -1,7 +1,12 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+
 module Kafka.Consumer.Internal.Types
 
 where
 
+import qualified Data.ByteString      as BS
+import           Data.Int
+import           Data.Typeable
 import           Kafka.Internal.Types
 
 newtype ConsumerGroupId = ConsumerGroupId String deriving (Show, Eq)
@@ -15,6 +20,13 @@ newtype ConsumerGroupId = ConsumerGroupId String deriving (Show, Eq)
 newtype TopicName =
     TopicName String -- ^ a simple topic name or a regex if started with @^@
     deriving (Show, Eq)
+
+-- | Offsets commit mode
+data OffsetCommit =
+      OffsetCommit       -- ^ Forces consumer to block until the broker offsets commit is done
+    | OffsetCommitAsync  -- ^ Offsets will be committed in a non-blocking way
+    deriving (Show, Eq)
+
 
 -- | Indicates how offsets are to be synced to disk
 data OffsetStoreSync =
@@ -32,4 +44,20 @@ data KafkaTopicPartition = KafkaTopicPartition
   { ktpTopicName :: TopicName
   , ktpPartition :: Int
   , ktpOffset    :: KafkaOffset } deriving (Show, Eq)
+
+-- | Represents /received/ messages from a Kafka broker (i.e. used in a consumer)
+data KafkaMessage =
+  KafkaMessage {
+                  messageTopic     :: !String
+                 -- | Kafka partition this message was received from
+               ,  messagePartition :: !Int
+                 -- | Offset within the 'messagePartition' Kafka partition
+               , messageOffset     :: !Int64
+                 -- | Contents of the message, as a 'ByteString'
+               , messagePayload    :: !BS.ByteString
+                 -- | Optional key of the message. 'Nothing' when the message
+                 -- was enqueued without a key
+               , messageKey        :: Maybe BS.ByteString
+               }
+  deriving (Eq, Show, Read, Typeable)
 
