@@ -111,27 +111,6 @@ produceMessageBatch (KafkaTopic topicPtr _ _) partition pms = do
                    , key'RdKafkaMessageT       = passedKey
                    }
 
--- | Connects to Kafka broker in producer mode for a given topic, taking a function
--- that is fed with 'Kafka' and 'KafkaTopic' instances. After receiving handles you
--- should be using 'produceMessage', 'produceKeyedMessage' and 'produceMessageBatch'
--- to publish messages. This function drains the outbound queue automatically before returning.
-withKafkaProducer :: ConfigOverrides -- ^ config overrides for kafka. See <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md>. Use an empty list if you don't care.
-                  -> ConfigOverrides -- ^ config overrides for topic. See <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md>. Use an empty list if you don't care.
-                  -> String -- ^ broker string, e.g. localhost:9092
-                  -> String -- ^ topic name
-                  -> (Kafka -> KafkaTopic -> IO a)  -- ^ your code, fed with 'Kafka' and 'KafkaTopic' instances for subsequent interaction.
-                  -> IO a -- ^ returns what your code does
-withKafkaProducer configOverrides topicConfigOverrides brokerString tName cb =
-  bracket
-    (do
-      kafka <- newKafka RdKafkaProducer configOverrides
-      addBrokers kafka brokerString
-      topic <- newKafkaTopic kafka tName topicConfigOverrides
-      return (kafka, topic)
-    )
-    (\(kafka, _) -> drainOutQueue kafka)
-    (uncurry cb)
-
 -- | Opens a connection with brokers and returns metadata about topics, partitions and brokers.
 fetchBrokerMetadata :: ConfigOverrides -- ^ connection overrides, see <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md>
                     -> String  -- broker connection string, e.g. localhost:9092

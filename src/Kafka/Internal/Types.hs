@@ -9,14 +9,8 @@ import           Data.Typeable
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.RdKafkaEnum
 
-import qualified Data.ByteString            as BS
-
 -- | Comma separated broker:port string (e.g. @broker1:9092,broker2:9092@)
 newtype BrokersString = BrokersString String deriving (Show, Eq)
-
---
--- Pointer wrappers
---
 
 -- | Kafka configuration object
 data KafkaConf = KafkaConf RdKafkaConfTPtr deriving (Show)

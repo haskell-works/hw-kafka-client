@@ -3,6 +3,10 @@
 Kafka bindings for Haskell backed by the 
 [librdkafka C module](https://github.com/edenhill/librdkafka).
 
+## Credits
+This project is inspired by [Haskakafka](https://github.com/cosbynator/haskakafka) 
+which unfortunately doesn't seem to be actively maintained.
+
 # Consumer
 High level consumers are supported by `librdkafka` starting from version 0.9.  
 High-level consumers provide an abstraction for consuming messages from multiple 
