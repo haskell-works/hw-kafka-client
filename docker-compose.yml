@@ -1,0 +1,20 @@
+zookeeper:
+  image: wurstmeister/zookeeper
+  hostname: zookeeper
+  ports:
+    - 2182:2181
+  environment:
+    SERVICE_NAME: zookeeper
+    
+kafka:
+  image: wurstmeister/kafka
+  hostname: kafka
+  ports:
+    - 9092:9092
+  links:
+    - zookeeper:zk
+  environment:
+    KAFKA_ZOOKEEPER_CONNECT: $HOST_IP:2082
+    KAFKA_ADVERTISED_HOST_NAME: localhost
+    KAFKA_ADVERTISED_PORT: 9092
+    #KAFKA_CREATE_TOPICS: 

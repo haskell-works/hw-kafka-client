@@ -22,15 +22,13 @@ addBrokers (Kafka kptr _) brokerStr = do
 
 -- | Create kafka object with the given configuration. Most of the time
 -- you will not need to use this function directly
--- (see 'withKafkaProducer' and 'withKafkaConsumer').
-newKafka :: RdKafkaTypeT -> ConfigOverrides -> IO Kafka
-newKafka kafkaType overrides = kafkaConf overrides >>= newKafkaPtr kafkaType
+newKafka :: RdKafkaTypeT -> KafkaProps -> IO Kafka
+newKafka kafkaType props = kafkaConf props >>= newKafkaPtr kafkaType
 
 -- | Create a kafka topic object with the given configuration. Most of the
 -- time you will not need to use this function directly
--- (see 'withKafkaProducer' and 'withKafkaConsumer')
-newKafkaTopic :: Kafka -> String -> ConfigOverrides -> IO KafkaTopic
-newKafkaTopic k tName overrides = kafkaTopicConf overrides >>= newKafkaTopicPtr k tName
+newKafkaTopic :: Kafka -> String -> TopicProps -> IO KafkaTopic
+newKafkaTopic k tName overrides = topicConf overrides >>= newKafkaTopicPtr k tName
 
 newKafkaPtr :: RdKafkaTypeT -> KafkaConf -> IO Kafka
 newKafkaPtr kafkaType c@(KafkaConf confPtr) = do
@@ -39,44 +37,33 @@ newKafkaPtr kafkaType c@(KafkaConf confPtr) = do
         Left e -> error e
         Right x -> return $ Kafka x c
 
-newKafkaTopicPtr :: Kafka -> String -> KafkaTopicConf -> IO KafkaTopic
-newKafkaTopicPtr k@(Kafka kPtr _) tName conf@(KafkaTopicConf confPtr) = do
+newKafkaTopicPtr :: Kafka -> String -> TopicConf -> IO KafkaTopic
+newKafkaTopicPtr k@(Kafka kPtr _) tName conf@(TopicConf confPtr) = do
     et <- newRdKafkaTopicT kPtr tName confPtr
     case et of
         Left e -> throw $ KafkaError e
         Right x -> return $ KafkaTopic x k conf
 
 --
--- Misc.
---
--- | Sets library log level (noisiness) with respect to a kafka instance
-setLogLevel :: Kafka -> KafkaLogLevel -> IO ()
-setLogLevel (Kafka kptr _) level =
-  rdKafkaSetLogLevel kptr (fromEnum level)
-
---
 -- Configuration
 --
 
--- | Used to override default config properties for consumers and producers
-type ConfigOverrides = [(String, String)]
-
-newKafkaTopicConf :: IO KafkaTopicConf
-newKafkaTopicConf = liftM KafkaTopicConf newRdKafkaTopicConfT
+newTopicConf :: IO TopicConf
+newTopicConf = liftM TopicConf newRdKafkaTopicConfT
 
 newKafkaConf :: IO KafkaConf
 newKafkaConf = liftM KafkaConf newRdKafkaConfT
 
-kafkaConf :: ConfigOverrides -> IO KafkaConf
+kafkaConf :: KafkaProps -> IO KafkaConf
 kafkaConf overrides = do
   conf <- newKafkaConf
   setAllKafkaConfValues conf overrides
   return conf
 
-kafkaTopicConf :: ConfigOverrides -> IO KafkaTopicConf
-kafkaTopicConf overrides = do
-  conf <- newKafkaTopicConf
-  setAllKafkaTopicConfValues conf overrides
+topicConf :: TopicProps -> IO TopicConf
+topicConf overrides = do
+  conf <- newTopicConf
+  setAllTopicConfValues conf overrides
   return conf
 
 checkConfSetValue :: RdKafkaConfResT -> CCharBufPointer -> IO ()
@@ -95,17 +82,17 @@ setKafkaConfValue (KafkaConf confPtr) key value =
     err <- rdKafkaConfSet confPtr key value charPtr (fromIntegral nErrorBytes)
     checkConfSetValue err charPtr
 
-setAllKafkaConfValues :: KafkaConf -> ConfigOverrides -> IO ()
-setAllKafkaConfValues conf overrides = forM_ overrides $ \(k, v) -> setKafkaConfValue conf k v
+setAllKafkaConfValues :: KafkaConf -> KafkaProps -> IO ()
+setAllKafkaConfValues conf (KafkaProps props) = forM_ props $ uncurry (setKafkaConfValue conf)
 
-setKafkaTopicConfValue :: KafkaTopicConf -> String -> String -> IO ()
-setKafkaTopicConfValue (KafkaTopicConf confPtr) key value =
+setTopicConfValue :: TopicConf -> String -> String -> IO ()
+setTopicConfValue (TopicConf confPtr) key value =
   allocaBytes nErrorBytes $ \charPtr -> do
     err <- rdKafkaTopicConfSet confPtr key value charPtr (fromIntegral nErrorBytes)
     checkConfSetValue err charPtr
 
-setAllKafkaTopicConfValues :: KafkaTopicConf -> ConfigOverrides -> IO ()
-setAllKafkaTopicConfValues conf overrides = forM_ overrides $ uncurry (setKafkaTopicConfValue conf)
+setAllTopicConfValues :: TopicConf -> TopicProps -> IO ()
+setAllTopicConfValues conf (TopicProps props) = forM_ props $ uncurry (setTopicConfValue conf)
 
 
 --
@@ -125,10 +112,10 @@ dumpConfFromKafka (Kafka _ cfg) = dumpKafkaConf cfg
 
 -- | Returns a map of the current topic configuration
 dumpConfFromKafkaTopic :: KafkaTopic -> IO (Map String String)
-dumpConfFromKafkaTopic (KafkaTopic _ _ conf) = dumpKafkaTopicConf conf
+dumpConfFromKafkaTopic (KafkaTopic _ _ conf) = dumpTopicConf conf
 
-dumpKafkaTopicConf :: KafkaTopicConf -> IO (Map String String)
-dumpKafkaTopicConf (KafkaTopicConf kptr) = parseDump (rdKafkaTopicConfDump kptr)
+dumpTopicConf :: TopicConf -> IO (Map String String)
+dumpTopicConf (TopicConf kptr) = parseDump (rdKafkaTopicConfDump kptr)
 
 dumpKafkaConf :: KafkaConf -> IO (Map String String)
 dumpKafkaConf (KafkaConf kptr) = parseDump (rdKafkaConfDump kptr)

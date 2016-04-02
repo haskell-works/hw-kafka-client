@@ -1,0 +1,65 @@
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
+module Kafka.IntegrationSpec
+( spec
+) where
+
+import           Control.Exception
+import           Control.Monad.Loops
+import           Data.Either
+import           System.Environment
+
+import           Kafka
+import           Kafka.Consumer
+import           Kafka.Producer
+
+import           Test.Hspec
+
+brokerAddress :: IO BrokersString
+brokerAddress = BrokersString <$> getEnv "KAFKA_TEST_BROKER" `catch` \(_ :: SomeException) -> (return "localhost:9092")
+
+testTopic :: IO TopicName
+testTopic = TopicName <$> getEnv "KAFKA_TEST_TOPIC" `catch` \(_ :: SomeException) -> (return "kafka-client_tests")
+
+spec :: Spec
+spec = describe "Kafka.IntegrationSpec" $ do
+    it "sends messages to test topic" $ do
+        broker <- brokerAddress
+        topic  <- testTopic
+        res    <- runProducer broker emptyKafkaProps (sendMessages topic)
+        res `shouldBe` [Nothing, Nothing]
+
+    it "consumes messages from test topic" $ do
+        broker <- brokerAddress
+        topic  <- testTopic
+        res    <- runConsumer
+                      (ConsumerGroupId "test_group")
+                      broker
+                      (KafkaProps [ {- ("debug", "all") -} ])
+                      (TopicProps [("auto.offset.reset", "smallest")])
+                      [topic]
+                      receiveMessages
+        print $ show res
+        length <$> res `shouldBe` Right 2
+
+----------------------------------------------------------------------------------------------------------------
+
+receiveMessages :: Kafka -> IO (Either a [ReceivedMessage])
+receiveMessages kafka =
+     (Right . rights) <$> www
+     where
+         www = whileJust maybeMsg return
+         isOK msg = if msg /= Left (KafkaResponseError RdKafkaRespErrPartitionEof) then Just msg else Nothing
+         maybeMsg = isOK <$> pollMessage kafka (Timeout 1000)
+
+testMessages :: [ProduceMessage]
+testMessages =
+    [ ProduceMessage "test from producer"
+    , ProduceKeyedMessage "key" "test from producer (with key)"
+    ]
+
+sendMessages :: TopicName -> Kafka -> IO [Maybe KafkaError]
+sendMessages (TopicName t) kafka = do
+    topic <- newKafkaTopic kafka t emptyTopicProps
+    mapM (produceMessage topic UnassignedPartition) testMessages

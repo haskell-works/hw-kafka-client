@@ -1,4 +1,6 @@
-# kafka-client 
+# kafka-client  
+[![Circle CI](https://circleci.com/gh/AlexeyRaga/kafka-client.svg?style=svg&circle-token=18e38040c80537f89e482d504c6fe68346824eb8)](https://circleci.com/gh/AlexeyRaga/kafka-client)
+
 
 Kafka bindings for Haskell backed by the 
 [librdkafka C module](https://github.com/edenhill/librdkafka).
@@ -23,11 +25,12 @@ import Kafka.Consumer
 runConsumerExample :: IO ()
 runConsumerExample = do
     res <- runConsumer
-              (ConsumerGroupId "test_group")    -- group id is required
-              []                                -- extra kafka conf properties
-              (BrokersString "localhost:9092")  -- kafka brokers to connect to
-              [TopicName "^hl-test*"]           -- list of topics to consume, supporting regex
-              processMessages                   -- handler to consume messages
+               (ConsumerGroupId "test_group")    -- consumer group id is required
+               (BrokersString "localhost:9092")  -- kafka brokers to connect to
+               emptyKafkaProps                   -- extra kafka conf properties
+               emptyTopicProps                   -- extra topic conf props (like offset reset, etc.)
+               [TopicName "^hl-test*"]           -- list of topics to consume, supporting regex
+               processMessages                   -- handler to consume messages
     print $ show res
 
 -- this function is used inside consumer 
@@ -64,9 +67,9 @@ import Kafka.Producer
 runProducerExample :: IO ()
 runProducerExample = do
     res <- runProducer 
-              [] 
-              (BrokersString "localhost:9092") 
-              sendMessages
+               (BrokersString "localhost:9092")       -- kafka brokers to connect to
+               emptyKafkaProps                        -- extra kafka conf properties
+               sendMessages                           -- this function is to send messages
     print $ show res
 
 -- This callback function just need to return an IO of anything.

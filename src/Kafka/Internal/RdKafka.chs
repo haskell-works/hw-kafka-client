@@ -490,6 +490,12 @@ newRdKafkaQueue k = do
     
 {#fun unsafe rd_kafka_consumer_poll as ^
     {`RdKafkaTPtr', `Int'} -> `RdKafkaMessageTPtr' #}
+
+pollRdKafkaConsumer :: RdKafkaTPtr -> Int -> IO RdKafkaMessageTPtr
+pollRdKafkaConsumer k t = do
+    m <- rdKafkaConsumerPoll k t
+    addForeignPtrFinalizer rdKafkaMessageDestroy m
+    return m
     
 {#fun unsafe rd_kafka_consumer_close as ^
     {`RdKafkaTPtr'} -> `RdKafkaRespErrT' cIntToEnum #}

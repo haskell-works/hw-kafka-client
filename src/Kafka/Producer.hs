@@ -1,14 +1,14 @@
 module Kafka.Producer
 ( runProducerConf
 , runProducer
-, newKafkaProducerConf
-, newKafkaProducer
+, newProducerConf
+, newProducer
 , produceMessage
 , produceMessageBatch
 , drainOutQueue
 , IS.newKafkaTopic
-, PIT.KafkaProduceMessage (..)
-, PIT.KafkaProducePartition (..)
+, PIT.ProduceMessage (..)
+, PIT.ProducePartition (..)
 , RDE.RdKafkaRespErrT (..)
 )
 where
@@ -29,36 +29,36 @@ import qualified Kafka.Internal.RdKafkaEnum      as RDE
 import qualified Kafka.Internal.Setup            as IS
 import qualified Kafka.Producer.Internal.Types   as PIT
 
-runProducerConf :: KafkaConf
-                -> BrokersString
+runProducerConf :: BrokersString
+                -> KafkaConf
                 -> (Kafka -> IO a)
                 -> IO a
-runProducerConf c bs f =
+runProducerConf bs c f =
     bracket mkProducer clProducer runHandler
     where
-        mkProducer = newKafkaProducer bs c
+        mkProducer = newProducer bs c
         clProducer = drainOutQueue
         runHandler = f
 
-runProducer :: ConfigOverrides     -- ^ Extra kafka consumer parameters (see kafka documentation)
-            -> BrokersString       -- ^ Comma separated list of brokers with ports (e.g. @localhost:9092@)
+runProducer :: BrokersString    -- ^ Comma separated list of brokers with ports (e.g. @localhost:9092@)
+            -> KafkaProps       -- ^ Extra kafka producer parameters (see kafka documentation)
             -> (Kafka -> IO a)
             -> IO a
-runProducer c bs f = do
-    conf <- newKafkaProducerConf c
-    runProducerConf conf bs f
+runProducer bs c f = do
+    conf <- newProducerConf c
+    runProducerConf bs conf f
 
 -- | Creates a new kafka configuration for a producer'.
-newKafkaProducerConf :: ConfigOverrides  -- ^ Extra kafka producer parameters (see kafka documentation)
-                     -> IO KafkaConf     -- ^ Kafka configuration which can be altered before it is used in 'newKafkaProducer'
-newKafkaProducerConf =
+newProducerConf :: KafkaProps    -- ^ Extra kafka producer parameters (see kafka documentation)
+                -> IO KafkaConf  -- ^ Kafka configuration which can be altered before it is used in 'newProducer'
+newProducerConf =
     kafkaConf
 
 -- | Creates a new kafka producer
-newKafkaProducer :: BrokersString -- ^ Comma separated list of brokers with ports (e.g. @localhost:9092@)
-                 -> KafkaConf     -- ^ Kafka configuration for a producer (see 'newKafkaProducerConf')
-                 -> IO Kafka      -- ^ Kafka instance
-newKafkaProducer (BrokersString bs) conf = do
+newProducer :: BrokersString -- ^ Comma separated list of brokers with ports (e.g. @localhost:9092@)
+            -> KafkaConf     -- ^ Kafka configuration for a producer (see 'newProducerConf')
+            -> IO Kafka      -- ^ Kafka instance
+newProducer (BrokersString bs) conf = do
     kafka <- newKafkaPtr RdKafkaProducer conf
     addBrokers kafka bs
     return kafka
@@ -67,14 +67,14 @@ newKafkaProducer (BrokersString bs) conf = do
 -- librdkafka is backed by a queue, this function can return before messages are sent. See
 -- 'drainOutQueue' to wait for queue to empty.
 produceMessage :: KafkaTopic             -- ^ target topic
-               -> KafkaProducePartition  -- ^ the "default" target partition. Only used for messages with no message key specified.
-               -> KafkaProduceMessage    -- ^ the message to enqueue. This function is undefined for keyed messages.
+               -> ProducePartition  -- ^ the "default" target partition. Only used for messages with no message key specified.
+               -> ProduceMessage    -- ^ the message to enqueue. This function is undefined for keyed messages.
                -> IO (Maybe KafkaError)  -- ^ 'Nothing' on success, error if something went wrong.
 produceMessage (KafkaTopic t _ _) p m =
     let (key, payload) = keyAndPayload m
     in  withBS (Just payload) $ \payloadPtr payloadLength ->
             withBS key $ \keyPtr keyLength ->
-                let realPart = if keyLength == 0 then p else KafkaUnassignedPartition
+                let realPart = if keyLength == 0 then p else UnassignedPartition
                 in  handleProduceErr =<<
                         rdKafkaProduce t (producePartitionCInt realPart)
                           copyMsgFlags payloadPtr (fromIntegral payloadLength)
@@ -83,9 +83,9 @@ produceMessage (KafkaTopic t _ _) p m =
 -- | Produce a batch of messages. Since librdkafka is backed by a queue, this function can return
 -- before messages are sent. See 'drainOutQueue' to wait for the queue to be empty.
 produceMessageBatch :: KafkaTopic  -- ^ topic pointer
-                    -> KafkaProducePartition -- ^ the "default" target partition. Only used for messages with no message key specified.
-                    -> [KafkaProduceMessage] -- ^ list of messages to enqueue.
-                    -> IO [(KafkaProduceMessage, KafkaError)] -- list of failed messages with their errors. This will be empty on success.
+                    -> ProducePartition -- ^ the "default" target partition. Only used for messages with no message key specified.
+                    -> [ProduceMessage] -- ^ list of messages to enqueue.
+                    -> IO [(ProduceMessage, KafkaError)] -- list of failed messages with their errors. This will be empty on success.
 produceMessageBatch (KafkaTopic t _ _) p pms = do
   msgs <- forM pms toNativeMessage
   let msgsCount = length msgs
@@ -103,7 +103,7 @@ produceMessageBatch (KafkaTopic t _ _) p pms = do
           in  withBS (Just payload) $ \payloadPtr payloadLength ->
                   withBS key $ \keyPtr keyLength ->
                       withForeignPtr t $ \ptrTopic ->
-                          let realPart = if keyLength == 0 then p else KafkaUnassignedPartition
+                          let realPart = if keyLength == 0 then p else UnassignedPartition
                           in  return RdKafkaMessageT
                                   { err'RdKafkaMessageT       = RdKafkaRespErrNoError
                                   , topic'RdKafkaMessageT     = ptrTopic
@@ -123,9 +123,9 @@ drainOutQueue k = do
     l <- outboundQueueLength k
     unless (l == 0) $ drainOutQueue k
 ------------------------------------------------------------------------------------
-keyAndPayload :: KafkaProduceMessage -> (Maybe BS.ByteString, BS.ByteString)
-keyAndPayload (KafkaProduceMessage payload) = (Nothing, payload)
-keyAndPayload (KafkaProduceKeyedMessage key payload) = (Just key, payload)
+keyAndPayload :: ProduceMessage -> (Maybe BS.ByteString, BS.ByteString)
+keyAndPayload (ProduceMessage payload) = (Nothing, payload)
+keyAndPayload (ProduceKeyedMessage key payload) = (Just key, payload)
 
 withBS :: Maybe BS.ByteString -> (Ptr a -> Int -> IO b) -> IO b
 withBS Nothing f = f nullPtr 0

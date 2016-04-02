@@ -1,0 +1,35 @@
+machine:
+  services:
+    - docker
+    
+dependencies:
+  cache_directories:
+    - "~/.stack"
+    
+  pre:
+    - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.9 10
+    - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.9 10
+    - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
+    - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.8 20
+    - wget https://github.com/commercialhaskell/stack/releases/download/v1.0.4/stack-1.0.4-linux-x86_64.tar.gz -O /tmp/stack.tar.gz
+    - tar -C /tmp -xf /tmp/stack.tar.gz && chmod +x /tmp/stack-*/stack
+    - sudo mv /tmp/stack-*/stack /usr/bin/stack
+  
+  override:
+    - build/build-librdkafka.sh
+    - stack setup
+    - stack clean
+    - LD_LIBRARY_PATH=/usr/local/lib stack build
+
+test:
+  pre:
+    - export HOST_IP=`ifconfig | grep "inet addr:" | grep "Bcast:0.0.0.0" | cut -d: -f2 | awk '{ print $1}'`
+    - docker-compose up -d
+    - sleep 2
+  
+  override:
+    - stack clean
+    - LD_LIBRARY_PATH=/usr/local/lib stack test
+  
+  post:
+    - find . -path "*/test-reports/*" -exec mv {} ${CIRCLE_TEST_REPORTS} \;

@@ -1,8 +1,7 @@
 name:                kafka-client
 version:             1.0.0
-synopsis:            Kafka bindings for Haskell
-description:         Apache Kafka bindings backed by the librdkafka C library. 
-homepage:            http://github.com/alexeyraga/kafka-client
+homepage:            https://github.com/alexeyraga/kafka-client
+bug-reports:         https://github.com/alexeyraga/kafka-client/issues
 license:             MIT
 license-file:        LICENSE
 author:              Alexey Raga <alexey.raga@gmail.com>
@@ -10,6 +9,16 @@ maintainer:          Alexey Raga <alexey.raga@gmail.com>
 category:            Database
 build-type:          Simple
 cabal-version:       >=1.10
+synopsis:            Kafka bindings for Haskell 
+description:         Apache Kafka bindings backed by the librdkafka C library.
+  .
+  Features include:
+  .
+  * Consumer groups: auto-rebalancing consumers
+  .
+  * Keyed and keyless messages producing/consuming
+  .
+  * Batch producing messages
 
 source-repository head
   type:     git
@@ -33,6 +42,12 @@ library
     Kafka.Examples.ConsumerExample
     Kafka.Examples.ProducerExample
   other-modules: 
+    Kafka.Consumer.Internal.Convert
+    Kafka.Consumer.Internal.Types
+    Kafka.Internal.Shared
+    Kafka.Metadata.Internal.Types
+    Kafka.Producer.Internal.Convert
+    Kafka.Producer.Internal.Types
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -Wall 
@@ -42,14 +57,16 @@ library
 
 test-suite tests
   type:                exitcode-stdio-1.0
-  Default-language:    Haskell2010
-  Main-Is:             TestMain.hs
-  HS-Source-Dirs:      tests
+  default-language:    Haskell2010
+  hs-source-dirs:      tests
+  other-modules:       Kafka.IntegrationSpec
+  main-is:             Spec.hs
   ghc-options:         -Wall -threaded
   build-depends:       base >=4.6 && < 5
                      , bytestring
                      , containers
-                     , haskakafka
+                     , kafka-client
+                     , monad-loops
                      , hspec
                      , regex-posix
                      , either-unwrap

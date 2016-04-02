@@ -9,14 +9,14 @@ import           Kafka
 data KafkaMetadata = KafkaMetadata
     {
     -- | Broker metadata
-      brokers :: [KafkaBrokerMetadata]
+      brokers :: [BrokerMetadata]
     -- | topic metadata
-    , topics  :: [Either KafkaError KafkaTopicMetadata]
+    , topics  :: [Either KafkaError TopicMetadata]
     }
   deriving (Eq, Show, Typeable)
 
 -- | Metadata for a specific Kafka broker
-data KafkaBrokerMetadata = KafkaBrokerMetadata
+data BrokerMetadata = BrokerMetadata
     {
     -- | broker identifier
       brokerId   :: Int
@@ -28,16 +28,16 @@ data KafkaBrokerMetadata = KafkaBrokerMetadata
   deriving (Eq, Show, Typeable)
 
 -- | Metadata for a specific topic
-data KafkaTopicMetadata = KafkaTopicMetadata
+data TopicMetadata = TopicMetadata
     {
     -- | name of the topic
       topicName       :: String
     -- | partition metadata
-    , topicPartitions :: [Either KafkaError KafkaPartitionMetadata]
+    , topicPartitions :: [Either KafkaError PartitionMetadata]
     } deriving (Eq, Show, Typeable)
 
 -- | Metadata for a specific partition
-data KafkaPartitionMetadata = KafkaPartitionMetadata
+data PartitionMetadata = PartitionMetadata
     {
     -- | identifier for the partition
       partitionId       :: Int

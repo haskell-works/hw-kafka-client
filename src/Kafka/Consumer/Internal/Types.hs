@@ -39,40 +39,39 @@ data OffsetStoreMethod =
     | OffsetStoreFile FilePath OffsetStoreSync  -- ^ Offsets are stored in a file (and synced to disk according to the sync policy)
 
 -- | Kafka topic partition structure
-data KafkaTopicPartition = KafkaTopicPartition
-  { ktpTopicName :: TopicName
-  , ktpPartition :: Int
-  , ktpOffset    :: KafkaOffset } deriving (Show, Eq)
+data TopicPartition = TopicPartition
+  { tpTopicName :: TopicName
+  , tpPartition :: Int
+  , tpOffset    :: PartitionOffset } deriving (Show, Eq)
 
 -- | Represents /received/ messages from a Kafka broker (i.e. used in a consumer)
-data KafkaMessage =
-  KafkaMessage {
-                  messageTopic     :: !String
-                 -- | Kafka partition this message was received from
-               ,  messagePartition :: !Int
-                 -- | Offset within the 'messagePartition' Kafka partition
-               , messageOffset     :: !Int64
-                 -- | Contents of the message, as a 'ByteString'
-               , messagePayload    :: !BS.ByteString
-                 -- | Optional key of the message. 'Nothing' when the message
-                 -- was enqueued without a key
-               , messageKey        :: Maybe BS.ByteString
-               }
+data ReceivedMessage = ReceivedMessage
+  { messageTopic     :: !String
+    -- | Kafka partition this message was received from
+  , messagePartition :: !Int
+    -- | Offset within the 'messagePartition' Kafka partition
+  , messageOffset    :: !Int64
+    -- | Contents of the message, as a 'ByteString'
+  , messagePayload   :: !BS.ByteString
+    -- | Optional key of the message. 'Nothing' when the message
+    -- was enqueued without a key
+  , messageKey       :: Maybe BS.ByteString
+  }
   deriving (Eq, Show, Read, Typeable)
 
-data KafkaOffset =
+data PartitionOffset =
   -- | Start reading from the beginning of the partition
-    KafkaOffsetBeginning
+    PartitionOffsetBeginning
 
   -- | Start reading from the end
-  | KafkaOffsetEnd
+  | PartitionOffsetEnd
 
   -- | Start reading from a specific location within the partition
-  | KafkaOffset Int64
+  | PartitionOffset Int64
 
   -- | Start reading from the stored offset. See
   -- <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md librdkafka's documentation>
   -- for offset store configuration.
-  | KafkaOffsetStored
-  | KafkaOffsetInvalid
+  | PartitionOffsetStored
+  | PartitionOffsetInvalid
   deriving (Eq, Show)

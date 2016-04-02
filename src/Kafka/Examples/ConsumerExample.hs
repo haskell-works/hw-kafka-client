@@ -13,8 +13,9 @@ runConsumerExample :: IO ()
 runConsumerExample = do
     res <- runConsumer
               (ConsumerGroupId "test_group")
-              []
               (BrokersString "localhost:9092")
+              emptyKafkaProps
+              emptyTopicProps
               [TopicName "^hl-test*"]
               processMessages
     print $ show res
@@ -22,16 +23,17 @@ runConsumerExample = do
 consumerExample :: IO ()
 consumerExample = do
     print "creating kafka conf"
-    conf <- newKafkaConsumerConf (ConsumerGroupId "test_group") []
-
+    kafkaConf <- newConsumerConf (ConsumerGroupId "test_group_0") emptyKafkaProps
+    topicConf <- newConsumerTopicConf emptyTopicProps
     -- unnecessary, demo only
-    setRebalanceCallback conf printingRebalanceCallback
-    setOffsetCommitCallback conf printingOffsetCallback
+    setRebalanceCallback kafkaConf printingRebalanceCallback
+    setOffsetCommitCallback kafkaConf printingOffsetCallback
 
     res <- runConsumerConf
-               conf
+               kafkaConf
+               topicConf
                (BrokersString "localhost:9092")
-               [TopicName "^hl-test*"]
+               [TopicName "kafka-client_tests"]
                processMessages
 
     print $ show res
@@ -46,10 +48,10 @@ processMessages kafka = do
                    print $ show err) iterator
     return $ Right ()
 
-printingRebalanceCallback :: Kafka -> KafkaError -> [KafkaTopicPartition] -> IO ()
+printingRebalanceCallback :: Kafka -> KafkaError -> [TopicPartition] -> IO ()
 printingRebalanceCallback k e ps = do
     print $ show e
-    mapM_ (print . show . (ktpTopicName &&& ktpPartition &&& ktpOffset)) ps
+    mapM_ (print . show . (tpTopicName &&& tpPartition &&& tpOffset)) ps
     case e of
         KafkaResponseError RdKafkaRespErrAssignPartitions ->
             assign k ps >>= print . show
@@ -58,7 +60,7 @@ printingRebalanceCallback k e ps = do
         x -> print "UNKNOWN (and unlikely!)" >> print (show x)
 
 
-printingOffsetCallback :: Kafka -> KafkaError -> [KafkaTopicPartition] -> IO ()
+printingOffsetCallback :: Kafka -> KafkaError -> [TopicPartition] -> IO ()
 printingOffsetCallback _ e ps = do
     print $ show e
-    mapM_ (print . show . (ktpTopicName &&& ktpPartition &&& ktpOffset)) ps
+    mapM_ (print . show . (tpTopicName &&& tpPartition &&& tpOffset)) ps

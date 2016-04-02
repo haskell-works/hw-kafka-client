@@ -3,9 +3,9 @@ module Kafka.Metadata
 , getAllMetadata
 , getTopicMetadata
 , MIT.KafkaMetadata (..)
-, MIT.KafkaBrokerMetadata (..)
-, MIT.KafkaTopicMetadata (..)
-, MIT.KafkaPartitionMetadata (..)
+, MIT.BrokerMetadata (..)
+, MIT.TopicMetadata (..)
+, MIT.PartitionMetadata (..)
 )
 
 where
@@ -24,13 +24,13 @@ import           Kafka.Metadata.Internal.Types
 import qualified Kafka.Metadata.Internal.Types as MIT
 
 -- | Opens a connection with brokers and returns metadata about topics, partitions and brokers.
-getBrokerMetadata :: ConfigOverrides -- ^ connection overrides, see <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md>
+getBrokerMetadata :: KafkaProps      -- ^ connection overrides, see <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md>
                   -> BrokersString   -- ^ broker connection string, e.g. localhost:9092
                   -> Timeout         -- ^ timeout for the request, in milliseconds (10^3 per second)
                   -> IO (Either KafkaError KafkaMetadata) -- Left on error, Right with metadata on success
 getBrokerMetadata c bs t = do
   conf  <- kafkaConf c
-  kafka <- newKafkaConsumer bs conf
+  kafka <- newConsumer bs conf
   getAllMetadata kafka t
 
 -- | Grabs all metadata from a given Kafka instance.
@@ -43,7 +43,7 @@ getAllMetadata k = getMetadata k Nothing
 getTopicMetadata :: Kafka
                  -> KafkaTopic
                  -> Timeout  -- ^ timeout in milliseconds (10^3 per second)
-                 -> IO (Either KafkaError KafkaTopicMetadata)
+                 -> IO (Either KafkaError TopicMetadata)
 getTopicMetadata k kt t = do
   err <- getMetadata k (Just kt) t
   case err of
@@ -84,10 +84,10 @@ getMetadata (Kafka kPtr _) mTopic (Timeout ms) = alloca $ \mdDblPtr -> do
 
       constructBrokerMetadata bmd = do
         hostStr <- peekCString (host'RdKafkaMetadataBrokerT bmd)
-        return $ KafkaBrokerMetadata
-                  (id'RdKafkaMetadataBrokerT bmd)
-                  hostStr
-                  (port'RdKafkaMetadataBrokerT bmd)
+        return $ BrokerMetadata
+                    (id'RdKafkaMetadataBrokerT bmd)
+                    hostStr
+                    (port'RdKafkaMetadataBrokerT bmd)
 
       constructTopicMetadata tmd =
         case err'RdKafkaMetadataTopicT tmd of
@@ -97,7 +97,7 @@ getMetadata (Kafka kPtr _) mTopic (Timeout ms) = alloca $ \mdDblPtr -> do
 
             topicStr <- peekCString (topic'RdKafkaMetadataTopicT tmd)
             partitionsMds <- mapM (constructPartitionMetadata <=< peekElemOff partitionsPtr) [0..(fromIntegral nPartitions - 1)]
-            return $ Right $ KafkaTopicMetadata topicStr partitionsMds
+            return $ Right $ TopicMetadata topicStr partitionsMds
           e -> return $ Left $ KafkaResponseError e
 
       constructPartitionMetadata pmd =
@@ -109,7 +109,7 @@ getMetadata (Kafka kPtr _) mTopic (Timeout ms) = alloca $ \mdDblPtr -> do
                 isrsPtr     = isrs'RdKafkaMetadataPartitionT pmd
             replicas <- mapM (peekElemOff replicasPtr) [0..(fromIntegral nReplicas - 1)]
             isrs     <- mapM (peekElemOff isrsPtr) [0..(fromIntegral nIsrs - 1)]
-            return $ Right $ KafkaPartitionMetadata
+            return $ Right $ PartitionMetadata
               (id'RdKafkaMetadataPartitionT pmd)
               (leader'RdKafkaMetadataPartitionT pmd)
               (map fromIntegral replicas)

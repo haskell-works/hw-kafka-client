@@ -27,55 +27,55 @@ offsetSyncToInt sync =
         OffsetSyncInterval ms -> ms
 {-# INLINE offsetSyncToInt #-}
 
-offsetToInt64 :: KafkaOffset -> Int64
+offsetToInt64 :: PartitionOffset -> Int64
 offsetToInt64 o = case o of
-    KafkaOffsetBeginning -> -2
-    KafkaOffsetEnd       -> -1
-    KafkaOffset off      -> off
-    KafkaOffsetStored    -> -1000
-    KafkaOffsetInvalid   -> -1001
+    PartitionOffsetBeginning -> -2
+    PartitionOffsetEnd       -> -1
+    PartitionOffset off      -> off
+    PartitionOffsetStored    -> -1000
+    PartitionOffsetInvalid   -> -1001
 {-# INLINE offsetToInt64 #-}
 
-int64ToOffset :: Int64 -> KafkaOffset
+int64ToOffset :: Int64 -> PartitionOffset
 int64ToOffset o
-    | o == -2    = KafkaOffsetBeginning
-    | o == -1    = KafkaOffsetEnd
-    | o == -1000 = KafkaOffsetStored
-    | o >= 0     = KafkaOffset o
-    | otherwise  = KafkaOffsetInvalid
+    | o == -2    = PartitionOffsetBeginning
+    | o == -1    = PartitionOffsetEnd
+    | o == -1000 = PartitionOffsetStored
+    | o >= 0     = PartitionOffset o
+    | otherwise  = PartitionOffsetInvalid
 {-# INLINE int64ToOffset #-}
 
-fromNativeTopicPartitionList :: RdKafkaTopicPartitionListT -> IO [KafkaTopicPartition]
+fromNativeTopicPartitionList :: RdKafkaTopicPartitionListT -> IO [TopicPartition]
 fromNativeTopicPartitionList pl =
     let count = cnt'RdKafkaTopicPartitionListT pl
         elems = elems'RdKafkaTopicPartitionListT pl
     in mapM (peekElemOff elems >=> toPart) [0..(fromIntegral count - 1)]
     where
-        toPart :: RdKafkaTopicPartitionT -> IO KafkaTopicPartition
+        toPart :: RdKafkaTopicPartitionT -> IO TopicPartition
         toPart p = do
             topic <- peekCString $ topic'RdKafkaTopicPartitionT p
-            return KafkaTopicPartition {
-                ktpTopicName = TopicName topic,
-                ktpPartition = partition'RdKafkaTopicPartitionT p,
-                ktpOffset    = int64ToOffset $ offset'RdKafkaTopicPartitionT p
+            return TopicPartition {
+                tpTopicName = TopicName topic,
+                tpPartition = partition'RdKafkaTopicPartitionT p,
+                tpOffset    = int64ToOffset $ offset'RdKafkaTopicPartitionT p
             }
 
-toNativeTopicPartitionList :: [KafkaTopicPartition] -> IO RdKafkaTopicPartitionListTPtr
+toNativeTopicPartitionList :: [TopicPartition] -> IO RdKafkaTopicPartitionListTPtr
 toNativeTopicPartitionList ps = do
     pl <- newRdKafkaTopicPartitionListT (length ps)
     mapM_ (\p -> do
-        let TopicName tn = ktpTopicName p
-            tp = ktpPartition p
-            to = offsetToInt64 $ ktpOffset p
+        let TopicName tn = tpTopicName p
+            tp = tpPartition p
+            to = offsetToInt64 $ tpOffset p
         _ <- rdKafkaTopicPartitionListAdd pl tn tp
         rdKafkaTopicPartitionListSetOffset pl tn tp to) ps
     return pl
 
-topicPartitionFromMessage :: KafkaMessage -> KafkaTopicPartition
+topicPartitionFromMessage :: ReceivedMessage -> TopicPartition
 topicPartitionFromMessage m =
-    KafkaTopicPartition (TopicName $ messageTopic m) (messagePartition m) (KafkaOffset $ messageOffset m)
+    TopicPartition (TopicName $ messageTopic m) (messagePartition m) (PartitionOffset $ messageOffset m)
 
-fromMessagePtr :: RdKafkaMessageTPtr -> IO (Either KafkaError KafkaMessage)
+fromMessagePtr :: RdKafkaMessageTPtr -> IO (Either KafkaError ReceivedMessage)
 fromMessagePtr ptr =
     withForeignPtr ptr $ \realPtr ->
     if realPtr == nullPtr then liftM (Left . kafkaRespErr) getErrno
@@ -86,7 +86,7 @@ fromMessagePtr ptr =
             then return $ Left . KafkaResponseError $ err'RdKafkaMessageT s
             else Right <$> fromMessageStorable s
 
-fromMessageStorable :: RdKafkaMessageT -> IO KafkaMessage
+fromMessageStorable :: RdKafkaMessageT -> IO ReceivedMessage
 fromMessageStorable s = do
     payload <- word8PtrToBS (len'RdKafkaMessageT s) (payload'RdKafkaMessageT s)
     topic   <- newForeignPtr_ (topic'RdKafkaMessageT s) >>= rdKafkaTopicName
@@ -95,7 +95,7 @@ fromMessageStorable s = do
                then return Nothing
                else liftM Just $ word8PtrToBS (keyLen'RdKafkaMessageT s) (key'RdKafkaMessageT s)
 
-    return $ KafkaMessage
+    return $ ReceivedMessage
              topic
              (partition'RdKafkaMessageT s)
              (offset'RdKafkaMessageT s)

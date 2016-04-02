@@ -13,13 +13,14 @@ copyMsgFlags :: Int
 copyMsgFlags = rdKafkaMsgFlagCopy
 {-# INLINE copyMsgFlags  #-}
 
-producePartitionInt :: KafkaProducePartition -> Int
-producePartitionInt KafkaUnassignedPartition = -1
-producePartitionInt (KafkaSpecifiedPartition n) = n
+producePartitionInt :: ProducePartition -> Int
+producePartitionInt UnassignedPartition = -1
+producePartitionInt (SpecifiedPartition n) = n
 {-# INLINE producePartitionInt #-}
 
-producePartitionCInt :: KafkaProducePartition -> CInt
+producePartitionCInt :: ProducePartition -> CInt
 producePartitionCInt = fromIntegral . producePartitionInt
+{-# INLINE producePartitionCInt #-}
 
 handleProduceErr :: Int -> IO (Maybe KafkaError)
 handleProduceErr (- 1) = liftM (Just . kafkaRespErr) getErrno

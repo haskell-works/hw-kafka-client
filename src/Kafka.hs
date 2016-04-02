@@ -12,6 +12,16 @@ import           Data.Typeable
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.RdKafkaEnum
 
+-- | Used to override default kafka config properties for consumers and producers
+newtype KafkaProps = KafkaProps [(String, String)] deriving (Show, Eq)
+emptyKafkaProps :: KafkaProps
+emptyKafkaProps = KafkaProps []
+
+-- | Used to override default topic config properties for consumers and producers
+newtype TopicProps = TopicProps [(String, String)] deriving (Show, Eq)
+emptyTopicProps :: TopicProps
+emptyTopicProps = TopicProps []
+
 -- | Comma separated broker:port string (e.g. @broker1:9092,broker2:9092@)
 newtype BrokersString = BrokersString String deriving (Show, Eq)
 
@@ -22,7 +32,7 @@ newtype Timeout = Timeout Int deriving (Show, Eq)
 data KafkaConf = KafkaConf RdKafkaConfTPtr deriving (Show)
 
 -- | Kafka topic configuration object
-data KafkaTopicConf = KafkaTopicConf RdKafkaTopicConfTPtr
+data TopicConf = TopicConf RdKafkaTopicConfTPtr
 
 -- | Main pointer to Kafka object, which contains our brokers
 data Kafka = Kafka { kafkaPtr :: RdKafkaTPtr, _kafkaConf :: KafkaConf} deriving (Show)
@@ -31,7 +41,7 @@ data Kafka = Kafka { kafkaPtr :: RdKafkaTPtr, _kafkaConf :: KafkaConf} deriving 
 data KafkaTopic = KafkaTopic
     RdKafkaTopicTPtr
     Kafka -- Kept around to prevent garbage collection
-    KafkaTopicConf
+    TopicConf
 
 -- | Log levels for the RdKafkaLibrary used in 'setKafkaLogLevel'
 data KafkaLogLevel =
@@ -71,10 +81,9 @@ data KafkaError =
 
 instance Exception KafkaError
 
-
-
-
-
-
+-- | Sets library log level (noisiness) with respect to a kafka instance
+setLogLevel :: Kafka -> KafkaLogLevel -> IO ()
+setLogLevel (Kafka kptr _) level =
+  rdKafkaSetLogLevel kptr (fromEnum level)
 
 
