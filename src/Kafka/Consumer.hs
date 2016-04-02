@@ -45,8 +45,8 @@ import qualified Kafka.Internal.Types            as IT
 runConsumerConf :: KafkaConf                            -- ^ Consumer config (see 'newKafkaConsumerConf')
                 -> BrokersString                        -- ^ Comma separated list of brokers with ports (e.g. @localhost:9092@)
                 -> [TopicName]                          -- ^ List of topics to be consumed
-                -> (Kafka -> IO (Either KafkaError ())) -- ^ A callback function to poll and handle messages
-                -> IO (Either KafkaError ())
+                -> (Kafka -> IO (Either KafkaError a))  -- ^ A callback function to poll and handle messages
+                -> IO (Either KafkaError a)
 runConsumerConf c bs ts f =
     bracket mkConsumer clConsumer runHandler
     where
@@ -71,8 +71,8 @@ runConsumer :: ConsumerGroupId                       -- ^ Consumer group id (a @
              -> ConfigOverrides                      -- ^ Extra kafka consumer parameters (see kafka documentation)
              -> BrokersString                        -- ^ Comma separated list of brokers with ports (e.g. @localhost:9092@)
              -> [TopicName]                          -- ^ List of topics to be consumed
-             -> (Kafka -> IO (Either KafkaError ())) -- ^ A callback function to poll and handle messages
-             -> IO (Either KafkaError ())
+             -> (Kafka -> IO (Either KafkaError a))  -- ^ A callback function to poll and handle messages
+             -> IO (Either KafkaError a)
 runConsumer g c bs ts f = do
     conf <- newKafkaConsumerConf g c
     runConsumerConf conf bs ts f

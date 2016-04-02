@@ -58,6 +58,6 @@ printingRebalanceCallback k e ps = do
 
 
 printingOffsetCallback :: Kafka -> KafkaError -> [KafkaTopicPartition] -> IO ()
-printingOffsetCallback k e ps = do
+printingOffsetCallback _ e ps = do
     print $ show e
     mapM_ (print . show . (ktpTopicName &&& ktpPartition &&& ktpOffset)) ps
