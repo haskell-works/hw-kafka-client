@@ -25,6 +25,7 @@ consumerExample = do
 
     -- unnecessary, demo only
     setRebalanceCallback conf printingRebalanceCallback
+    setOffsetCommitCallback conf printingOffsetCallback
 
     res <- runConsumerConf
                conf
@@ -39,22 +40,24 @@ processMessages :: Kafka -> IO (Either KafkaError ())
 processMessages kafka = do
     mapM_ (\_ -> do
                    msg1 <- pollMessage kafka 1000
-                   print $ show msg1) iterator
+                   print $ show msg1
+                   err <- commitAllOffsets kafka OffsetCommit
+                   print $ show err) iterator
     return $ Right ()
 
 printingRebalanceCallback :: Kafka -> KafkaError -> [KafkaTopicPartition] -> IO ()
 printingRebalanceCallback k e ps = do
     print $ show e
-    print "partitions: "
     mapM_ (print . show . (ktpTopicName &&& ktpPartition &&& ktpOffset)) ps
     case e of
-        KafkaResponseError RdKafkaRespErrAssignPartitions -> do
-            err <- assign k ps
-            print $ "Assign result: " ++ show err
-        KafkaResponseError RdKafkaRespErrRevokePartitions -> do
-            err <- assign k []
-            print $ "Revoke result: " ++ show err
-        x ->
-            print "UNKNOWN (and unlikely!)" >> print (show x)
+        KafkaResponseError RdKafkaRespErrAssignPartitions ->
+            assign k ps >>= print . show
+        KafkaResponseError RdKafkaRespErrRevokePartitions ->
+            assign k [] >>= print . show
+        x -> print "UNKNOWN (and unlikely!)" >> print (show x)
 
 
+printingOffsetCallback :: Kafka -> KafkaError -> [KafkaTopicPartition] -> IO ()
+printingOffsetCallback k e ps = do
+    print $ show e
+    mapM_ (print . show . (ktpTopicName &&& ktpPartition &&& ktpOffset)) ps

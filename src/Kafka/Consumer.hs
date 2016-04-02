@@ -9,6 +9,7 @@ module Kafka.Consumer
 , pollMessage
 , commitOffsetMessage
 , commitAllOffsets
+, setOffsetCommitCallback
 , closeConsumer
 
 -- Types
@@ -110,6 +111,28 @@ setRebalanceCallback :: KafkaConf
                      -> (Kafka -> KafkaError -> [KafkaTopicPartition] -> IO ())
                      -> IO ()
 setRebalanceCallback (KafkaConf conf) callback = rdKafkaConfSetRebalanceCb conf realCb
+  where
+    realCb :: Ptr RdKafkaT -> RdKafkaRespErrT -> Ptr RdKafkaTopicPartitionListT -> Ptr Word8 -> IO ()
+    realCb rk err pl _ = do
+        rk' <- newForeignPtr_ rk
+        pl' <- peek pl
+        ps  <- fromNativeTopicPartitionList pl'
+        callback (Kafka rk' (KafkaConf conf)) (KafkaResponseError err) ps
+
+-- | Sets a callback that is called when rebalance is needed.
+--
+-- The results of automatic or manual offset commits will be scheduled
+-- for this callback and is served by `pollMessage`.
+--
+-- A callback is expected to call 'assign' according to the error code it receives.
+--
+-- If no partitions had valid offsets to commit this callback will be called
+-- with `KafkaError` == `KafkaResponseError` `RdKafkaRespErrNoOffset` which is not to be considered
+-- an error.
+setOffsetCommitCallback :: KafkaConf
+                        -> (Kafka -> KafkaError -> [KafkaTopicPartition] -> IO ())
+                        -> IO ()
+setOffsetCommitCallback (KafkaConf conf) callback = rdKafkaConfSetOffsetCommitCb conf realCb
   where
     realCb :: Ptr RdKafkaT -> RdKafkaRespErrT -> Ptr RdKafkaTopicPartitionListT -> Ptr Word8 -> IO ()
     realCb rk err pl _ = do

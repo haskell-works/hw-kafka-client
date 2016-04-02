@@ -29,6 +29,7 @@ library
     Kafka.Internal.Setup
     Kafka.Internal.Types
     Kafka.Consumer
+    Kafka.Producer
     Kafka.Examples.ConsumerExample
     Kafka.Examples.ProducerExample
   other-modules: 
