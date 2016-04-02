@@ -3,15 +3,14 @@ module Kafka.Consumer.Internal.Convert
 where
 
 import           Control.Monad
-import           Data.Int
 import           Foreign
 import           Foreign.C.Error
 import           Foreign.C.String
+import           Kafka
 import           Kafka.Consumer.Internal.Types
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.RdKafkaEnum
 import           Kafka.Internal.Shared
-import           Kafka.Internal.Types
 
 -- | Converts offsets sync policy to integer (the way Kafka understands it):
 --

@@ -1,208 +1,79 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 module Kafka
-( fetchBrokerMetadata
-, withKafkaProducer
-, produceMessageBatch
-, getAllMetadata
-, getTopicMetadata
+( module Kafka
 
--- Internal objects
-, IS.newKafka
-, IS.newKafkaTopic
-, IS.dumpConfFromKafka
-, IS.dumpConfFromKafkaTopic
-, IS.setLogLevel
-, IS.hPrintSupportedKafkaConf
-, IS.hPrintKafka
+-- ReExport
 , rdKafkaVersionStr
-
--- Type re-exports
-, IT.Kafka
-, IT.KafkaTopic
-
-, IT.KafkaOffset(..)
-
-, PIT.KafkaProduceMessage(..)
-, PIT.KafkaProducePartition(..)
-
-, IT.KafkaMetadata(..)
-, IT.KafkaBrokerMetadata(..)
-, IT.KafkaTopicMetadata(..)
-, IT.KafkaPartitionMetadata(..)
-
-, IT.KafkaLogLevel(..)
-, IT.KafkaError(..)
-, RDE.RdKafkaRespErrT
-
--- Pseudo-internal
-, addBrokers
-, drainOutQueue
-
 ) where
+
+import           Control.Exception
+import           Data.Typeable
 
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.RdKafkaEnum
-import           Kafka.Internal.Setup
-import           Kafka.Internal.Types
-import           Kafka.Producer
-import           Kafka.Producer.Internal.Convert
 
-import           Control.Exception
-import           Control.Monad
-import           Foreign                         hiding (void)
-import           Foreign.C.String
+-- | Comma separated broker:port string (e.g. @broker1:9092,broker2:9092@)
+newtype BrokersString = BrokersString String deriving (Show, Eq)
 
-import qualified Data.ByteString.Internal        as BSI
-import qualified Kafka.Internal.RdKafkaEnum      as RDE
-import qualified Kafka.Internal.Setup            as IS
-import qualified Kafka.Internal.Types            as IT
-import qualified Kafka.Producer.Internal.Types   as PIT
+-- | Timeout in milliseconds
+newtype Timeout = Timeout Int deriving (Show, Eq)
 
--- | Produce a batch of messages. Since librdkafka is backed by a queue, this function can return
--- before messages are sent. See 'drainOutQueue' to wait for the queue to be empty.
-produceMessageBatch :: KafkaTopic  -- ^ topic pointer
-                    -> KafkaProducePartition -- ^ partition to produce to. Specify 'KafkaUnassignedPartition' if you don't care, or you have keyed messsages.
-                    -> [KafkaProduceMessage] -- ^ list of messages to enqueue.
-                    -> IO [(KafkaProduceMessage, KafkaError)] -- list of failed messages with their errors. This will be empty on success.
-produceMessageBatch (KafkaTopic topicPtr _ _) partition pms = do
-  storables <- forM pms produceMessageToMessage
-  withArray storables $ \batchPtr -> do
-    batchPtrF <- newForeignPtr_ batchPtr
-    numRet    <- rdKafkaProduceBatch topicPtr partitionInt copyMsgFlags batchPtrF (length storables)
-    if numRet == length storables then return []
-    else do
-      errs <- mapM (return . err'RdKafkaMessageT <=< peekElemOff batchPtr)
-                   [0..(fromIntegral $ length storables - 1)]
-      return [(m, KafkaResponseError e) | (m, e) <- zip pms errs, e /= RdKafkaRespErrNoError]
-  where
-    partitionInt = producePartitionInteger partition
-    produceMessageToMessage (KafkaProduceMessage bs) =  do
-        let (payloadFPtr, payloadOffset, payloadLength) = BSI.toForeignPtr bs
-        withForeignPtr topicPtr $ \ptrTopic ->
-            withForeignPtr payloadFPtr $ \payloadPtr -> do
-              let passedPayload = payloadPtr `plusPtr` payloadOffset
-              return RdKafkaMessageT
-                  { err'RdKafkaMessageT       = RdKafkaRespErrNoError
-                  , topic'RdKafkaMessageT     = ptrTopic
-                  , partition'RdKafkaMessageT = fromIntegral partitionInt
-                  , len'RdKafkaMessageT       = payloadLength
-                  , payload'RdKafkaMessageT   = passedPayload
-                  , offset'RdKafkaMessageT    = 0
-                  , keyLen'RdKafkaMessageT    = 0
-                  , key'RdKafkaMessageT       = nullPtr
-                  }
-    produceMessageToMessage (KafkaProduceKeyedMessage kbs bs) =  do
-        let (payloadFPtr, payloadOffset, payloadLength) = BSI.toForeignPtr bs
-            (keyFPtr, keyOffset, keyLength) = BSI.toForeignPtr kbs
+-- | Kafka configuration object
+data KafkaConf = KafkaConf RdKafkaConfTPtr deriving (Show)
 
-        withForeignPtr topicPtr $ \ptrTopic ->
-            withForeignPtr payloadFPtr $ \payloadPtr ->
-              withForeignPtr keyFPtr $ \keyPtr -> do
-                let passedPayload = payloadPtr `plusPtr` payloadOffset
-                    passedKey = keyPtr `plusPtr` keyOffset
+-- | Kafka topic configuration object
+data KafkaTopicConf = KafkaTopicConf RdKafkaTopicConfTPtr
 
-                return RdKafkaMessageT
-                   { err'RdKafkaMessageT       = RdKafkaRespErrNoError
-                   , topic'RdKafkaMessageT     = ptrTopic
-                   , partition'RdKafkaMessageT = fromIntegral partitionInt
-                   , len'RdKafkaMessageT       = payloadLength
-                   , payload'RdKafkaMessageT   = passedPayload
-                   , offset'RdKafkaMessageT    = 0
-                   , keyLen'RdKafkaMessageT    = keyLength
-                   , key'RdKafkaMessageT       = passedKey
-                   }
+-- | Main pointer to Kafka object, which contains our brokers
+data Kafka = Kafka { kafkaPtr :: RdKafkaTPtr, _kafkaConf :: KafkaConf} deriving (Show)
 
--- | Opens a connection with brokers and returns metadata about topics, partitions and brokers.
-fetchBrokerMetadata :: ConfigOverrides -- ^ connection overrides, see <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md>
-                    -> String  -- broker connection string, e.g. localhost:9092
-                    -> Int -- timeout for the request, in milliseconds (10^3 per second)
-                    -> IO (Either KafkaError KafkaMetadata) -- Left on error, Right with metadata on success
-fetchBrokerMetadata configOverrides brokerString timeout = do
-  kafka <- newKafka RdKafkaConsumer configOverrides
-  addBrokers kafka brokerString
-  getAllMetadata kafka timeout
+-- | Main pointer to Kafka topic, which is what we consume from or produce to
+data KafkaTopic = KafkaTopic
+    RdKafkaTopicTPtr
+    Kafka -- Kept around to prevent garbage collection
+    KafkaTopicConf
 
--- | Grabs all metadata from a given Kafka instance.
-getAllMetadata :: Kafka
-               -> Int  -- ^ timeout in milliseconds (10^3 per second)
-               -> IO (Either KafkaError KafkaMetadata)
-getAllMetadata k = getMetadata k Nothing
+-- | Log levels for the RdKafkaLibrary used in 'setKafkaLogLevel'
+data KafkaLogLevel =
+  KafkaLogEmerg | KafkaLogAlert | KafkaLogCrit | KafkaLogErr | KafkaLogWarning |
+  KafkaLogNotice | KafkaLogInfo | KafkaLogDebug
 
--- | Grabs topic metadata from a given Kafka topic instance
-getTopicMetadata :: Kafka
-                 -> KafkaTopic
-                 -> Int  -- ^ timeout in milliseconds (10^3 per second)
-                 -> IO (Either KafkaError KafkaTopicMetadata)
-getTopicMetadata k kt timeout = do
-  err <- getMetadata k (Just kt) timeout
-  case err of
-    Left e -> return $ Left e
-    Right md -> case topics md of
-      [Left e]    -> return $ Left e
-      [Right tmd] -> return $ Right tmd
-      _ -> return $ Left $ KafkaError "Incorrect number of topics returned"
+instance Enum KafkaLogLevel where
+   toEnum 0 = KafkaLogEmerg
+   toEnum 1 = KafkaLogAlert
+   toEnum 2 = KafkaLogCrit
+   toEnum 3 = KafkaLogErr
+   toEnum 4 = KafkaLogWarning
+   toEnum 5 = KafkaLogNotice
+   toEnum 6 = KafkaLogInfo
+   toEnum 7 = KafkaLogDebug
+   toEnum _ = undefined
 
-getMetadata :: Kafka -> Maybe KafkaTopic -> Int -> IO (Either KafkaError KafkaMetadata)
-getMetadata (Kafka kPtr _) mTopic timeout = alloca $ \mdDblPtr -> do
-    err <- case mTopic of
-      Just (KafkaTopic kTopicPtr _ _) ->
-        rdKafkaMetadata kPtr False kTopicPtr mdDblPtr timeout
-      Nothing -> do
-        nullTopic <- newForeignPtr_ nullPtr
-        rdKafkaMetadata kPtr True nullTopic mdDblPtr timeout
+   fromEnum KafkaLogEmerg = 0
+   fromEnum KafkaLogAlert = 1
+   fromEnum KafkaLogCrit = 2
+   fromEnum KafkaLogErr = 3
+   fromEnum KafkaLogWarning = 4
+   fromEnum KafkaLogNotice = 5
+   fromEnum KafkaLogInfo = 6
+   fromEnum KafkaLogDebug = 7
 
-    case err of
-      RdKafkaRespErrNoError -> do
-        mdPtr <- peek mdDblPtr
-        md <- peek mdPtr
-        retMd <- constructMetadata md
-        rdKafkaMetadataDestroy mdPtr
-        return $ Right retMd
-      e -> return $ Left $ KafkaResponseError e
+-- | Any Kafka errors
+data KafkaError =
+    KafkaError String
+  | KafkaInvalidReturnValue
+  | KafkaBadSpecification String
+  | KafkaResponseError RdKafkaRespErrT
+  | KafkaInvalidConfigurationValue String
+  | KafkaUnknownConfigurationKey String
+  | KakfaBadConfiguration
+    deriving (Eq, Show, Typeable)
 
-    where
-      constructMetadata md =  do
-        let nBrokers   = brokerCnt'RdKafkaMetadataT md
-            brokersPtr = brokers'RdKafkaMetadataT md
-            nTopics    = topicCnt'RdKafkaMetadataT md
-            topicsPtr  = topics'RdKafkaMetadataT md
+instance Exception KafkaError
 
-        brokerMds <- mapM (constructBrokerMetadata <=< peekElemOff brokersPtr) [0..(fromIntegral nBrokers - 1)]
-        topicMds  <- mapM (constructTopicMetadata <=< peekElemOff topicsPtr)   [0..(fromIntegral nTopics - 1)]
-        return $ KafkaMetadata brokerMds topicMds
 
-      constructBrokerMetadata bmd = do
-        hostStr <- peekCString (host'RdKafkaMetadataBrokerT bmd)
-        return $ KafkaBrokerMetadata
-                  (id'RdKafkaMetadataBrokerT bmd)
-                  hostStr
-                  (port'RdKafkaMetadataBrokerT bmd)
 
-      constructTopicMetadata tmd =
-        case err'RdKafkaMetadataTopicT tmd of
-          RdKafkaRespErrNoError -> do
-            let nPartitions   = partitionCnt'RdKafkaMetadataTopicT tmd
-                partitionsPtr = partitions'RdKafkaMetadataTopicT tmd
 
-            topicStr <- peekCString (topic'RdKafkaMetadataTopicT tmd)
-            partitionsMds <- mapM (constructPartitionMetadata <=< peekElemOff partitionsPtr) [0..(fromIntegral nPartitions - 1)]
-            return $ Right $ KafkaTopicMetadata topicStr partitionsMds
-          e -> return $ Left $ KafkaResponseError e
-
-      constructPartitionMetadata pmd =
-        case err'RdKafkaMetadataPartitionT pmd of
-          RdKafkaRespErrNoError -> do
-            let nReplicas   = replicaCnt'RdKafkaMetadataPartitionT pmd
-                replicasPtr = replicas'RdKafkaMetadataPartitionT pmd
-                nIsrs       = isrCnt'RdKafkaMetadataPartitionT pmd
-                isrsPtr     = isrs'RdKafkaMetadataPartitionT pmd
-            replicas <- mapM (peekElemOff replicasPtr) [0..(fromIntegral nReplicas - 1)]
-            isrs     <- mapM (peekElemOff isrsPtr) [0..(fromIntegral nIsrs - 1)]
-            return $ Right $ KafkaPartitionMetadata
-              (id'RdKafkaMetadataPartitionT pmd)
-              (leader'RdKafkaMetadataPartitionT pmd)
-              (map fromIntegral replicas)
-              (map fromIntegral isrs)
-          e -> return $ Left $ KafkaResponseError e
 
 
 

@@ -3,6 +3,7 @@
 module Kafka.Examples.ProducerExample
 where
 
+import           Kafka
 import           Kafka.Producer
 
 runProducerExample :: IO ()

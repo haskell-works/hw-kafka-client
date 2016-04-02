@@ -3,6 +3,7 @@ module Kafka.Examples.ConsumerExample
 where
 
 import           Control.Arrow  ((&&&))
+import           Kafka
 import           Kafka.Consumer
 
 iterator :: [Integer]
@@ -39,7 +40,7 @@ consumerExample = do
 processMessages :: Kafka -> IO (Either KafkaError ())
 processMessages kafka = do
     mapM_ (\_ -> do
-                   msg1 <- pollMessage kafka 1000
+                   msg1 <- pollMessage kafka (Timeout 1000)
                    print $ show msg1
                    err <- commitAllOffsets kafka OffsetCommit
                    print $ show err) iterator

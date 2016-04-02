@@ -4,10 +4,9 @@ module Kafka.Consumer.Internal.Types
 
 where
 
-import qualified Data.ByteString      as BS
+import qualified Data.ByteString as BS
 import           Data.Int
 import           Data.Typeable
-import           Kafka.Internal.Types
 
 newtype ConsumerGroupId = ConsumerGroupId String deriving (Show, Eq)
 
@@ -61,3 +60,19 @@ data KafkaMessage =
                }
   deriving (Eq, Show, Read, Typeable)
 
+data KafkaOffset =
+  -- | Start reading from the beginning of the partition
+    KafkaOffsetBeginning
+
+  -- | Start reading from the end
+  | KafkaOffsetEnd
+
+  -- | Start reading from a specific location within the partition
+  | KafkaOffset Int64
+
+  -- | Start reading from the stored offset. See
+  -- <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md librdkafka's documentation>
+  -- for offset store configuration.
+  | KafkaOffsetStored
+  | KafkaOffsetInvalid
+  deriving (Eq, Show)

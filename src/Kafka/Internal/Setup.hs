@@ -1,8 +1,8 @@
 module Kafka.Internal.Setup where
 
+import           Kafka
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.RdKafkaEnum
-import           Kafka.Internal.Types
 
 import           Control.Exception
 import           Control.Monad

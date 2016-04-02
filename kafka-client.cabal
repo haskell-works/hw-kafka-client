@@ -27,9 +27,9 @@ library
     Kafka.Internal.RdKafka
     Kafka.Internal.RdKafkaEnum
     Kafka.Internal.Setup
-    Kafka.Internal.Types
     Kafka.Consumer
     Kafka.Producer
+    Kafka.Metadata
     Kafka.Examples.ConsumerExample
     Kafka.Examples.ProducerExample
   other-modules: 

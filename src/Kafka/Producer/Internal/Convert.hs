@@ -4,19 +4,22 @@ where
 import           Control.Monad
 import           Foreign.C.Error
 import           Foreign.C.Types
+import           Kafka
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.Shared
-import           Kafka.Internal.Types
 import           Kafka.Producer.Internal.Types
 
 copyMsgFlags :: Int
 copyMsgFlags = rdKafkaMsgFlagCopy
 {-# INLINE copyMsgFlags  #-}
 
-producePartitionInteger :: KafkaProducePartition -> CInt
-producePartitionInteger KafkaUnassignedPartition = -1
-producePartitionInteger (KafkaSpecifiedPartition n) = fromIntegral n
-{-# INLINE producePartitionInteger #-}
+producePartitionInt :: KafkaProducePartition -> Int
+producePartitionInt KafkaUnassignedPartition = -1
+producePartitionInt (KafkaSpecifiedPartition n) = n
+{-# INLINE producePartitionInt #-}
+
+producePartitionCInt :: KafkaProducePartition -> CInt
+producePartitionCInt = fromIntegral . producePartitionInt
 
 handleProduceErr :: Int -> IO (Maybe KafkaError)
 handleProduceErr (- 1) = liftM (Just . kafkaRespErr) getErrno

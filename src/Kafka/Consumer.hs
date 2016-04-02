@@ -12,13 +12,10 @@ module Kafka.Consumer
 , setOffsetCommitCallback
 , closeConsumer
 
--- Types
+-- ReExport Types
 , CIT.ConsumerGroupId (..)
 , CIT.TopicName (..)
 , CIT.OffsetCommit (..)
-, IT.BrokersString (..)
-, IT.Kafka
-, IT.KafkaError (..)
 , CIT.KafkaTopicPartition (..)
 , RDE.RdKafkaRespErrT (..)
 )
@@ -33,11 +30,9 @@ import           Kafka.Internal.RdKafka
 import           Kafka.Internal.RdKafkaEnum
 import           Kafka.Internal.Setup
 import           Kafka.Internal.Shared
-import           Kafka.Internal.Types
 
 import qualified Kafka.Consumer.Internal.Types   as CIT
 import qualified Kafka.Internal.RdKafkaEnum      as RDE
-import qualified Kafka.Internal.Types            as IT
 
 -- | Runs high-level kafka consumer.
 --
@@ -184,10 +179,10 @@ closeConsumer (Kafka k _) = KafkaResponseError <$> rdKafkaConsumerClose k
 
 -----------------------------------------------------------------------------
 pollMessage :: Kafka
-               -> Int -- ^ the timeout, in milliseconds (@10^3@ per second)
-               -> IO (Either KafkaError KafkaMessage) -- ^ Left on error or timeout, right for success
-pollMessage (Kafka k _) timeout =
-    rdKafkaConsumerPoll k (fromIntegral timeout) >>= fromMessagePtr
+            -> Timeout -- ^ the timeout, in milliseconds (@10^3@ per second)
+            -> IO (Either KafkaError KafkaMessage) -- ^ Left on error or timeout, right for success
+pollMessage (Kafka k _) (Timeout ms) =
+    rdKafkaConsumerPoll k (fromIntegral ms) >>= fromMessagePtr
 
 commitOffsets :: Kafka -> OffsetCommit -> RdKafkaTopicPartitionListTPtr -> IO (Maybe KafkaError)
 commitOffsets (Kafka k _) o pl =

@@ -17,6 +17,7 @@ group the set of consumers attempt to "rebalance" the load to assign partitions 
 ### Example:
 
 ```Haskell
+import Kafka
 import Kafka.Consumer
 
 runConsumerExample :: IO ()
@@ -35,7 +36,7 @@ runConsumerExample = do
 processMessages :: Kafka -> IO (Either KafkaError ())
 processMessages kafka = do
     mapM_ (\_ -> do
-                   msg1 <- pollMessage kafka 1000
+                   msg1 <- pollMessage kafka (Timeout 1000)
                    print $ show msg1) [1..10]
     return $ Right ()
     
@@ -57,6 +58,7 @@ which topics to produce to and how to manage them.
 ### Example
 
 ```Haskell
+import Kafka
 import Kafka.Producer
 
 runProducerExample :: IO ()
