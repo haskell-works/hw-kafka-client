@@ -50,8 +50,8 @@ runConsumerConf kc tc bs ts f =
     bracket mkConsumer clConsumer runHandler
     where
         mkConsumer = do
+            setDefaultTopicConf kc tc
             kafka <- newConsumer bs kc
-            --setDefaultTopicConf kc tc
             sErr  <- subscribe kafka ts
             return $ if hasError sErr
                          then Left (sErr, kafka)
@@ -172,7 +172,7 @@ pollMessage :: Kafka
             -> Timeout -- ^ the timeout, in milliseconds (@10^3@ per second)
             -> IO (Either KafkaError ReceivedMessage) -- ^ Left on error or timeout, right for success
 pollMessage (Kafka k _) (Timeout ms) =
-    rdKafkaConsumerPoll k (fromIntegral ms) >>= fromMessagePtr
+    pollRdKafkaConsumer k (fromIntegral ms) >>= fromMessagePtr
 
 -- | Commit message's offset on broker for the message's partition.
 commitOffsetMessage :: Kafka                   -- ^ Kafka handle
@@ -191,11 +191,8 @@ commitAllOffsets k o =
 
 -- | Closes the consumer and destroys it.
 closeConsumer :: Kafka -> IO KafkaError
-closeConsumer (Kafka k _) = do
-    print "OK, closing"
-    err <- KafkaResponseError <$> rdKafkaConsumerClose k
-    print $ show err
-    return err
+closeConsumer (Kafka k _) =
+    KafkaResponseError <$> rdKafkaConsumerClose k
 
 -----------------------------------------------------------------------------
 setDefaultTopicConf :: KafkaConf -> TopicConf -> IO ()

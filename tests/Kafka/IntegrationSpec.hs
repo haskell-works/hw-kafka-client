@@ -34,10 +34,10 @@ spec = describe "Kafka.IntegrationSpec" $ do
         broker <- brokerAddress
         topic  <- testTopic
         res    <- runConsumer
-                      (ConsumerGroupId "test_group")
+                      (ConsumerGroupId "test_group_2")
                       broker
-                      (KafkaProps [ {- ("debug", "all") -} ])
-                      (TopicProps [("auto.offset.reset", "smallest")])
+                      (KafkaProps [("enable.auto.commit", "false")])
+                      (TopicProps [("auto.offset.reset", "earliest")])
                       [topic]
                       receiveMessages
         print $ show res
@@ -51,7 +51,12 @@ receiveMessages kafka =
      where
          www = whileJust maybeMsg return
          isOK msg = if msg /= Left (KafkaResponseError RdKafkaRespErrPartitionEof) then Just msg else Nothing
-         maybeMsg = isOK <$> pollMessage kafka (Timeout 1000)
+         maybeMsg = isOK <$> get
+         get = do
+             print "willPoll"
+             x <- pollMessage kafka (Timeout 1000)
+             print $ show x
+             return x
 
 testMessages :: [ProduceMessage]
 testMessages =
@@ -61,5 +66,6 @@ testMessages =
 
 sendMessages :: TopicName -> Kafka -> IO [Maybe KafkaError]
 sendMessages (TopicName t) kafka = do
+    print "send messages"
     topic <- newKafkaTopic kafka t emptyTopicProps
     mapM (produceMessage topic UnassignedPartition) testMessages
