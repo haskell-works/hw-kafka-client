@@ -26,8 +26,7 @@ test:
     - build/test-env.sh
   
   override:
-    - stack clean
-    - LD_LIBRARY_PATH=/usr/local/lib stack test
+    - build/integration-tests.sh
   
   post:
     - find . -path "*/test-reports/*" -exec mv {} ${CIRCLE_TEST_REPORTS} \;
