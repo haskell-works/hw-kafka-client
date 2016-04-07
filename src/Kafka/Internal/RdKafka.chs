@@ -494,7 +494,7 @@ newRdKafkaQueue k = do
 pollRdKafkaConsumer :: RdKafkaTPtr -> Int -> IO RdKafkaMessageTPtr
 pollRdKafkaConsumer k t = do
     m <- rdKafkaConsumerPoll k t
-    addForeignPtrFinalizer rdKafkaMessageDestroy m
+    addForeignPtrFinalizer rdKafkaMessageDestroyF m
     return m
     
 {#fun unsafe rd_kafka_consumer_close as ^
@@ -627,7 +627,10 @@ foreign import ccall unsafe "rdkafka.h &rd_kafka_list_groups"
 
 -- rd_kafka_message
 foreign import ccall unsafe "rdkafka.h &rd_kafka_message_destroy"
-    rdKafkaMessageDestroy :: FunPtr (Ptr RdKafkaMessageT -> IO ())
+    rdKafkaMessageDestroyF :: FunPtr (Ptr RdKafkaMessageT -> IO ())
+
+foreign import ccall unsafe "rdkafka.h rd_kafka_message_destroy"
+    rdKafkaMessageDestroy :: Ptr RdKafkaMessageT -> IO ()
 
 -- rd_kafka_conf
 {#fun unsafe rd_kafka_conf_new as ^

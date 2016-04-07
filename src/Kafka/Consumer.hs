@@ -172,7 +172,7 @@ pollMessage :: Kafka
             -> Timeout -- ^ the timeout, in milliseconds (@10^3@ per second)
             -> IO (Either KafkaError ReceivedMessage) -- ^ Left on error or timeout, right for success
 pollMessage (Kafka k _) (Timeout ms) =
-    pollRdKafkaConsumer k (fromIntegral ms) >>= fromMessagePtr
+    rdKafkaConsumerPoll k (fromIntegral ms) >>= fromMessagePtr
 
 -- | Commit message's offset on broker for the message's partition.
 commitOffsetMessage :: Kafka                   -- ^ Kafka handle

@@ -53,7 +53,6 @@ receiveMessages kafka =
          isOK msg = if msg /= Left (KafkaResponseError RdKafkaRespErrPartitionEof) then Just msg else Nothing
          maybeMsg = isOK <$> get
          get = do
-             print "willPoll"
              x <- pollMessage kafka (Timeout 1000)
              print $ show x
              return x
@@ -66,6 +65,5 @@ testMessages =
 
 sendMessages :: TopicName -> Kafka -> IO [Maybe KafkaError]
 sendMessages (TopicName t) kafka = do
-    print "send messages"
     topic <- newKafkaTopic kafka t emptyTopicProps
     mapM (produceMessage topic UnassignedPartition) testMessages
