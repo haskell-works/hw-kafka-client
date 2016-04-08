@@ -119,8 +119,7 @@ setRebalanceCallback (KafkaConf conf) callback = rdKafkaConfSetRebalanceCb conf 
     realCb :: Ptr RdKafkaT -> RdKafkaRespErrT -> Ptr RdKafkaTopicPartitionListT -> Ptr Word8 -> IO ()
     realCb rk err pl _ = do
         rk' <- newForeignPtr_ rk
-        pl' <- peek pl
-        ps  <- fromNativeTopicPartitionList pl'
+        ps  <- fromNativeTopicPartitionList' pl
         callback (Kafka rk' (KafkaConf conf)) (KafkaResponseError err) ps
 
 -- | Sets a callback that is called when rebalance is needed.
@@ -141,8 +140,7 @@ setOffsetCommitCallback (KafkaConf conf) callback = rdKafkaConfSetOffsetCommitCb
     realCb :: Ptr RdKafkaT -> RdKafkaRespErrT -> Ptr RdKafkaTopicPartitionListT -> Ptr Word8 -> IO ()
     realCb rk err pl _ = do
         rk' <- newForeignPtr_ rk
-        pl' <- peek pl
-        ps  <- fromNativeTopicPartitionList pl'
+        ps  <- fromNativeTopicPartitionList' pl
         callback (Kafka rk' (KafkaConf conf)) (KafkaResponseError err) ps
 
 -- | Assigns specified partitions to a current consumer.

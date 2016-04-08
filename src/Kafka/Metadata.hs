@@ -79,7 +79,7 @@ getMetadata (Kafka kPtr _) mTopic (Timeout ms) = alloca $ \mdDblPtr -> do
             topicsPtr  = topics'RdKafkaMetadataT md
 
         brokerMds <- mapM (constructBrokerMetadata <=< peekElemOff brokersPtr) [0..(fromIntegral nBrokers - 1)]
-        topicMds  <- mapM (constructTopicMetadata <=< peekElemOff topicsPtr)   [0..(fromIntegral nTopics - 1)]
+        topicMds  <- mapM (constructTopicMetadata  <=< peekElemOff topicsPtr)  [0..(fromIntegral nTopics - 1)]
         return $ KafkaMetadata brokerMds topicMds
 
       constructBrokerMetadata bmd = do

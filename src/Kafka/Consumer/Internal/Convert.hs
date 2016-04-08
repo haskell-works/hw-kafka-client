@@ -45,6 +45,9 @@ int64ToOffset o
     | otherwise  = PartitionOffsetInvalid
 {-# INLINE int64ToOffset #-}
 
+fromNativeTopicPartitionList' :: Ptr RdKafkaTopicPartitionListT -> IO [TopicPartition]
+fromNativeTopicPartitionList' ppl = peek ppl >>= fromNativeTopicPartitionList
+
 fromNativeTopicPartitionList :: RdKafkaTopicPartitionListT -> IO [TopicPartition]
 fromNativeTopicPartitionList pl =
     let count = cnt'RdKafkaTopicPartitionListT pl
