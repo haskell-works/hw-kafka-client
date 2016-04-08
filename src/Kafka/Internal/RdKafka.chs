@@ -520,9 +520,14 @@ pollRdKafkaConsumer k t = do
     {`RdKafkaTPtr', `RdKafkaMessageTPtr', boolToCInt `Bool'}
     -> `RdKafkaRespErrT' cIntToEnum #}
     
-{#fun unsafe rd_kafka_position as ^ 
+{#fun unsafe rd_kafka_committed as ^ 
     {`RdKafkaTPtr', `RdKafkaTopicPartitionListTPtr', `Int'}
     -> `RdKafkaRespErrT' cIntToEnum #}
+
+{#fun unsafe rd_kafka_position as ^ 
+    {`RdKafkaTPtr', `RdKafkaTopicPartitionListTPtr'}
+    -> `RdKafkaRespErrT' cIntToEnum #}
+
 -------------------------------------------------------------------------------------------------
 ---- Groups
 data RdKafkaGroupMemberInfoT = RdKafkaGroupMemberInfoT
