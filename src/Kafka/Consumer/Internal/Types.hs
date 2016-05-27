@@ -7,18 +7,9 @@ where
 import qualified Data.ByteString as BS
 import           Data.Int
 import           Data.Typeable
+import           Kafka
 
 newtype ConsumerGroupId = ConsumerGroupId String deriving (Show, Eq)
-
--- | Topic name to be consumed
---
--- Wildcard (regex) topics are supported by the librdkafka assignor:
--- any topic name in the topics list that is prefixed with @^@ will
--- be regex-matched to the full list of topics in the cluster and matching
--- topics will be added to the subscription list.
-newtype TopicName =
-    TopicName String -- ^ a simple topic name or a regex if started with @^@
-    deriving (Show, Eq)
 
 -- | Offsets commit mode
 data OffsetCommit =

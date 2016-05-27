@@ -12,6 +12,16 @@ import           Data.Typeable
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.RdKafkaEnum
 
+-- | Topic name to be consumed
+--
+-- Wildcard (regex) topics are supported by the librdkafka assignor:
+-- any topic name in the topics list that is prefixed with @^@ will
+-- be regex-matched to the full list of topics in the cluster and matching
+-- topics will be added to the subscription list.
+newtype TopicName =
+    TopicName String -- ^ a simple topic name or a regex if started with @^@
+    deriving (Show, Eq)
+
 -- | Used to override default kafka config properties for consumers and producers
 newtype KafkaProps = KafkaProps [(String, String)] deriving (Show, Eq)
 emptyKafkaProps :: KafkaProps

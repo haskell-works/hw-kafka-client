@@ -15,7 +15,7 @@ module Kafka.Consumer
 
 -- ReExport Types
 , CIT.ConsumerGroupId (..)
-, CIT.TopicName (..)
+, TopicName (..)
 , CIT.OffsetCommit (..)
 , CIT.PartitionOffset (..)
 , CIT.TopicPartition (..)
