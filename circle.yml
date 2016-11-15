@@ -1,6 +1,8 @@
 machine:
   ghc:
     version: 7.10.2
+  services:
+    - docker
     
 dependencies:
   cache_directories:
