@@ -7,8 +7,6 @@ dependencies:
     - "~/.stack"
 
   pre:
-    - scripts/bintray-credentials.sh
-    - scripts/check-env-variables.sh
     - wget -qO- https://get.haskellstack.org/ | sh
     - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.9 10
     - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.9 10
