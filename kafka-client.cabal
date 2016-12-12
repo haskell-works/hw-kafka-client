@@ -52,6 +52,7 @@ library
   default-language:    Haskell2010
   ghc-options:         -Wall 
   include-dirs:        /usr/local/include/librdkafka
+                     , /usr/include/librdkafka
   extra-lib-dirs:      /usr/local/lib
   extra-libraries:     rdkafka
 
