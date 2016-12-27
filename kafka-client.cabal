@@ -54,6 +54,8 @@ library
   include-dirs:        /usr/local/include/librdkafka
   extra-lib-dirs:      /usr/local/lib
   extra-libraries:     rdkafka
+  if os(darwin)
+    cpp-options: -D__attribute__(A)= -D_Nullable= -D_Nonnull=
 
 test-suite tests
   type:                exitcode-stdio-1.0
