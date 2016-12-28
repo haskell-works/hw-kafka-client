@@ -58,8 +58,8 @@ runConsumerConf kc tc bs ts f =
             sErr  <- subscribe kafka ts
             return $ left (, kafka) sErr
 
-        clConsumer (Left (_, kafka)) = kafkaErrorToEither <$> closeConsumer kafka
-        clConsumer (Right kafka) = kafkaErrorToEither <$> closeConsumer kafka
+        clConsumer (Left (_, kafka)) = maybeToLeft <$> closeConsumer kafka
+        clConsumer (Right kafka) = maybeToLeft <$> closeConsumer kafka
 
         runHandler (Left (err, _)) = return $ Left err
         runHandler (Right kafka) = f kafka
@@ -190,9 +190,9 @@ commitAllOffsets k o =
     newForeignPtr_ nullPtr >>= commitOffsets k o
 
 -- | Closes the consumer and destroys it.
-closeConsumer :: Kafka -> IO KafkaError
+closeConsumer :: Kafka -> IO (Maybe KafkaError)
 closeConsumer (Kafka k _) =
-    KafkaResponseError <$> rdKafkaConsumerClose k
+    (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaConsumerClose k
 
 setDefaultTopicConf :: KafkaConf -> TopicConf -> IO ()
 setDefaultTopicConf (KafkaConf kc) (TopicConf tc) =

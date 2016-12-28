@@ -41,3 +41,7 @@ kafkaErrorToMaybe err = case err of
     KafkaResponseError RdKafkaRespErrNoError -> Nothing
     _ -> Just err
 {-# INLINE kafkaErrorToMaybe #-}
+
+maybeToLeft :: Maybe a -> Either a ()
+maybeToLeft = maybe (Right ()) Left 
+{-# INLINE maybeToLeft #-}
