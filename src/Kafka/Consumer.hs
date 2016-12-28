@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 module Kafka.Consumer
 ( runConsumerConf
 , runConsumer
@@ -11,6 +12,7 @@ module Kafka.Consumer
 , commitOffsetMessage
 , commitAllOffsets
 , setOffsetCommitCallback
+, setDefaultTopicConf
 , closeConsumer
 
 -- ReExport Types
@@ -24,6 +26,7 @@ module Kafka.Consumer
 )
 where
 
+import           Control.Arrow (left)
 import           Control.Exception
 import           Foreign                         hiding (void)
 import           Kafka
@@ -53,9 +56,7 @@ runConsumerConf kc tc bs ts f =
             setDefaultTopicConf kc tc
             kafka <- newConsumer bs kc
             sErr  <- subscribe kafka ts
-            return $ if hasError sErr
-                         then Left (sErr, kafka)
-                         else Right kafka
+            return $ left (, kafka) sErr
 
         clConsumer (Left (_, kafka)) = kafkaErrorToEither <$> closeConsumer kafka
         clConsumer (Right kafka) = kafkaErrorToEither <$> closeConsumer kafka
@@ -159,11 +160,12 @@ assign (Kafka k _) ps =
 -- any topic name in the topics list that is prefixed with @^@ will
 -- be regex-matched to the full list of topics in the cluster and matching
 -- topics will be added to the subscription list.
-subscribe :: Kafka -> [TopicName] -> IO KafkaError
-subscribe (Kafka k _) ts = do
+subscribe :: Kafka -> [TopicName] -> IO (Either KafkaError Kafka)
+subscribe kafka@(Kafka k _) ts = do
     pl <- newRdKafkaTopicPartitionListT (length ts)
     mapM_ (\(TopicName t) -> rdKafkaTopicPartitionListAdd pl t (-1)) ts
-    KafkaResponseError <$> rdKafkaSubscribe k pl
+    res <- KafkaResponseError <$> rdKafkaSubscribe k pl
+    return $ if hasError res then Left res else Right kafka
 
 -- | Polls the next message from a subscription
 pollMessage :: Kafka
@@ -192,11 +194,11 @@ closeConsumer :: Kafka -> IO KafkaError
 closeConsumer (Kafka k _) =
     KafkaResponseError <$> rdKafkaConsumerClose k
 
------------------------------------------------------------------------------
 setDefaultTopicConf :: KafkaConf -> TopicConf -> IO ()
 setDefaultTopicConf (KafkaConf kc) (TopicConf tc) =
     rdKafkaTopicConfDup tc >>= rdKafkaConfSetDefaultTopicConf kc
 
+-----------------------------------------------------------------------------
 commitOffsets :: Kafka -> OffsetCommit -> RdKafkaTopicPartitionListTPtr -> IO (Maybe KafkaError)
 commitOffsets (Kafka k _) o pl =
     (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaCommit k pl (offsetCommitToBool o)
