@@ -5,16 +5,15 @@ zookeeper:
     - 2182:2181
   environment:
     SERVICE_NAME: zookeeper
-    
+
 kafka:
-  image: wurstmeister/kafka
+  image: confluentinc/cp-kafka:3.1.1
   hostname: kafka
   ports:
     - 9092:9092
-#   links:
-#     - zookeeper:zk
+  links:
+    - zookeeper:zookeeper
   environment:
-    KAFKA_ZOOKEEPER_CONNECT: $HOST_IP:2182
-    KAFKA_ADVERTISED_HOST_NAME: $HOST_IP
-    KAFKA_ADVERTISED_PORT: 9092
-    #KAFKA_CREATE_TOPICS: 
+    KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+    KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://$DOCKER_IP:9092"
+    KAFKA_CREATE_TOPICS:
