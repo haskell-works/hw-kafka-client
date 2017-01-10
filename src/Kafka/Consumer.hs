@@ -26,7 +26,6 @@ module Kafka.Consumer
 )
 where
 
-import           Control.Arrow (left)
 import           Control.Exception
 import           Foreign                         hiding (void)
 import           Kafka
@@ -56,7 +55,7 @@ runConsumerConf kc tc bs ts f =
             setDefaultTopicConf kc tc
             kafka <- newConsumer bs kc
             sErr  <- subscribe kafka ts
-            return $ left (, kafka) sErr
+            return $ maybe (Right kafka) (Left . (, kafka)) sErr
 
         clConsumer (Left (_, kafka)) = maybeToLeft <$> closeConsumer kafka
         clConsumer (Right kafka) = maybeToLeft <$> closeConsumer kafka
@@ -160,12 +159,12 @@ assign (Kafka k _) ps =
 -- any topic name in the topics list that is prefixed with @^@ will
 -- be regex-matched to the full list of topics in the cluster and matching
 -- topics will be added to the subscription list.
-subscribe :: Kafka -> [TopicName] -> IO (Either KafkaError Kafka)
-subscribe kafka@(Kafka k _) ts = do
+subscribe :: Kafka -> [TopicName] -> IO (Maybe KafkaError)
+subscribe (Kafka k _) ts = do
     pl <- newRdKafkaTopicPartitionListT (length ts)
     mapM_ (\(TopicName t) -> rdKafkaTopicPartitionListAdd pl t (-1)) ts
     res <- KafkaResponseError <$> rdKafkaSubscribe k pl
-    return $ if hasError res then Left res else Right kafka
+    return $ kafkaErrorToMaybe res
 
 -- | Polls the next message from a subscription
 pollMessage :: Kafka
