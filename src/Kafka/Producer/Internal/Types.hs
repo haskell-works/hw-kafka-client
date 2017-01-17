@@ -10,11 +10,13 @@ import           Data.Typeable
 data ProduceMessage =
     -- | A message without a key, assigned to 'SpecifiedPartition' or 'UnassignedPartition'
     ProduceMessage
+                     !ProducePartition
       {-# UNPACK #-} !BS.ByteString -- message payload
 
     -- | A message with a key, assigned to a partition based on the key
   | ProduceKeyedMessage
       {-# UNPACK #-} !BS.ByteString -- message key
+                     !ProducePartition
       {-# UNPACK #-} !BS.ByteString -- message payload
   deriving (Eq, Show, Typeable)
 
@@ -25,3 +27,12 @@ data ProducePartition =
 
   -- | A random partition within the topic
   | UnassignedPartition
+  deriving (Show, Eq, Ord, Typeable)
+
+pmKey :: ProduceMessage -> Maybe BS.ByteString
+pmKey (ProduceMessage _ _) = Nothing
+pmKey (ProduceKeyedMessage k _ _) = Just k
+
+pmPartition :: ProduceMessage -> ProducePartition
+pmPartition (ProduceMessage p _) = p
+pmPartition (ProduceKeyedMessage _ p _) = p

@@ -59,11 +59,11 @@ receiveMessages kafka =
 
 testMessages :: [ProduceMessage]
 testMessages =
-    [ ProduceMessage "test from producer"
-    , ProduceKeyedMessage "key" "test from producer (with key)"
+    [ ProduceMessage UnassignedPartition "test from producer"
+    , ProduceKeyedMessage "key" UnassignedPartition "test from producer (with key)"
     ]
 
 sendMessages :: TopicName -> Kafka -> IO [Maybe KafkaError]
 sendMessages (TopicName t) kafka = do
     topic <- newKafkaTopic kafka t emptyTopicProps
-    mapM (produceMessage topic UnassignedPartition) testMessages
+    mapM (produceMessage topic) testMessages

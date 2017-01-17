@@ -95,5 +95,3 @@ instance Exception KafkaError
 setLogLevel :: Kafka -> KafkaLogLevel -> IO ()
 setLogLevel (Kafka kptr _) level =
   rdKafkaSetLogLevel kptr (fromEnum level)
-
-
