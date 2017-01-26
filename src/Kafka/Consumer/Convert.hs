@@ -60,7 +60,7 @@ fromNativeTopicPartitionList pl =
             topic <- peekCString $ topic'RdKafkaTopicPartitionT p
             return TopicPartition {
                 tpTopicName = TopicName topic,
-                tpPartition = partition'RdKafkaTopicPartitionT p,
+                tpPartition = PartitionId $ partition'RdKafkaTopicPartitionT p,
                 tpOffset    = int64ToOffset $ offset'RdKafkaTopicPartitionT p
             }
 
@@ -69,7 +69,7 @@ toNativeTopicPartitionList ps = do
     pl <- newRdKafkaTopicPartitionListT (length ps)
     mapM_ (\p -> do
         let TopicName tn = tpTopicName p
-            tp = tpPartition p
+            (PartitionId tp) = tpPartition p
             to = offsetToInt64 $ tpOffset p
         _ <- rdKafkaTopicPartitionListAdd pl tn tp
         rdKafkaTopicPartitionListSetOffset pl tn tp to) ps
@@ -77,7 +77,8 @@ toNativeTopicPartitionList ps = do
 
 topicPartitionFromMessage :: ConsumerRecord k v -> TopicPartition
 topicPartitionFromMessage m =
-    TopicPartition (TopicName $ messageTopic m) (messagePartition m) (PartitionOffset $ messageOffset m)
+  let (Offset moff) = messageOffset m
+   in TopicPartition (messageTopic m) (messagePartition m) (PartitionOffset moff)
 
 fromMessagePtr :: RdKafkaMessageTPtr -> IO (Either KafkaError (ConsumerRecord (Maybe BS.ByteString) (Maybe BS.ByteString)))
 fromMessagePtr ptr =
@@ -104,9 +105,9 @@ fromMessageStorable s = do
                else Just <$> word8PtrToBS (keyLen'RdKafkaMessageT s) (key'RdKafkaMessageT s)
 
     return $ ConsumerRecord
-             topic
-             (partition'RdKafkaMessageT s)
-             (offset'RdKafkaMessageT s)
+             (TopicName topic)
+             (PartitionId $ partition'RdKafkaMessageT s)
+             (Offset $ offset'RdKafkaMessageT s)
              key
              payload
 

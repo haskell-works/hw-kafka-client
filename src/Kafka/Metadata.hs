@@ -24,9 +24,9 @@ import           Kafka.Metadata.Internal.Types
 import qualified Kafka.Metadata.Internal.Types as MIT
 
 -- | Opens a connection with brokers and returns metadata about topics, partitions and brokers.
-getBrokerMetadata :: KafkaProps      -- ^ connection overrides, see <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md>
-                  -> BrokersString   -- ^ broker connection string, e.g. localhost:9092
-                  -> Timeout         -- ^ timeout for the request, in milliseconds (10^3 per second)
+getBrokerMetadata :: KafkaProps       -- ^ connection overrides, see <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md>
+                  -> [BrokerAddress]  -- ^ broker connection string, e.g. localhost:9092
+                  -> Timeout          -- ^ timeout for the request, in milliseconds (10^3 per second)
                   -> IO (Either KafkaError KafkaMetadata) -- Left on error, Right with metadata on success
 getBrokerMetadata c bs t = do
   conf  <- kafkaConf c
@@ -51,7 +51,7 @@ getTopicMetadata k kt t = do
     Right md -> case topics md of
       [Left e]    -> return $ Left e
       [Right tmd] -> return $ Right tmd
-      _ -> return $ Left $ KafkaError "Incorrect number of topics returned"
+      _ -> return . Left $ KafkaError "Incorrect number of topics returned"
 
 getMetadata :: Kafka -> Maybe KafkaTopic -> Timeout -> IO (Either KafkaError KafkaMetadata)
 getMetadata (Kafka kPtr _) mTopic (Timeout ms) = alloca $ \mdDblPtr -> do
@@ -69,7 +69,7 @@ getMetadata (Kafka kPtr _) mTopic (Timeout ms) = alloca $ \mdDblPtr -> do
         retMd <- constructMetadata md
         rdKafkaMetadataDestroy mdPtr
         return $ Right retMd
-      e -> return $ Left $ KafkaResponseError e
+      e -> return . Left $ KafkaResponseError e
 
     where
       constructMetadata md =  do
@@ -97,8 +97,8 @@ getMetadata (Kafka kPtr _) mTopic (Timeout ms) = alloca $ \mdDblPtr -> do
 
             topicStr <- peekCString (topic'RdKafkaMetadataTopicT tmd)
             partitionsMds <- mapM (constructPartitionMetadata <=< peekElemOff partitionsPtr) [0..(fromIntegral nPartitions - 1)]
-            return $ Right $ TopicMetadata topicStr partitionsMds
-          e -> return $ Left $ KafkaResponseError e
+            return . Right $ TopicMetadata topicStr partitionsMds
+          e -> return . Left $ KafkaResponseError e
 
       constructPartitionMetadata pmd =
         case err'RdKafkaMetadataPartitionT pmd of
@@ -109,9 +109,9 @@ getMetadata (Kafka kPtr _) mTopic (Timeout ms) = alloca $ \mdDblPtr -> do
                 isrsPtr     = isrs'RdKafkaMetadataPartitionT pmd
             replicas <- mapM (peekElemOff replicasPtr) [0..(fromIntegral nReplicas - 1)]
             isrs     <- mapM (peekElemOff isrsPtr) [0..(fromIntegral nIsrs - 1)]
-            return $ Right $ PartitionMetadata
+            return . Right $ PartitionMetadata
               (id'RdKafkaMetadataPartitionT pmd)
               (leader'RdKafkaMetadataPartitionT pmd)
               (map fromIntegral replicas)
               (map fromIntegral isrs)
-          e -> return $ Left $ KafkaResponseError e
+          e -> return . Left $ KafkaResponseError e

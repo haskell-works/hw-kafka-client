@@ -1,6 +1,7 @@
 {-# LANGUAGE TupleSections #-}
 module Kafka.Consumer
-( runConsumerConf
+( module X
+, runConsumerConf
 , runConsumer
 , newConsumerConf
 , newConsumerTopicConf
@@ -16,7 +17,6 @@ module Kafka.Consumer
 , closeConsumer
 
 -- ReExport Types
-, CIT.ConsumerGroupId (..)
 , TopicName (..)
 , CIT.OffsetCommit (..)
 , CIT.PartitionOffset (..)
@@ -28,8 +28,10 @@ where
 
 import           Control.Exception
 import qualified Data.ByteString as BS
+import qualified Data.Map as M
 import           Foreign                         hiding (void)
 import           Kafka
+import           Kafka.Consumer.ConsumerProperties
 import           Kafka.Consumer.Convert
 import           Kafka.Consumer.Types
 import           Kafka.Internal.RdKafka
@@ -40,12 +42,16 @@ import           Kafka.Internal.Shared
 import qualified Kafka.Consumer.Types   as CIT
 import qualified Kafka.Internal.RdKafkaEnum      as RDE
 
+import qualified Kafka.Types as X
+import qualified Kafka.Consumer.ConsumerProperties as X
+
+
 -- | Runs high-level kafka consumer.
 --
 -- A callback provided is expected to call 'pollMessage' when convenient.
 runConsumerConf :: KafkaConf                            -- ^ Consumer config (see 'newConsumerConf')
                 -> TopicConf                            -- ^ Topic config that is going to be used for every topic consumed by the consumer
-                -> BrokersString                        -- ^ Comma separated list of brokers with ports (e.g. @localhost:9092@)
+                -> [BrokerAddress]                      -- ^ Comma separated list of brokers with ports (e.g. @localhost:9092@)
                 -> [TopicName]                          -- ^ List of topics to be consumed
                 -> (Kafka -> IO (Either KafkaError a))  -- ^ A callback function to poll and handle messages
                 -> IO (Either KafkaError a)
@@ -67,35 +73,30 @@ runConsumerConf kc tc bs ts f =
 -- | Runs high-level kafka consumer.
 --
 -- A callback provided is expected to call 'pollMessage' when convenient.
-runConsumer :: ConsumerGroupId                       -- ^ Consumer group id (a @group.id@ property of a kafka consumer)
-             -> BrokersString                        -- ^ Comma separated list of brokers with ports (e.g. @localhost:9092@)
-             -> KafkaProps                           -- ^ Extra kafka consumer parameters (see kafka documentation)
-             -> TopicProps                           -- ^ Topic config that is going to be used for every topic consumed by the consumer             -> [TopicName]                          -- ^ List of topics to be consumed
-             -> [TopicName]                          -- ^ List of topics to be consumed
-             -> (Kafka -> IO (Either KafkaError a))  -- ^ A callback function to poll and handle messages
-             -> IO (Either KafkaError a)
-runConsumer g bs kc tc ts f = do
-    kc' <- newConsumerConf g kc
-    tc' <- newConsumerTopicConf tc
+runConsumer :: [BrokerAddress]
+            -> ConsumerProperties
+            -> TopicProps                           -- ^ Topic config that is going to be used for every topic consumed by the consumer             -> [TopicName]                          -- ^ List of topics to be consumed
+            -> [TopicName]                          -- ^ List of topics to be consumed
+            -> (Kafka -> IO (Either KafkaError a))  -- ^ A callback function to poll and handle messages
+            -> IO (Either KafkaError a)
+runConsumer bs cp tp ts f = do
+    kc' <- newConsumerConf cp
+    tc' <- newConsumerTopicConf tp
     runConsumerConf kc' tc' bs ts f
 
 -- | Creates a new kafka configuration for a consumer with a specified 'ConsumerGroupId'.
-newConsumerConf :: ConsumerGroupId  -- ^ Consumer group id (a @group.id@ property of a kafka consumer)
-                     -> KafkaProps       -- ^ Extra kafka consumer parameters (see kafka documentation)
-                     -> IO KafkaConf     -- ^ Kafka configuration which can be altered before it is used in 'newConsumer'
-newConsumerConf (ConsumerGroupId gid) conf = do
-    kc <- kafkaConf conf
-    setKafkaConfValue kc "group.id" gid
-    return kc
+newConsumerConf :: ConsumerProperties
+                -> IO KafkaConf     -- ^ Kafka configuration which can be altered before it is used in 'newConsumer'
+newConsumerConf (ConsumerProperties m) = kafkaConf (KafkaProps $ M.toList m)
 
 newConsumerTopicConf :: TopicProps -> IO TopicConf
 newConsumerTopicConf = topicConf
 
 -- | Creates a new kafka consumer
-newConsumer :: BrokersString -- ^ Comma separated list of brokers with ports (e.g. @localhost:9092@)
-                 -> KafkaConf     -- ^ Kafka configuration for a consumer (see 'newConsumerConf')
-                 -> IO Kafka      -- ^ Kafka instance
-newConsumer (BrokersString bs) conf = do
+newConsumer :: [BrokerAddress] -- ^ List of kafka brokers
+            -> KafkaConf     -- ^ Kafka configuration for a consumer (see 'newConsumerConf')
+            -> IO Kafka      -- ^ Kafka instance
+newConsumer bs conf = do
     kafka <- newKafkaPtr RdKafkaConsumer conf
     addBrokers kafka bs
     return kafka

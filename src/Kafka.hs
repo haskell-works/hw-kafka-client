@@ -1,26 +1,19 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 module Kafka
 ( module Kafka
+, module X
 
 -- ReExport
 , rdKafkaVersionStr
 ) where
 
-import           Control.Exception
-import           Data.Typeable
+import Control.Exception
+import Data.Typeable
 
-import           Kafka.Internal.RdKafka
-import           Kafka.Internal.RdKafkaEnum
+import Kafka.Internal.RdKafka
+import Kafka.Internal.RdKafkaEnum
 
--- | Topic name to be consumed
---
--- Wildcard (regex) topics are supported by the librdkafka assignor:
--- any topic name in the topics list that is prefixed with @^@ will
--- be regex-matched to the full list of topics in the cluster and matching
--- topics will be added to the subscription list.
-newtype TopicName =
-    TopicName String -- ^ a simple topic name or a regex if started with @^@
-    deriving (Show, Eq)
+import Kafka.Types as X
 
 -- | Used to override default kafka config properties for consumers and producers
 newtype KafkaProps = KafkaProps [(String, String)] deriving (Show, Eq)
@@ -32,11 +25,7 @@ newtype TopicProps = TopicProps [(String, String)] deriving (Show, Eq)
 emptyTopicProps :: TopicProps
 emptyTopicProps = TopicProps []
 
--- | Comma separated broker:port string (e.g. @broker1:9092,broker2:9092@)
-newtype BrokersString = BrokersString String deriving (Show, Eq)
 
--- | Timeout in milliseconds
-newtype Timeout = Timeout Int deriving (Show, Eq)
 
 -- | Kafka configuration object
 data KafkaConf = KafkaConf RdKafkaConfTPtr deriving (Show)

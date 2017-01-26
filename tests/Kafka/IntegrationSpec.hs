@@ -7,6 +7,7 @@ module Kafka.IntegrationSpec
 
 import           Control.Exception
 import           Control.Monad.Loops
+import           Data.Monoid ((<>))
 import           Data.Either
 import           System.Environment
 import qualified Data.ByteString as BS
@@ -17,28 +18,32 @@ import           Kafka.Producer
 
 import           Test.Hspec
 
-brokerAddress :: IO BrokersString
-brokerAddress = BrokersString <$> getEnv "KAFKA_TEST_BROKER" `catch` \(_ :: SomeException) -> (return "localhost:9092")
+brokerAddress :: IO BrokerAddress
+brokerAddress = BrokerAddress <$> getEnv "KAFKA_TEST_BROKER" `catch` \(_ :: SomeException) -> (return "localhost:9092")
 
 testTopic :: IO TopicName
 testTopic = TopicName <$> getEnv "KAFKA_TEST_TOPIC" `catch` \(_ :: SomeException) -> (return "kafka-client_tests")
 
+consumerProps :: ConsumerProperties
+consumerProps = groupId (ConsumerGroupId "it_spec_0")
+             <> offsetReset Earliest
+             <> noAutoCommit
+
 spec :: Spec
 spec = describe "Kafka.IntegrationSpec" $ do
-    it "sends messages to test topic" $ do
-        broker <- brokerAddress
-        topic  <- testTopic
-        res    <- runProducer broker emptyKafkaProps (sendMessages topic)
-        res `shouldBe` [Nothing, Nothing]
+    -- it "sends messages to test topic" $ do
+    --     broker <- brokerAddress
+    --     topic  <- testTopic
+    --     res    <- runProducer [broker] emptyKafkaProps (sendMessages topic)
+    --     res `shouldBe` [Nothing, Nothing]
 
     it "consumes messages from test topic" $ do
         broker <- brokerAddress
         topic  <- testTopic
         res    <- runConsumer
-                      (ConsumerGroupId "test_group_2")
-                      broker
-                      (KafkaProps [("enable.auto.commit", "false")])
-                      (TopicProps [("auto.offset.reset", "earliest")])
+                      [broker]
+                      consumerProps
+                      emptyTopicProps
                       [topic]
                       receiveMessages
         print $ show res

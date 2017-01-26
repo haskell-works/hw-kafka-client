@@ -24,6 +24,19 @@ source-repository head
   type:     git
   location: git://github.com/haskell-works/kafka-client.git
 
+executable kafka-client-example
+  main-is:             Main.hs
+  other-modules:       ConsumerExample
+                     , ProducerExample
+  hs-source-dirs:      example
+  default-language:    Haskell2010
+  build-depends:       base >=4.6 && < 5
+                     , bytestring
+                     , containers
+                     , temporary
+                     , unix
+                     , kafka-client
+
 library
   Build-tools:       c2hs
   build-depends:       base >=4.6 && < 5
@@ -33,14 +46,14 @@ library
                      , unix
   exposed-modules:
     Kafka
+    Kafka.Types
+    Kafka.Consumer.ConsumerProperties
     Kafka.Internal.RdKafka
     Kafka.Internal.RdKafkaEnum
     Kafka.Internal.Setup
     Kafka.Consumer
     Kafka.Producer
     Kafka.Metadata
-    Kafka.Examples.ConsumerExample
-    Kafka.Examples.ProducerExample
   other-modules:
     Kafka.Consumer.Convert
     Kafka.Consumer.Types

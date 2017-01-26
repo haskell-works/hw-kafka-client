@@ -7,6 +7,7 @@ import           Kafka.Internal.RdKafkaEnum
 import           Control.Exception
 import           Control.Monad
 import           Data.Map.Strict            (Map)
+import qualified Data.List as L
 import           Foreign
 import           Foreign.C.String
 import           System.IO
@@ -14,11 +15,13 @@ import           System.IO
 import qualified Data.Map.Strict            as Map
 
 -- | Adds a broker string to a given kafka instance.
-addBrokers :: Kafka -> String -> IO ()
-addBrokers (Kafka kptr _) brokerStr = do
-    numBrokers <- rdKafkaBrokersAdd kptr brokerStr
-    when (numBrokers == 0)
-        (throw $ KafkaBadSpecification "No valid brokers specified")
+addBrokers :: Kafka -> [BrokerAddress] -> IO ()
+addBrokers (Kafka kptr _) bs = do
+  numBrokers <- rdKafkaBrokersAdd kptr brokers
+  when (numBrokers == 0)
+       (throw $ KafkaBadSpecification "No valid brokers specified")
+  where
+    brokers = L.intercalate "," ((\(BrokerAddress x) -> x) <$> bs)
 
 -- | Create kafka object with the given configuration. Most of the time
 -- you will not need to use this function directly
@@ -49,10 +52,10 @@ newKafkaTopicPtr k@(Kafka kPtr _) tName conf@(TopicConf confPtr) = do
 --
 
 newTopicConf :: IO TopicConf
-newTopicConf = liftM TopicConf newRdKafkaTopicConfT
+newTopicConf = TopicConf <$> newRdKafkaTopicConfT
 
 newKafkaConf :: IO KafkaConf
-newKafkaConf = liftM KafkaConf newRdKafkaConfT
+newKafkaConf = KafkaConf <$> newRdKafkaConfT
 
 kafkaConf :: KafkaProps -> IO KafkaConf
 kafkaConf overrides = do

@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Kafka.Examples.ProducerExample
+module ProducerExample
 where
 
 import           Kafka
@@ -8,7 +8,7 @@ import           Kafka.Producer
 
 runProducerExample :: IO ()
 runProducerExample = do
-    res <- runProducer (BrokersString "localhost:9092") emptyKafkaProps sendMessages
+    res <- runProducer [BrokerAddress "localhost:9092"] emptyKafkaProps sendMessages
     print $ show res
 
 sendMessages :: Kafka -> IO String

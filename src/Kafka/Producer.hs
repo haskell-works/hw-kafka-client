@@ -32,7 +32,7 @@ import qualified Kafka.Internal.RdKafkaEnum      as RDE
 import qualified Kafka.Internal.Setup            as IS
 import qualified Kafka.Producer.Internal.Types   as PIT
 
-runProducerConf :: BrokersString
+runProducerConf :: [BrokerAddress]
                 -> KafkaConf
                 -> (Kafka -> IO a)
                 -> IO a
@@ -43,7 +43,7 @@ runProducerConf bs c f =
         clProducer = drainOutQueue
         runHandler = f
 
-runProducer :: BrokersString    -- ^ Comma separated list of brokers with ports (e.g. @localhost:9092@)
+runProducer :: [BrokerAddress]  -- ^ Comma separated list of brokers with ports (e.g. @localhost:9092@)
             -> KafkaProps       -- ^ Extra kafka producer parameters (see kafka documentation)
             -> (Kafka -> IO a)
             -> IO a
@@ -58,10 +58,10 @@ newProducerConf =
     kafkaConf
 
 -- | Creates a new kafka producer
-newProducer :: BrokersString -- ^ Comma separated list of brokers with ports (e.g. @localhost:9092@)
-            -> KafkaConf     -- ^ Kafka configuration for a producer (see 'newProducerConf')
-            -> IO Kafka      -- ^ Kafka instance
-newProducer (BrokersString bs) conf = do
+newProducer :: [BrokerAddress] -- ^ Comma separated list of brokers with ports (e.g. @localhost:9092@)
+            -> KafkaConf       -- ^ Kafka configuration for a producer (see 'newProducerConf')
+            -> IO Kafka        -- ^ Kafka instance
+newProducer bs conf = do
     kafka <- newKafkaPtr RdKafkaProducer conf
     addBrokers kafka bs
     return kafka

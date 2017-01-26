@@ -1,20 +1,23 @@
-module Kafka.Examples.ConsumerExample
+module ConsumerExample
 
 where
 
 import           Control.Arrow  ((&&&))
+import           Data.Monoid ((<>))
 import           Kafka
 import           Kafka.Consumer
 
 iterator :: [Integer]
 iterator = [0 .. 20]
 
+consumerProps :: ConsumerProperties
+consumerProps = groupId (ConsumerGroupId "test_group")
+             <> offsetReset Earliest
+             <> noAutoCommit
+
 runConsumerExample :: IO ()
 runConsumerExample = do
-    res <- runConsumer
-              (ConsumerGroupId "test_group")
-              (BrokersString "localhost:9092")
-              emptyKafkaProps
+    res <- runConsumer [BrokerAddress "localhost:9092"] consumerProps
               emptyTopicProps
               [TopicName "^hl-test*"]
               processMessages
@@ -23,7 +26,7 @@ runConsumerExample = do
 consumerExample :: IO ()
 consumerExample = do
     print "creating kafka conf"
-    kafkaConf <- newConsumerConf (ConsumerGroupId "test_group_0") emptyKafkaProps
+    kafkaConf <- newConsumerConf consumerProps
     topicConf <- newConsumerTopicConf emptyTopicProps
     -- unnecessary, demo only
     setRebalanceCallback kafkaConf printingRebalanceCallback
@@ -32,7 +35,7 @@ consumerExample = do
     res <- runConsumerConf
                kafkaConf
                topicConf
-               (BrokersString "localhost:9092")
+               [BrokerAddress "localhost:9092"]
                [TopicName "kafka-client_tests"]
                processMessages
 

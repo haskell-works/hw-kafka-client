@@ -10,6 +10,8 @@ import Data.Typeable
 import Kafka
 
 newtype ConsumerGroupId = ConsumerGroupId String deriving (Show, Eq)
+newtype Offset = Offset Int64 deriving (Show, Eq, Read)
+newtype PartitionId = PartitionId Int deriving (Show, Eq, Read)
 
 -- | Offsets commit mode
 data OffsetCommit =
@@ -32,16 +34,16 @@ data OffsetStoreMethod =
 -- | Kafka topic partition structure
 data TopicPartition = TopicPartition
   { tpTopicName :: TopicName
-  , tpPartition :: Int
+  , tpPartition :: PartitionId
   , tpOffset    :: PartitionOffset } deriving (Show, Eq)
 
 -- | Represents /received/ messages from a Kafka broker (i.e. used in a consumer)
 data ConsumerRecord k v = ConsumerRecord
-  { messageTopic     :: !String
+  { messageTopic     :: !TopicName
     -- | Kafka partition this message was received from
-  , messagePartition :: !Int
+  , messagePartition :: !PartitionId
     -- | Offset within the 'messagePartition' Kafka partition
-  , messageOffset    :: !Int64
+  , messageOffset    :: !Offset
   , messageKey       :: !k
   , messagePayload   :: !v
   }
