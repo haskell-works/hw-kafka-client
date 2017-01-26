@@ -32,6 +32,7 @@ import qualified Data.Map as M
 import           Foreign                         hiding (void)
 import           Kafka
 import           Kafka.Consumer.ConsumerProperties
+import           Kafka.Consumer.Subscription
 import           Kafka.Consumer.Convert
 import           Kafka.Consumer.Types
 import           Kafka.Internal.RdKafka
@@ -75,13 +76,12 @@ runConsumerConf kc tc bs ts f =
 -- A callback provided is expected to call 'pollMessage' when convenient.
 runConsumer :: [BrokerAddress]
             -> ConsumerProperties
-            -> TopicProps                           -- ^ Topic config that is going to be used for every topic consumed by the consumer             -> [TopicName]                          -- ^ List of topics to be consumed
-            -> [TopicName]                          -- ^ List of topics to be consumed
+            -> Subscription                         -- ^ List of topics to be consumed
             -> (Kafka -> IO (Either KafkaError a))  -- ^ A callback function to poll and handle messages
             -> IO (Either KafkaError a)
-runConsumer bs cp tp ts f = do
+runConsumer bs cp (Subscription ts tp) f = do
     kc' <- newConsumerConf cp
-    tc' <- newConsumerTopicConf tp
+    tc' <- newConsumerTopicConf (TopicProps $ M.toList tp)
     runConsumerConf kc' tc' bs ts f
 
 -- | Creates a new kafka configuration for a consumer with a specified 'ConsumerGroupId'.

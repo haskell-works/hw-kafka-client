@@ -48,6 +48,7 @@ library
     Kafka
     Kafka.Types
     Kafka.Consumer.ConsumerProperties
+    Kafka.Consumer.Subscription
     Kafka.Internal.RdKafka
     Kafka.Internal.RdKafkaEnum
     Kafka.Internal.Setup

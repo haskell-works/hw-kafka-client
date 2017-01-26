@@ -1,5 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-
+{-# LANGUAGE DeriveDataTypeable, GeneralizedNewtypeDeriving #-}
 module Kafka.Consumer.Types
 
 where
@@ -10,8 +9,11 @@ import Data.Typeable
 import Kafka
 
 newtype ConsumerGroupId = ConsumerGroupId String deriving (Show, Eq)
-newtype Offset = Offset Int64 deriving (Show, Eq, Read)
-newtype PartitionId = PartitionId Int deriving (Show, Eq, Read)
+newtype Offset          = Offset Int64 deriving (Show, Eq, Read)
+newtype PartitionId     = PartitionId Int deriving (Show, Eq, Read)
+newtype Millis          = Millis Int deriving (Show, Eq, Ord, Num)
+newtype ClientId        = ClientId String deriving (Show, Eq, Ord)
+data OffsetReset        = Earliest | Latest deriving (Show, Eq)
 
 -- | Offsets commit mode
 data OffsetCommit =
