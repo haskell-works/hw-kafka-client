@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-module Kafka.Producer.Internal.Types
+module Kafka.Producer.Types
 
 where
 

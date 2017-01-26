@@ -1,13 +1,12 @@
-module Kafka.Producer.Internal.Convert
+module Kafka.Producer.Convert
 where
 
-import           Control.Monad
 import           Foreign.C.Error
 import           Foreign.C.Types
 import           Kafka
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.Shared
-import           Kafka.Producer.Internal.Types
+import           Kafka.Producer.Types
 
 copyMsgFlags :: Int
 copyMsgFlags = rdKafkaMsgFlagCopy
@@ -23,7 +22,7 @@ producePartitionCInt = fromIntegral . producePartitionInt
 {-# INLINE producePartitionCInt #-}
 
 handleProduceErr :: Int -> IO (Maybe KafkaError)
-handleProduceErr (- 1) = liftM (Just . kafkaRespErr) getErrno
+handleProduceErr (- 1) = (Just . kafkaRespErr) <$> getErrno
 handleProduceErr 0 = return Nothing
 handleProduceErr _ = return $ Just KafkaInvalidReturnValue
 {-# INLINE handleProduceErr #-}

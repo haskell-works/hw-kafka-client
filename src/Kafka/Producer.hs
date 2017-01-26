@@ -22,15 +22,15 @@ import           Kafka
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.RdKafkaEnum
 import           Kafka.Internal.Setup
-import           Kafka.Producer.Internal.Convert
-import           Kafka.Producer.Internal.Types
+import           Kafka.Producer.Convert
+import           Kafka.Producer.Types
 import           Data.Function (on)
 import           Data.List (sortBy, groupBy)
 import           Data.Ord (comparing)
 
 import qualified Kafka.Internal.RdKafkaEnum      as RDE
 import qualified Kafka.Internal.Setup            as IS
-import qualified Kafka.Producer.Internal.Types   as PIT
+import qualified Kafka.Producer.Types   as PIT
 
 runProducerConf :: [BrokerAddress]
                 -> KafkaConf
