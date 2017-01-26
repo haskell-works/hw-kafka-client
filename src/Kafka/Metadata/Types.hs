@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-module Kafka.Metadata.Internal.Types
+module Kafka.Metadata.Types
 where
 
 import           Data.Typeable

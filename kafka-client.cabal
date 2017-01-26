@@ -58,7 +58,7 @@ library
     Kafka.Consumer.Convert
     Kafka.Consumer.Types
     Kafka.Internal.Shared
-    Kafka.Metadata.Internal.Types
+    Kafka.Metadata.Types
     Kafka.Producer.Convert
     Kafka.Producer.Types
   hs-source-dirs:      src

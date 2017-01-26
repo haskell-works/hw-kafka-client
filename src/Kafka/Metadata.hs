@@ -19,9 +19,9 @@ import           Kafka
 import           Kafka.Consumer
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.Setup
-import           Kafka.Metadata.Internal.Types
+import           Kafka.Metadata.Types
 
-import qualified Kafka.Metadata.Internal.Types as MIT
+import qualified Kafka.Metadata.Types as MIT
 
 -- | Opens a connection with brokers and returns metadata about topics, partitions and brokers.
 getBrokerMetadata :: KafkaProps       -- ^ connection overrides, see <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md>
