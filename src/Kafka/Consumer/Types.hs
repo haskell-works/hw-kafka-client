@@ -1,13 +1,13 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module Kafka.Consumer.Internal.Types
+module Kafka.Consumer.Types
 
 where
 
-import qualified Data.ByteString as BS
-import           Data.Int
-import           Data.Typeable
-import           Kafka
+import Data.Bifunctor
+import Data.Int
+import Data.Typeable
+import Kafka
 
 newtype ConsumerGroupId = ConsumerGroupId String deriving (Show, Eq)
 
@@ -36,19 +36,31 @@ data TopicPartition = TopicPartition
   , tpOffset    :: PartitionOffset } deriving (Show, Eq)
 
 -- | Represents /received/ messages from a Kafka broker (i.e. used in a consumer)
-data ReceivedMessage = ReceivedMessage
+data ConsumerRecord k v = ConsumerRecord
   { messageTopic     :: !String
     -- | Kafka partition this message was received from
   , messagePartition :: !Int
     -- | Offset within the 'messagePartition' Kafka partition
   , messageOffset    :: !Int64
-    -- | Contents of the message, as a 'ByteString'
-  , messagePayload   :: !BS.ByteString
-    -- | Optional key of the message. 'Nothing' when the message
-    -- was enqueued without a key
-  , messageKey       :: Maybe BS.ByteString
+  , messageKey       :: !k
+  , messagePayload   :: !v
   }
   deriving (Eq, Show, Read, Typeable)
+
+instance Bifunctor ConsumerRecord where
+  bimap f g (ConsumerRecord t p o k v) =  ConsumerRecord t p o (f k) (g v)
+
+instance Functor (ConsumerRecord k) where
+  fmap = second
+
+crMapKey :: (k -> k') -> ConsumerRecord k v -> ConsumerRecord k' v
+crMapKey = first
+
+crMapValue :: (v -> v') -> ConsumerRecord k v -> ConsumerRecord k v'
+crMapValue = second
+
+crMapKV :: (k -> k') -> (v -> v') -> ConsumerRecord k v -> ConsumerRecord k' v'
+crMapKV = bimap
 
 data PartitionOffset =
   -- | Start reading from the beginning of the partition

@@ -9,6 +9,7 @@ import           Control.Exception
 import           Control.Monad.Loops
 import           Data.Either
 import           System.Environment
+import qualified Data.ByteString as BS
 
 import           Kafka
 import           Kafka.Consumer
@@ -45,7 +46,7 @@ spec = describe "Kafka.IntegrationSpec" $ do
 
 ----------------------------------------------------------------------------------------------------------------
 
-receiveMessages :: Kafka -> IO (Either a [ReceivedMessage])
+receiveMessages :: Kafka -> IO (Either a [ConsumerRecord (Maybe BS.ByteString) (Maybe BS.ByteString)])
 receiveMessages kafka =
      (Right . rights) <$> www
      where

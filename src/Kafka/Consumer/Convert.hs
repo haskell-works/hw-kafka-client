@@ -1,13 +1,14 @@
-module Kafka.Consumer.Internal.Convert
+module Kafka.Consumer.Convert
 
 where
 
 import           Control.Monad
+import qualified Data.ByteString as BS
 import           Foreign
 import           Foreign.C.Error
 import           Foreign.C.String
 import           Kafka
-import           Kafka.Consumer.Internal.Types
+import           Kafka.Consumer.Types
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.RdKafkaEnum
 import           Kafka.Internal.Shared
@@ -74,37 +75,40 @@ toNativeTopicPartitionList ps = do
         rdKafkaTopicPartitionListSetOffset pl tn tp to) ps
     return pl
 
-topicPartitionFromMessage :: ReceivedMessage -> TopicPartition
+topicPartitionFromMessage :: ConsumerRecord k v -> TopicPartition
 topicPartitionFromMessage m =
     TopicPartition (TopicName $ messageTopic m) (messagePartition m) (PartitionOffset $ messageOffset m)
 
-fromMessagePtr :: RdKafkaMessageTPtr -> IO (Either KafkaError ReceivedMessage)
+fromMessagePtr :: RdKafkaMessageTPtr -> IO (Either KafkaError (ConsumerRecord (Maybe BS.ByteString) (Maybe BS.ByteString)))
 fromMessagePtr ptr =
     withForeignPtr ptr $ \realPtr ->
-    if realPtr == nullPtr then liftM (Left . kafkaRespErr) getErrno
+    if realPtr == nullPtr then (Left . kafkaRespErr) <$> getErrno
     else do
         s <- peek realPtr
         msg <- if err'RdKafkaMessageT s /= RdKafkaRespErrNoError
-            then return $ Left . KafkaResponseError $ err'RdKafkaMessageT s
+            then return . Left . KafkaResponseError $ err'RdKafkaMessageT s
             else Right <$> fromMessageStorable s
         rdKafkaMessageDestroy realPtr
         return msg
 
-fromMessageStorable :: RdKafkaMessageT -> IO ReceivedMessage
+fromMessageStorable :: RdKafkaMessageT -> IO (ConsumerRecord (Maybe BS.ByteString) (Maybe BS.ByteString))
 fromMessageStorable s = do
-    payload <- word8PtrToBS (len'RdKafkaMessageT s) (payload'RdKafkaMessageT s)
     topic   <- newForeignPtr_ (topic'RdKafkaMessageT s) >>= rdKafkaTopicName
+
+    payload <- if payload'RdKafkaMessageT s == nullPtr
+                  then return Nothing
+                  else Just <$> word8PtrToBS (len'RdKafkaMessageT s) (payload'RdKafkaMessageT s)
 
     key <- if key'RdKafkaMessageT s == nullPtr
                then return Nothing
-               else liftM Just $ word8PtrToBS (keyLen'RdKafkaMessageT s) (key'RdKafkaMessageT s)
+               else Just <$> word8PtrToBS (keyLen'RdKafkaMessageT s) (key'RdKafkaMessageT s)
 
-    return $ ReceivedMessage
+    return $ ConsumerRecord
              topic
              (partition'RdKafkaMessageT s)
              (offset'RdKafkaMessageT s)
-             payload
              key
+             payload
 
 offsetCommitToBool :: OffsetCommit -> Bool
 offsetCommitToBool OffsetCommit = False

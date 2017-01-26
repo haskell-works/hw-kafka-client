@@ -21,22 +21,23 @@ module Kafka.Consumer
 , CIT.OffsetCommit (..)
 , CIT.PartitionOffset (..)
 , CIT.TopicPartition (..)
-, CIT.ReceivedMessage (..)
+, CIT.ConsumerRecord (..)
 , RDE.RdKafkaRespErrT (..)
 )
 where
 
 import           Control.Exception
+import qualified Data.ByteString as BS
 import           Foreign                         hiding (void)
 import           Kafka
-import           Kafka.Consumer.Internal.Convert
-import           Kafka.Consumer.Internal.Types
+import           Kafka.Consumer.Convert
+import           Kafka.Consumer.Types
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.RdKafkaEnum
 import           Kafka.Internal.Setup
 import           Kafka.Internal.Shared
 
-import qualified Kafka.Consumer.Internal.Types   as CIT
+import qualified Kafka.Consumer.Types   as CIT
 import qualified Kafka.Internal.RdKafkaEnum      as RDE
 
 -- | Runs high-level kafka consumer.
@@ -169,14 +170,14 @@ subscribe (Kafka k _) ts = do
 -- | Polls the next message from a subscription
 pollMessage :: Kafka
             -> Timeout -- ^ the timeout, in milliseconds (@10^3@ per second)
-            -> IO (Either KafkaError ReceivedMessage) -- ^ Left on error or timeout, right for success
+            -> IO (Either KafkaError (ConsumerRecord (Maybe BS.ByteString) (Maybe BS.ByteString))) -- ^ Left on error or timeout, right for success
 pollMessage (Kafka k _) (Timeout ms) =
     rdKafkaConsumerPoll k (fromIntegral ms) >>= fromMessagePtr
 
 -- | Commit message's offset on broker for the message's partition.
 commitOffsetMessage :: Kafka                   -- ^ Kafka handle
                     -> OffsetCommit            -- ^ Offset commit mode, will block if `OffsetCommit`
-                    -> ReceivedMessage
+                    -> ConsumerRecord k v
                     -> IO (Maybe KafkaError)
 commitOffsetMessage k o m =
     toNativeTopicPartitionList [topicPartitionFromMessage m] >>= commitOffsets k o

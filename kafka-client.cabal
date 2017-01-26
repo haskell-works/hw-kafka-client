@@ -42,8 +42,8 @@ library
     Kafka.Examples.ConsumerExample
     Kafka.Examples.ProducerExample
   other-modules:
-    Kafka.Consumer.Internal.Convert
-    Kafka.Consumer.Internal.Types
+    Kafka.Consumer.Convert
+    Kafka.Consumer.Types
     Kafka.Internal.Shared
     Kafka.Metadata.Internal.Types
     Kafka.Producer.Internal.Convert
