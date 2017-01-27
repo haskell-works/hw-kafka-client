@@ -26,8 +26,11 @@ testTopic = TopicName <$> getEnv "KAFKA_TEST_TOPIC" `catch` \(_ :: SomeException
 
 consumerProps :: ConsumerProperties
 consumerProps = groupId (ConsumerGroupId "it_spec_0")
-             <> offsetReset Earliest
-             <> noAutoCommit
+
+subscription :: TopicName -> Subscription
+subscription t = topics [t]
+              <> offsetReset Earliest
+              <> noAutoCommit
 
 spec :: Spec
 spec = describe "Kafka.IntegrationSpec" $ do
@@ -43,8 +46,7 @@ spec = describe "Kafka.IntegrationSpec" $ do
         res    <- runConsumer
                       [broker]
                       consumerProps
-                      emptyTopicProps
-                      [topic]
+                      (subscription topic)
                       receiveMessages
         print $ show res
         length <$> res `shouldBe` Right 2

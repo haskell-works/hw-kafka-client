@@ -48,7 +48,7 @@ getTopicMetadata k kt t = do
   err <- getMetadata k (Just kt) t
   case err of
     Left e -> return $ Left e
-    Right md -> case topics md of
+    Right md -> case kmTopics md of
       [Left e]    -> return $ Left e
       [Right tmd] -> return $ Right tmd
       _ -> return . Left $ KafkaError "Incorrect number of topics returned"

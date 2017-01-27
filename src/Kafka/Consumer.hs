@@ -44,6 +44,8 @@ import qualified Kafka.Consumer.Types   as CIT
 import qualified Kafka.Internal.RdKafkaEnum      as RDE
 
 import qualified Kafka.Types as X
+import qualified Kafka.Consumer.Types as X
+import qualified Kafka.Consumer.Subscription as X
 import qualified Kafka.Consumer.ConsumerProperties as X
 
 

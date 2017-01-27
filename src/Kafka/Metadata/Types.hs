@@ -9,9 +9,9 @@ import           Kafka
 data KafkaMetadata = KafkaMetadata
     {
     -- | Broker metadata
-      brokers :: [BrokerMetadata]
+      kmBrokers :: [BrokerMetadata]
     -- | topic metadata
-    , topics  :: [Either KafkaError TopicMetadata]
+    , kmTopics  :: [Either KafkaError TopicMetadata]
     }
   deriving (Eq, Show, Typeable)
 
@@ -19,11 +19,11 @@ data KafkaMetadata = KafkaMetadata
 data BrokerMetadata = BrokerMetadata
     {
     -- | broker identifier
-      brokerId   :: Int
+      bmBrokerId   :: Int
     -- | hostname for the broker
-    , brokerHost :: String
+    , bmBrokerHost :: String
     -- | port for the broker
-    , brokerPort :: Int
+    , bmBrokerPort :: Int
     }
   deriving (Eq, Show, Typeable)
 
@@ -31,24 +31,24 @@ data BrokerMetadata = BrokerMetadata
 data TopicMetadata = TopicMetadata
     {
     -- | name of the topic
-      topicName       :: String
+      tmTopicName       :: String
     -- | partition metadata
-    , topicPartitions :: [Either KafkaError PartitionMetadata]
+    , tmTopicPartitions :: [Either KafkaError PartitionMetadata]
     } deriving (Eq, Show, Typeable)
 
 -- | Metadata for a specific partition
 data PartitionMetadata = PartitionMetadata
     {
     -- | identifier for the partition
-      partitionId       :: Int
+      pmPartitionId       :: Int
 
     -- | broker leading this partition
-    , partitionLeader   :: Int
+    , pmPartitionLeader   :: Int
 
     -- | replicas of the leader
-    , partitionReplicas :: [Int]
+    , pmPartitionReplicas :: [Int]
 
     -- | In-sync replica set, see <http://kafka.apache.org/documentation.html>
-    , partitionIsrs     :: [Int]
+    , pmPartitionIsrs     :: [Int]
     }
   deriving (Eq, Show, Typeable)
