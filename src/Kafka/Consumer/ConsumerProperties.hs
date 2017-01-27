@@ -21,6 +21,10 @@ consumerBrokersList bs =
   let bs' = L.intercalate "," ((\(BrokerAddress x) -> x) <$> bs)
    in extraConsumerProps $ M.fromList [("bootstrap.servers", bs')]
 
+noAutoCommit :: ConsumerProperties
+noAutoCommit =
+  extraConsumerProps $ M.fromList [("enable.auto.commit", "false")]
+
 groupId :: ConsumerGroupId -> ConsumerProperties
 groupId (ConsumerGroupId cid) =
   extraConsumerProps $ M.fromList [("group.id", cid)]

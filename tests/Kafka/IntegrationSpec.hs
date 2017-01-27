@@ -26,20 +26,20 @@ testTopic = TopicName <$> getEnv "KAFKA_TEST_TOPIC" `catch` \(_ :: SomeException
 
 consumerProps :: BrokerAddress -> ConsumerProperties
 consumerProps broker = consumerBrokersList [broker]
-                    <> groupId (ConsumerGroupId "it_spec_0")
+                    <> groupId (ConsumerGroupId "it_spec_01")
+                    <> noAutoCommit
 
 subscription :: TopicName -> Subscription
 subscription t = topics [t]
               <> offsetReset Earliest
-              <> noAutoCommit
 
 spec :: Spec
 spec = describe "Kafka.IntegrationSpec" $ do
-    -- it "sends messages to test topic" $ do
-    --     broker <- brokerAddress
-    --     topic  <- testTopic
-    --     res    <- runProducer [broker] emptyKafkaProps (sendMessages topic)
-    --     res `shouldBe` [Nothing, Nothing]
+    it "sends messages to test topic" $ do
+        broker <- brokerAddress
+        topic  <- testTopic
+        res    <- runProducer [broker] emptyKafkaProps (sendMessages topic)
+        res `shouldBe` [Nothing, Nothing]
 
     it "consumes messages from test topic" $ do
         broker <- brokerAddress

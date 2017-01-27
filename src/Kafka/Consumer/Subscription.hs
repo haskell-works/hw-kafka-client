@@ -27,10 +27,6 @@ offsetReset o =
              Latest   -> "latest"
    in Subscription [] (M.fromList [("auto.offset.reset", o')])
 
-noAutoCommit :: Subscription
-noAutoCommit =
-  Subscription [] (M.fromList [("enable.auto.commit", "false")])
-
 autoCommit :: Millis -> Subscription
 autoCommit (Millis ms) = Subscription [] $
   M.fromList

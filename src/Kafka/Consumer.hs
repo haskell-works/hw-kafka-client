@@ -177,7 +177,7 @@ commitAllOffsets k o =
 -- | Closes the consumer and destroys it.
 closeConsumer :: Kafka -> IO (Maybe KafkaError)
 closeConsumer (Kafka k _) =
-    (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaConsumerClose k
+  (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaConsumerClose k
 
 setDefaultTopicConf :: KafkaConf -> TopicConf -> IO ()
 setDefaultTopicConf (KafkaConf kc) (TopicConf tc) =
