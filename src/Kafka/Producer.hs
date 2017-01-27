@@ -54,7 +54,7 @@ newProducer (ProducerProperties props) = do
 -- librdkafka is backed by a queue, this function can return before messages are sent. See
 -- 'drainOutQueue' to wait for queue to empty.
 produceMessage :: KafkaTopic             -- ^ target topic
-               -> ProduceMessage    -- ^ the message to enqueue. This function is undefined for keyed messages.
+               -> ProducerRecord    -- ^ the message to enqueue. This function is undefined for keyed messages.
                -> IO (Maybe KafkaError)  -- ^ 'Nothing' on success, error if something went wrong.
 produceMessage (KafkaTopic t _ _) m =
     let (key, partition, payload) = keyAndPayload m
@@ -68,8 +68,8 @@ produceMessage (KafkaTopic t _ _) m =
 -- | Produce a batch of messages. Since librdkafka is backed by a queue, this function can return
 -- before messages are sent. See 'drainOutQueue' to wait for the queue to be empty.
 produceMessageBatch :: KafkaTopic  -- ^ topic pointer
-                    -> [ProduceMessage] -- ^ list of messages to enqueue.
-                    -> IO [(ProduceMessage, KafkaError)] -- list of failed messages with their errors. This will be empty on success.
+                    -> [ProducerRecord] -- ^ list of messages to enqueue.
+                    -> IO [(ProducerRecord, KafkaError)] -- list of failed messages with their errors. This will be empty on success.
 produceMessageBatch (KafkaTopic t _ _) pms =
   concat <$> mapM sendBatch (partBatches pms)
   where
@@ -114,9 +114,9 @@ drainOutQueue k = do
     l <- outboundQueueLength k
     unless (l == 0) $ drainOutQueue k
 ------------------------------------------------------------------------------------
-keyAndPayload :: ProduceMessage -> (Maybe BS.ByteString, ProducePartition, BS.ByteString)
-keyAndPayload (ProduceMessage partition payload) = (Nothing, partition, payload)
-keyAndPayload (ProduceKeyedMessage key partition payload) = (Just key, partition, payload)
+keyAndPayload :: ProducerRecord -> (Maybe BS.ByteString, ProducePartition, BS.ByteString)
+keyAndPayload (ProducerRecord partition payload) = (Nothing, partition, payload)
+keyAndPayload (KeyedProducerRecord key partition payload) = (Just key, partition, payload)
 
 withBS :: Maybe BS.ByteString -> (Ptr a -> Int -> IO b) -> IO b
 withBS Nothing f = f nullPtr 0

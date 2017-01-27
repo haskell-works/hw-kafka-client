@@ -18,10 +18,10 @@ runProducerExample = do
 sendMessages :: Kafka -> IO String
 sendMessages kafka = do
     topic <- newKafkaTopic kafka "hl-test" emptyTopicProps
-    err1 <- produceMessage topic (ProduceMessage UnassignedPartition "test from producer")
+    err1 <- produceMessage topic (ProducerRecord UnassignedPartition "test from producer")
     print $ show err1
 
-    err2 <- produceMessage topic (ProduceKeyedMessage "key" UnassignedPartition "test from producer (with key)")
+    err2 <- produceMessage topic (KeyedProducerRecord "key" UnassignedPartition "test from producer (with key)")
     print $ show err2
 
     return "All done, Sir."

@@ -68,10 +68,10 @@ receiveMessages kafka =
              print $ show x
              return x
 
-testMessages :: [ProduceMessage]
+testMessages :: [ProducerRecord]
 testMessages =
-    [ ProduceMessage UnassignedPartition "test from producer"
-    , ProduceKeyedMessage "key" UnassignedPartition "test from producer (with key)"
+    [ ProducerRecord UnassignedPartition "test from producer"
+    , KeyedProducerRecord "key" UnassignedPartition "test from producer (with key)"
     ]
 
 sendMessages :: TopicName -> Kafka -> IO [Maybe KafkaError]
