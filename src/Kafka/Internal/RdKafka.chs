@@ -785,8 +785,23 @@ castMetadata ptr = castPtr ptr
 {#fun unsafe rd_kafka_topic_new as ^
     {`RdKafkaTPtr', `String', `RdKafkaTopicConfTPtr'} -> `RdKafkaTopicTPtr' #}
 
+{# fun unsafe rd_kafka_topic_destroy as ^
+   {castPtr `Ptr RdKafkaTopicT'} -> `()' #}
+
+destroyUnmanagedRdKafkaTopic :: RdKafkaTopicTPtr -> IO ()
+destroyUnmanagedRdKafkaTopic ptr =
+  withForeignPtr ptr rdKafkaTopicDestroy
+
 foreign import ccall unsafe "rdkafka.h &rd_kafka_topic_destroy"
-    rdKafkaTopicDestroy :: FunPtr (Ptr RdKafkaTopicT -> IO ())
+    rdKafkaTopicDestroy' :: FunPtr (Ptr RdKafkaTopicT -> IO ())
+
+newUnmanagedRdKafkaTopicT :: RdKafkaTPtr -> String -> RdKafkaTopicConfTPtr -> IO (Either String RdKafkaTopicTPtr)
+newUnmanagedRdKafkaTopicT kafkaPtr topic topicConfPtr = do
+    duper <- rdKafkaTopicConfDup topicConfPtr
+    ret <- rdKafkaTopicNew kafkaPtr topic duper
+    withForeignPtr ret $ \realPtr ->
+        if realPtr == nullPtr then kafkaErrnoString >>= return . Left
+        else return $ Right ret
 
 newRdKafkaTopicT :: RdKafkaTPtr -> String -> RdKafkaTopicConfTPtr -> IO (Either String RdKafkaTopicTPtr)
 newRdKafkaTopicT kafkaPtr topic topicConfPtr = do
@@ -795,7 +810,7 @@ newRdKafkaTopicT kafkaPtr topic topicConfPtr = do
     withForeignPtr ret $ \realPtr ->
         if realPtr == nullPtr then kafkaErrnoString >>= return . Left
         else do
-            addForeignPtrFinalizer rdKafkaTopicDestroy ret
+            addForeignPtrFinalizer rdKafkaTopicDestroy' ret
             return $ Right ret
 
 -- Marshall / Unmarshall

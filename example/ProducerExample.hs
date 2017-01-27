@@ -10,18 +10,20 @@ import           Kafka.Producer
 producerProps ::ProducerProperties
 producerProps = producerBrokersList [BrokerAddress "localhost:9092"]
 
+targetTopic :: TopicName
+targetTopic = TopicName "producer-example-topic"
+
 runProducerExample :: IO ()
 runProducerExample = do
     res <- runProducer producerProps sendMessages
     print $ show res
 
-sendMessages :: Kafka -> IO String
-sendMessages kafka = do
-    topic <- newKafkaTopic kafka "hl-test" emptyTopicProps
-    err1 <- produceMessage topic (ProducerRecord UnassignedPartition "test from producer")
-    print $ show err1
+sendMessages :: KafkaProducer -> IO (Either KafkaError String)
+sendMessages prod = do
+  err1 <- produceMessage prod (ProducerRecord targetTopic UnassignedPartition "test from producer")
+  print $ show err1
 
-    err2 <- produceMessage topic (KeyedProducerRecord "key" UnassignedPartition "test from producer (with key)")
-    print $ show err2
+  err2 <- produceMessage prod (KeyedProducerRecord targetTopic "key" UnassignedPartition "test from producer (with key)")
+  print $ show err2
 
-    return "All done, Sir."
+  return $ Right "All done, Sir."

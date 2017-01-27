@@ -6,6 +6,7 @@ module Kafka.IntegrationSpec
 ) where
 
 import           Control.Exception
+import           Control.Monad (forM_)
 import           Control.Monad.Loops
 import           Data.Monoid ((<>))
 import           Data.Either
@@ -41,8 +42,9 @@ spec = describe "Kafka.IntegrationSpec" $ do
     it "sends messages to test topic" $ do
         broker <- brokerAddress
         topic  <- testTopic
-        res    <- runProducer (producerProps broker) (sendMessages topic)
-        res `shouldBe` [Nothing, Nothing]
+        let msgs = testMessages topic
+        res    <- runProducer (producerProps broker) (sendMessages msgs)
+        res `shouldBe` Right ()
 
     it "consumes messages from test topic" $ do
         broker <- brokerAddress
@@ -68,13 +70,12 @@ receiveMessages kafka =
              print $ show x
              return x
 
-testMessages :: [ProducerRecord]
-testMessages =
-    [ ProducerRecord UnassignedPartition "test from producer"
-    , KeyedProducerRecord "key" UnassignedPartition "test from producer (with key)"
+testMessages :: TopicName -> [ProducerRecord]
+testMessages t =
+    [ ProducerRecord t UnassignedPartition "test from producer"
+    , KeyedProducerRecord t "key" UnassignedPartition "test from producer (with key)"
     ]
 
-sendMessages :: TopicName -> Kafka -> IO [Maybe KafkaError]
-sendMessages (TopicName t) kafka = do
-    topic <- newKafkaTopic kafka t emptyTopicProps
-    mapM (produceMessage topic) testMessages
+sendMessages :: [ProducerRecord] -> KafkaProducer -> IO (Either KafkaError ())
+sendMessages msgs prod =
+  Right <$> forM_ msgs (produceMessage prod)
