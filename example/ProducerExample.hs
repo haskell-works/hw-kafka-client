@@ -6,9 +6,13 @@ where
 import           Kafka
 import           Kafka.Producer
 
+
+producerProps ::ProducerProperties
+producerProps = producerBrokersList [BrokerAddress "localhost:9092"]
+
 runProducerExample :: IO ()
 runProducerExample = do
-    res <- runProducer [BrokerAddress "localhost:9092"] emptyKafkaProps sendMessages
+    res <- runProducer producerProps sendMessages
     print $ show res
 
 sendMessages :: Kafka -> IO String

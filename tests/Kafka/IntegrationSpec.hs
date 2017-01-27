@@ -29,6 +29,9 @@ consumerProps broker = consumerBrokersList [broker]
                     <> groupId (ConsumerGroupId "it_spec_01")
                     <> noAutoCommit
 
+producerProps :: BrokerAddress -> ProducerProperties
+producerProps broker = producerBrokersList [broker]
+
 subscription :: TopicName -> Subscription
 subscription t = topics [t]
               <> offsetReset Earliest
@@ -38,7 +41,7 @@ spec = describe "Kafka.IntegrationSpec" $ do
     it "sends messages to test topic" $ do
         broker <- brokerAddress
         topic  <- testTopic
-        res    <- runProducer [broker] emptyKafkaProps (sendMessages topic)
+        res    <- runProducer (producerProps broker) (sendMessages topic)
         res `shouldBe` [Nothing, Nothing]
 
     it "consumes messages from test topic" $ do

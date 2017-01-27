@@ -54,6 +54,7 @@ library
     Kafka.Internal.Setup
     Kafka.Consumer
     Kafka.Producer
+    Kafka.Producer.ProducerProperties
     Kafka.Metadata
   other-modules:
     Kafka.Consumer.Convert

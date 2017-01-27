@@ -1,20 +1,19 @@
 module Kafka.Producer
-( runProducerConf
+( module X
 , runProducer
-, newProducerConf
 , newProducer
 , produceMessage
 , produceMessageBatch
 , drainOutQueue
+, closeProducer
 , IS.newKafkaTopic
-, PIT.ProduceMessage (..)
-, PIT.ProducePartition (..)
 , RDE.RdKafkaRespErrT (..)
 )
 where
 
 import           Control.Exception
 import           Control.Monad
+import qualified Data.Map as M
 import qualified Data.ByteString                 as BS
 import qualified Data.ByteString.Internal        as BSI
 import           Foreign                         hiding (void)
@@ -24,47 +23,32 @@ import           Kafka.Internal.RdKafkaEnum
 import           Kafka.Internal.Setup
 import           Kafka.Producer.Convert
 import           Kafka.Producer.Types
+import           Kafka.Producer.ProducerProperties
 import           Data.Function (on)
 import           Data.List (sortBy, groupBy)
 import           Data.Ord (comparing)
 
 import qualified Kafka.Internal.RdKafkaEnum      as RDE
 import qualified Kafka.Internal.Setup            as IS
-import qualified Kafka.Producer.Types   as PIT
 
-runProducerConf :: [BrokerAddress]
-                -> KafkaConf
-                -> (Kafka -> IO a)
-                -> IO a
-runProducerConf bs c f =
-    bracket mkProducer clProducer runHandler
-    where
-        mkProducer = newProducer bs c
-        clProducer = drainOutQueue
-        runHandler = f
+import qualified Kafka.Producer.Types as X
+import qualified Kafka.Producer.ProducerProperties as X
 
-runProducer :: [BrokerAddress]  -- ^ Comma separated list of brokers with ports (e.g. @localhost:9092@)
-            -> KafkaProps       -- ^ Extra kafka producer parameters (see kafka documentation)
+runProducer :: ProducerProperties
             -> (Kafka -> IO a)
             -> IO a
-runProducer bs c f = do
-    conf <- newProducerConf c
-    runProducerConf bs conf f
-
--- | Creates a new kafka configuration for a producer'.
-newProducerConf :: KafkaProps    -- ^ Extra kafka producer parameters (see kafka documentation)
-              -> IO KafkaConf  -- ^ Kafka configuration which can be altered before it is used in 'newProducer'
-newProducerConf =
-    kafkaConf
+runProducer props f =
+  bracket mkProducer clProducer runHandler
+  where
+    mkProducer = newProducer props
+    clProducer = drainOutQueue >> closeProducer
+    runHandler = f
 
 -- | Creates a new kafka producer
-newProducer :: [BrokerAddress] -- ^ Comma separated list of brokers with ports (e.g. @localhost:9092@)
-            -> KafkaConf       -- ^ Kafka configuration for a producer (see 'newProducerConf')
-            -> IO Kafka        -- ^ Kafka instance
-newProducer bs conf = do
-    kafka <- newKafkaPtr RdKafkaProducer conf
-    addBrokers kafka bs
-    return kafka
+newProducer :: ProducerProperties -> IO Kafka
+newProducer (ProducerProperties props) = do
+  conf  <- kafkaConf (KafkaProps $ M.toList props)
+  newKafkaPtr RdKafkaProducer conf
 
 -- | Produce a single unkeyed message to either a random partition or specified partition. Since
 -- librdkafka is backed by a queue, this function can return before messages are sent. See
@@ -118,6 +102,9 @@ produceMessageBatch (KafkaTopic t _ _) pms =
                                 , keyLen'RdKafkaMessageT    = keyLength
                                 , key'RdKafkaMessageT       = keyPtr
                                 }
+
+closeProducer :: Kafka -> IO ()
+closeProducer _ = return ()
 
 -- | Drains the outbound queue for a producer. This function is called automatically at the end of
 -- 'runKafkaProducer' or 'runKafkaProducerConf' and usually doesn't need to be called directly.
