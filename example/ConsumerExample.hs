@@ -11,34 +11,22 @@ iterator :: [Integer]
 iterator = [0 .. 20]
 
 consumerProps :: ConsumerProperties
-consumerProps = groupId (ConsumerGroupId "test_group")
-             <> offsetReset Earliest
-             <> noAutoCommit
+consumerProps = consumerBrokersList [BrokerAddress "localhost:9092"]
+             <> groupId (ConsumerGroupId "test_group")
+             -- callbacks, unnecessary, demo only
+             <> reballanceCallback (ReballanceCallback printingRebalanceCallback)
+             <> offsetsCommitCallback (OffsetsCommitCallback printingOffsetCallback)
+
+consumerSub :: Subscription
+consumerSub = topics [TopicName "^hl-test*"]
+           <> offsetReset Earliest
+           <> noAutoCommit
 
 runConsumerExample :: IO ()
 runConsumerExample = do
-    res <- runConsumer [BrokerAddress "localhost:9092"] consumerProps
-              emptyTopicProps
-              [TopicName "^hl-test*"]
+    res <- runConsumer consumerProps
+              consumerSub
               processMessages
-    print $ show res
-
-consumerExample :: IO ()
-consumerExample = do
-    print "creating kafka conf"
-    kafkaConf <- newConsumerConf consumerProps
-    topicConf <- newConsumerTopicConf emptyTopicProps
-    -- unnecessary, demo only
-    setRebalanceCallback kafkaConf printingRebalanceCallback
-    setOffsetCommitCallback kafkaConf printingOffsetCallback
-
-    res <- runConsumerConf
-               kafkaConf
-               topicConf
-               [BrokerAddress "localhost:9092"]
-               [TopicName "kafka-client_tests"]
-               processMessages
-
     print $ show res
 
 -------------------------------------------------------------------

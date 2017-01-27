@@ -24,8 +24,9 @@ brokerAddress = BrokerAddress <$> getEnv "KAFKA_TEST_BROKER" `catch` \(_ :: Some
 testTopic :: IO TopicName
 testTopic = TopicName <$> getEnv "KAFKA_TEST_TOPIC" `catch` \(_ :: SomeException) -> (return "kafka-client_tests")
 
-consumerProps :: ConsumerProperties
-consumerProps = groupId (ConsumerGroupId "it_spec_0")
+consumerProps :: BrokerAddress -> ConsumerProperties
+consumerProps broker = consumerBrokersList [broker]
+                    <> groupId (ConsumerGroupId "it_spec_0")
 
 subscription :: TopicName -> Subscription
 subscription t = topics [t]
@@ -44,8 +45,7 @@ spec = describe "Kafka.IntegrationSpec" $ do
         broker <- brokerAddress
         topic  <- testTopic
         res    <- runConsumer
-                      [broker]
-                      consumerProps
+                      (consumerProps broker)
                       (subscription topic)
                       receiveMessages
         print $ show res

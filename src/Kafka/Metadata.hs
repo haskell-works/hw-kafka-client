@@ -14,23 +14,24 @@ import           Foreign
 import           Foreign.C.String
 
 import           Control.Monad
+import qualified Data.Map as M
 
 import           Kafka
 import           Kafka.Consumer
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.Setup
 import           Kafka.Metadata.Types
+import           Kafka.Internal.RdKafkaEnum
 
 import qualified Kafka.Metadata.Types as MIT
 
 -- | Opens a connection with brokers and returns metadata about topics, partitions and brokers.
-getBrokerMetadata :: KafkaProps       -- ^ connection overrides, see <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md>
-                  -> [BrokerAddress]  -- ^ broker connection string, e.g. localhost:9092
+getBrokerMetadata :: ConsumerProperties
                   -> Timeout          -- ^ timeout for the request, in milliseconds (10^3 per second)
                   -> IO (Either KafkaError KafkaMetadata) -- Left on error, Right with metadata on success
-getBrokerMetadata c bs t = do
-  conf  <- kafkaConf c
-  kafka <- newConsumer bs conf
+getBrokerMetadata (ConsumerProperties cp _ _) t = do
+  conf  <- kafkaConf (KafkaProps $ M.toList cp)
+  kafka <- newKafkaPtr RdKafkaConsumer conf
   getAllMetadata kafka t
 
 -- | Grabs all metadata from a given Kafka instance.

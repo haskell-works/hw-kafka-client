@@ -1,19 +1,12 @@
 {-# LANGUAGE TupleSections #-}
 module Kafka.Consumer
 ( module X
-, runConsumerConf
 , runConsumer
-, newConsumerConf
-, newConsumerTopicConf
 , newConsumer
-, setRebalanceCallback
 , assign
-, subscribe
 , pollMessage
 , commitOffsetMessage
 , commitAllOffsets
-, setOffsetCommitCallback
-, setDefaultTopicConf
 , closeConsumer
 
 -- ReExport Types
@@ -27,6 +20,7 @@ module Kafka.Consumer
 where
 
 import           Control.Exception
+import           Control.Monad (forM_)
 import qualified Data.ByteString as BS
 import qualified Data.Map as M
 import           Foreign                         hiding (void)
@@ -48,60 +42,48 @@ import qualified Kafka.Consumer.Types as X
 import qualified Kafka.Consumer.Subscription as X
 import qualified Kafka.Consumer.ConsumerProperties as X
 
-
 -- | Runs high-level kafka consumer.
 --
 -- A callback provided is expected to call 'pollMessage' when convenient.
-runConsumerConf :: KafkaConf                            -- ^ Consumer config (see 'newConsumerConf')
-                -> TopicConf                            -- ^ Topic config that is going to be used for every topic consumed by the consumer
-                -> [BrokerAddress]                      -- ^ Comma separated list of brokers with ports (e.g. @localhost:9092@)
-                -> [TopicName]                          -- ^ List of topics to be consumed
-                -> (Kafka -> IO (Either KafkaError a))  -- ^ A callback function to poll and handle messages
-                -> IO (Either KafkaError a)
-runConsumerConf kc tc bs ts f =
-    bracket mkConsumer clConsumer runHandler
-    where
-        mkConsumer = do
-            setDefaultTopicConf kc tc
-            kafka <- newConsumer bs kc
-            sErr  <- subscribe kafka ts
-            return $ maybe (Right kafka) (Left . (, kafka)) sErr
-
-        clConsumer (Left (_, kafka)) = maybeToLeft <$> closeConsumer kafka
-        clConsumer (Right kafka) = maybeToLeft <$> closeConsumer kafka
-
-        runHandler (Left (err, _)) = return $ Left err
-        runHandler (Right kafka) = f kafka
-
--- | Runs high-level kafka consumer.
---
--- A callback provided is expected to call 'pollMessage' when convenient.
-runConsumer :: [BrokerAddress]
-            -> ConsumerProperties
-            -> Subscription                         -- ^ List of topics to be consumed
+runConsumer :: ConsumerProperties
+            -> Subscription
             -> (Kafka -> IO (Either KafkaError a))  -- ^ A callback function to poll and handle messages
             -> IO (Either KafkaError a)
-runConsumer bs cp (Subscription ts tp) f = do
-    kc' <- newConsumerConf cp
-    tc' <- newConsumerTopicConf (TopicProps $ M.toList tp)
-    runConsumerConf kc' tc' bs ts f
+runConsumer cp sub f =
+  bracket mkConsumer clConsumer runHandler
+  where
+    mkConsumer = newConsumer cp sub
+
+    clConsumer (Left err) = return (Left err)
+    clConsumer (Right kc) = maybeToLeft <$> closeConsumer kc
+
+    runHandler (Left err) = return (Left err)
+    runHandler (Right kc) = f kc
 
 -- | Creates a new kafka configuration for a consumer with a specified 'ConsumerGroupId'.
 newConsumerConf :: ConsumerProperties
                 -> IO KafkaConf     -- ^ Kafka configuration which can be altered before it is used in 'newConsumer'
-newConsumerConf (ConsumerProperties m) = kafkaConf (KafkaProps $ M.toList m)
+newConsumerConf (ConsumerProperties m rcb ccb) = do
+  conf <- kafkaConf (KafkaProps $ M.toList m)
+  forM_ rcb (\(ReballanceCallback cb) -> setRebalanceCallback conf cb)
+  forM_ ccb (\(OffsetsCommitCallback cb) -> setOffsetCommitCallback conf cb)
+  return conf
 
 newConsumerTopicConf :: TopicProps -> IO TopicConf
 newConsumerTopicConf = topicConf
 
--- | Creates a new kafka consumer
-newConsumer :: [BrokerAddress] -- ^ List of kafka brokers
-            -> KafkaConf     -- ^ Kafka configuration for a consumer (see 'newConsumerConf')
-            -> IO Kafka      -- ^ Kafka instance
-newConsumer bs conf = do
-    kafka <- newKafkaPtr RdKafkaConsumer conf
-    addBrokers kafka bs
-    return kafka
+newConsumer :: ConsumerProperties
+            -> Subscription
+            -> IO (Either KafkaError Kafka)
+newConsumer cp (Subscription ts tp) = do
+  cp' <- newConsumerConf cp
+  tp' <- newConsumerTopicConf (TopicProps $ M.toList tp)
+  _   <- setDefaultTopicConf cp' tp'
+  kc  <- newKafkaPtr RdKafkaConsumer cp'
+  sub <- subscribe kc ts
+  case sub of
+    Nothing  -> return $ Right kc
+    Just err -> closeConsumer kc >> return (Left err)
 
 -- | Sets a callback that is called when rebalance is needed.
 --

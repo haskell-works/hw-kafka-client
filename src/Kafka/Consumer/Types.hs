@@ -8,6 +8,9 @@ import Data.Int
 import Data.Typeable
 import Kafka
 
+newtype ReballanceCallback = ReballanceCallback (Kafka -> KafkaError -> [TopicPartition] -> IO ())
+newtype OffsetsCommitCallback = OffsetsCommitCallback (Kafka -> KafkaError -> [TopicPartition] -> IO ())
+
 newtype ConsumerGroupId = ConsumerGroupId String deriving (Show, Eq)
 newtype Offset          = Offset Int64 deriving (Show, Eq, Read)
 newtype PartitionId     = PartitionId Int deriving (Show, Eq, Read)
