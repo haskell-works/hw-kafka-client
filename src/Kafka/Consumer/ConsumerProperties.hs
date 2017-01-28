@@ -45,8 +45,8 @@ clientId (ClientId cid) =
 --       It is OK to alter partitions offsets before calling 'assign'.
 --
 --     * When 'RdKafkaRespErrRevokePartitions' happens 'assign' should be called with an empty list of partitions.
-reballanceCallback :: ReballanceCallback -> ConsumerProperties
-reballanceCallback cb = ConsumerProperties M.empty (Just cb) Nothing
+-- reballanceCallback :: ReballanceCallback -> ConsumerProperties
+-- reballanceCallback cb = ConsumerProperties M.empty (Just cb) Nothing
 
 -- | Sets offset commit callback for use with consumer groups.
 --
@@ -58,8 +58,8 @@ reballanceCallback cb = ConsumerProperties M.empty (Just cb) Nothing
 -- If no partitions had valid offsets to commit this callback will be called
 -- with `KafkaError` == `KafkaResponseError` `RdKafkaRespErrNoOffset` which is not to be considered
 -- an error.
-offsetsCommitCallback :: OffsetsCommitCallback -> ConsumerProperties
-offsetsCommitCallback cb = ConsumerProperties M.empty Nothing (Just cb)
+-- offsetsCommitCallback :: OffsetsCommitCallback -> ConsumerProperties
+-- offsetsCommitCallback cb = ConsumerProperties M.empty Nothing (Just cb)
 
 extraConsumerProps :: Map String String -> ConsumerProperties
 extraConsumerProps m = ConsumerProperties m Nothing Nothing
