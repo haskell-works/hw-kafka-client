@@ -55,12 +55,10 @@ library
     Kafka.Consumer
     Kafka.Producer
     Kafka.Producer.ProducerProperties
-    Kafka.Metadata
   other-modules:
     Kafka.Consumer.Convert
     Kafka.Consumer.Types
     Kafka.Internal.Shared
-    Kafka.Metadata.Types
     Kafka.Producer.Convert
     Kafka.Producer.Types
   hs-source-dirs:      src

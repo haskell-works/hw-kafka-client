@@ -27,7 +27,7 @@ testTopic = TopicName <$> getEnv "KAFKA_TEST_TOPIC" `catch` \(_ :: SomeException
 
 consumerProps :: BrokerAddress -> ConsumerProperties
 consumerProps broker = consumerBrokersList [broker]
-                    <> groupId (ConsumerGroupId "it_spec_01")
+                    <> groupId (ConsumerGroupId "it_spec_02")
                     <> noAutoCommit
 
 producerProps :: BrokerAddress -> ProducerProperties
@@ -53,12 +53,11 @@ spec = describe "Kafka.IntegrationSpec" $ do
                       (consumerProps broker)
                       (subscription topic)
                       receiveMessages
-        print $ show res
         length <$> res `shouldBe` Right 2
 
 ----------------------------------------------------------------------------------------------------------------
 
-receiveMessages :: Kafka -> IO (Either a [ConsumerRecord (Maybe BS.ByteString) (Maybe BS.ByteString)])
+receiveMessages :: KafkaConsumer -> IO (Either a [ConsumerRecord (Maybe BS.ByteString) (Maybe BS.ByteString)])
 receiveMessages kafka =
      (Right . rights) <$> www
      where

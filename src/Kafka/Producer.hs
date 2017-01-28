@@ -5,7 +5,6 @@ module Kafka.Producer
 , produceMessage
 , drainOutQueue
 , closeProducer
-, IS.newKafkaTopic
 , RDE.RdKafkaRespErrT (..)
 )
 where
@@ -23,12 +22,11 @@ import           Kafka.Internal.Setup
 import           Kafka.Producer.Convert
 import           Kafka.Producer.Types
 import           Kafka.Producer.ProducerProperties
-import           Data.Function (on)
-import           Data.List (sortBy, groupBy)
-import           Data.Ord (comparing)
+-- import           Data.Function (on)
+-- import           Data.List (sortBy, groupBy)
+-- import           Data.Ord (comparing)
 
 import qualified Kafka.Internal.RdKafkaEnum      as RDE
-import qualified Kafka.Internal.Setup            as IS
 
 import qualified Kafka.Producer.Types as X
 import qualified Kafka.Producer.ProducerProperties as X
@@ -42,9 +40,7 @@ runProducer props f =
     mkProducer = newProducer props
 
     clProducer (Left _) = return ()
-    clProducer (Right prod) = do
-      drainOutQueue prod
-      closeProducer prod
+    clProducer (Right prod) = closeProducer prod
 
     runHandler (Left err) = return $ Left err
     runHandler (Right prod) = f prod
@@ -131,7 +127,7 @@ produceMessage (KafkaProducer k _ tc) m =
 --                                 }
 
 closeProducer :: KafkaProducer -> IO ()
-closeProducer _ = return ()
+closeProducer = drainOutQueue
 
 -- | Drains the outbound queue for a producer. This function is called automatically at the end of
 -- 'runKafkaProducer' or 'runKafkaProducerConf' and usually doesn't need to be called directly.

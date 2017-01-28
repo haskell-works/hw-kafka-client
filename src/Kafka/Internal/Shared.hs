@@ -43,5 +43,11 @@ kafkaErrorToMaybe err = case err of
 {-# INLINE kafkaErrorToMaybe #-}
 
 maybeToLeft :: Maybe a -> Either a ()
-maybeToLeft = maybe (Right ()) Left 
+maybeToLeft = maybe (Right ()) Left
 {-# INLINE maybeToLeft #-}
+
+mapLeft :: (a -> a') -> Either a b -> Either a' b
+mapLeft f e = case e of
+  Left a  -> Left (f a)
+  Right b -> Right b
+{-# INLINE mapLeft #-}

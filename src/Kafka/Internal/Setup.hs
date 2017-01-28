@@ -7,45 +7,11 @@ import           Kafka.Internal.RdKafkaEnum
 import           Control.Exception
 import           Control.Monad
 import           Data.Map.Strict            (Map)
-import qualified Data.List as L
 import           Foreign
 import           Foreign.C.String
 import           System.IO
 
 import qualified Data.Map.Strict            as Map
-
--- | Adds a broker string to a given kafka instance.
-addBrokers :: Kafka -> [BrokerAddress] -> IO ()
-addBrokers (Kafka kptr _) bs = do
-  numBrokers <- rdKafkaBrokersAdd kptr brokers
-  when (numBrokers == 0)
-       (throw $ KafkaBadSpecification "No valid brokers specified")
-  where
-    brokers = L.intercalate "," ((\(BrokerAddress x) -> x) <$> bs)
-
--- | Create kafka object with the given configuration. Most of the time
--- you will not need to use this function directly
-newKafka :: RdKafkaTypeT -> KafkaProps -> IO Kafka
-newKafka kafkaType props = kafkaConf props >>= newKafkaPtr kafkaType
-
--- | Create a kafka topic object with the given configuration. Most of the
--- time you will not need to use this function directly
-newKafkaTopic :: Kafka -> String -> TopicProps -> IO KafkaTopic
-newKafkaTopic k tName overrides = topicConf overrides >>= newKafkaTopicPtr k tName
-
-newKafkaPtr :: RdKafkaTypeT -> KafkaConf -> IO Kafka
-newKafkaPtr kafkaType c@(KafkaConf confPtr) = do
-    et <- newRdKafkaT kafkaType confPtr
-    case et of
-        Left e -> error e
-        Right x -> return $ Kafka x c
-
-newKafkaTopicPtr :: Kafka -> String -> TopicConf -> IO KafkaTopic
-newKafkaTopicPtr k@(Kafka kPtr _) tName conf@(TopicConf confPtr) = do
-    et <- newRdKafkaTopicT kPtr tName confPtr
-    case et of
-        Left e -> throw $ KafkaError e
-        Right x -> return $ KafkaTopic x k conf
 
 --
 -- Configuration

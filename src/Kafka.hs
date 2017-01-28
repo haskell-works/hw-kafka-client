@@ -28,10 +28,10 @@ emptyTopicProps = TopicProps []
 
 
 -- | Kafka configuration object
-data KafkaConf = KafkaConf RdKafkaConfTPtr deriving (Show)
+newtype KafkaConf = KafkaConf RdKafkaConfTPtr deriving (Show)
 
 -- | Kafka topic configuration object
-data TopicConf = TopicConf RdKafkaTopicConfTPtr
+newtype TopicConf = TopicConf RdKafkaTopicConfTPtr
 
 -- | Main pointer to Kafka object, which contains our brokers
 data Kafka = Kafka { kafkaPtr :: RdKafkaTPtr, _kafkaConf :: KafkaConf} deriving (Show)
