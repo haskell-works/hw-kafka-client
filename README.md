@@ -1,94 +1,94 @@
 # kafka-client  
 [![Circle CI](https://circleci.com/gh/haskell-works/kafka-client.svg?style=svg&circle-token=5f3ada2650dd600bc0fd4787143024867b2afc4e)](https://circleci.com/gh/haskell-works/kafka-client)
 
-Kafka bindings for Haskell backed by the 
+Kafka bindings for Haskell backed by the
 [librdkafka C module](https://github.com/edenhill/librdkafka).
 
 ## Credits
-This project is inspired by [Haskakafka](https://github.com/cosbynator/haskakafka) 
+This project is inspired by [Haskakafka](https://github.com/cosbynator/haskakafka)
 which unfortunately doesn't seem to be actively maintained.
 
 # Consumer
 High level consumers are supported by `librdkafka` starting from version 0.9.  
-High-level consumers provide an abstraction for consuming messages from multiple 
+High-level consumers provide an abstraction for consuming messages from multiple
 partitions and topics. They are also address scalability (up to a number of partitions)
-by providing automatic rebalancing functionality. When a new consumer joins a consumer 
+by providing automatic rebalancing functionality. When a new consumer joins a consumer
 group the set of consumers attempt to "rebalance" the load to assign partitions to each consumer.
 
 ### Example:
+A working consumer example can be found here: [ConsumerExample.hs](example/ConsumerExample.hs)
 
 ```Haskell
+import Data.Monoid ((<>))
 import Kafka
 import Kafka.Consumer
 
+-- Global consumer properties
+consumerProps :: ConsumerProperties
+consumerProps = consumerBrokersList [BrokerAddress "localhost:9092"]
+             <> groupId (ConsumerGroupId "consumer_example_group")
+             <> noAutoCommit
+
+-- Subscription to topics
+consumerSub :: Subscription
+consumerSub = topics [TopicName "kafka-client-example-topic"]
+           <> offsetReset Earliest
+
+-- Running an example
 runConsumerExample :: IO ()
 runConsumerExample = do
-    res <- runConsumer
-               (ConsumerGroupId "test_group")    -- consumer group id is required
-               (BrokersString "localhost:9092")  -- kafka brokers to connect to
-               emptyKafkaProps                   -- extra kafka conf properties
-               emptyTopicProps                   -- extra topic conf props (like offset reset, etc.)
-               [TopicName "^hl-test*"]           -- list of topics to consume, supporting regex
-               processMessages                   -- handler to consume messages
+    res <- runConsumer consumerProps consumerSub processMessages
     print $ show res
 
--- this function is used inside consumer 
--- and it is responsible for polling and handling messages
--- In this case I will do 10 polls and then return a success
-processMessages :: Kafka -> IO (Either KafkaError ())
+-------------------------------------------------------------------
+processMessages :: KafkaConsumer -> IO (Either KafkaError ())
 processMessages kafka = do
     mapM_ (\_ -> do
                    msg1 <- pollMessage kafka (Timeout 1000)
-                   print $ show msg1) [1..10]
+                   print $ "Message: " <> show msg1
+                   err <- commitAllOffsets kafka OffsetCommit
+                   print $ "Offsets: " <> maybe "Committed." show err
+          ) [0 .. 10]
     return $ Right ()
-    
 ```
 
-Other examples (including using a rebalance callback) can be found here: [ConsumerExample.hs](src/Kafka/Examples/ConsumerExample.hs)
-
-### Configuration Options
-Configuration options are set in the call to `newKafkaConsumerConf`. For
-the full list of supported options, see 
-[librdkafka's list](https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md).
-
 # Producer
+`kafka-client` producer supports sending messages to multiple topics.
+Target topic name is a part of each message that is to be sent by `produceMessage`.
 
-`kafka-client` allows sending messages to multiple topics from one producer.  
-In fact, `kafka-client` does not try to manage target topics, it is up to the API user to decide 
-which topics to produce to and how to manage them.
+A working producer example can be found here: [ProducerExample.hs](example/ProducerExample.hs)
 
 ### Example
 
 ```Haskell
+import Control.Monad (forM_)
 import Kafka
 import Kafka.Producer
 
+-- Global producer properties
+producerProps :: ProducerProperties
+producerProps = producerBrokersList [BrokerAddress "localhost:9092"]
+
+-- Topic to send messages to
+targetTopic :: TopicName
+targetTopic = TopicName "kafka-client-example-topic"
+
+-- Run an example
 runProducerExample :: IO ()
 runProducerExample = do
-    res <- runProducer 
-               (BrokersString "localhost:9092")       -- kafka brokers to connect to
-               emptyKafkaProps                        -- extra kafka conf properties
-               sendMessages                           -- this function is to send messages
+    res <- runProducer producerProps sendMessages
     print $ show res
 
--- This callback function just need to return an IO of anything.
-sendMessages :: Kafka -> IO String
-sendMessages kafka = do
-    -- reference a topic (or a list of topics if needed)
-    topic <- newKafkaTopic kafka "hl-test" []
+sendMessages :: KafkaProducer -> IO (Either KafkaError String)
+sendMessages prod = do
+  err1 <- produceMessage prod (ProducerRecord targetTopic UnassignedPartition "test from producer")
+  forM_ err1 print
 
-    -- produce a message without a key to a random partition
-    err1 <- produceMessage topic KafkaUnassignedPartition (KafkaProduceMessage "test from producer")
-    print $ show err1
+  err2 <- produceMessage prod (KeyedProducerRecord targetTopic "key" UnassignedPartition "test from producer (with key)")
+  forM_ err2 print
 
-    -- produce a message with a key, a target partition will be determined by the key.
-    err2 <- produceMessage topic KafkaUnassignedPartition (KafkaProduceKeyedMessage "key" "test from producer (with key)")
-    print $ show err2
-
-    return "All done."
+  return $ Right "All done."
 ```
-
-This can be found here: [ProducerExample.hs](src/Kafka/Examples/ProducerExample.hs)
 
 # Installation
 
@@ -110,3 +110,10 @@ Sometimes it is helpful to specify openssl includes explicitly:
 ## Installing Kafka
 
 The full Kafka guide is at http://kafka.apache.org/documentation.html#quickstart
+
+Alternatively `docker-compose` can be used to run Kafka locally inside a Docker container.
+To run Kafka inside Docker:
+
+```
+$ docker-compose up
+```
