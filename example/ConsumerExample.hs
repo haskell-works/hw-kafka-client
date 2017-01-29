@@ -29,7 +29,7 @@ processMessages kafka = do
     mapM_ (\_ -> do
                    msg1 <- pollMessage kafka (Timeout 1000)
                    print $ "Message: " <> show msg1
-                   err <- commitAllOffsets kafka OffsetCommit
+                   err <- commitAllOffsets OffsetCommit kafka
                    print $ "Offsets: " <> maybe "Committed." show err
           ) [0 :: Integer .. 20]
     return $ Right ()

@@ -87,18 +87,18 @@ pollMessage (KafkaConsumer k _) (Timeout ms) =
     rdKafkaConsumerPoll k (fromIntegral ms) >>= fromMessagePtr
 
 -- | Commit message's offset on broker for the message's partition.
-commitOffsetMessage :: KafkaConsumer           -- ^ Kafka handle
-                    -> OffsetCommit            -- ^ Offset commit mode, will block if `OffsetCommit`
+commitOffsetMessage :: OffsetCommit
+                    -> KafkaConsumer
                     -> ConsumerRecord k v
                     -> IO (Maybe KafkaError)
-commitOffsetMessage k o m =
-  toNativeTopicPartitionList [topicPartitionFromMessage m] >>= commitOffsets k o
+commitOffsetMessage o k m =
+  toNativeTopicPartitionList [topicPartitionFromMessage m] >>= commitOffsets o k
 
 -- | Commit offsets for all currently assigned partitions.
-commitAllOffsets :: KafkaConsumer              -- ^ Kafka handle
-                 -> OffsetCommit               -- ^ Offset commit mode, will block if `OffsetCommit`
+commitAllOffsets :: OffsetCommit
+                 -> KafkaConsumer
                  -> IO (Maybe KafkaError)
-commitAllOffsets k o = newForeignPtr_ nullPtr >>= commitOffsets k o
+commitAllOffsets o k = newForeignPtr_ nullPtr >>= commitOffsets o k
 
 -- | Assigns specified partitions to a current consumer.
 -- Assigning an empty list means unassigning from all partitions that are currently assigned.
@@ -185,6 +185,6 @@ setDefaultTopicConf :: RdKafkaConfTPtr -> TopicConf -> IO ()
 setDefaultTopicConf kc (TopicConf tc) =
     rdKafkaTopicConfDup tc >>= rdKafkaConfSetDefaultTopicConf kc
 
-commitOffsets :: KafkaConsumer -> OffsetCommit -> RdKafkaTopicPartitionListTPtr -> IO (Maybe KafkaError)
-commitOffsets (KafkaConsumer k _) o pl =
+commitOffsets :: OffsetCommit -> KafkaConsumer -> RdKafkaTopicPartitionListTPtr -> IO (Maybe KafkaError)
+commitOffsets o (KafkaConsumer k _) pl =
     (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaCommit k pl (offsetCommitToBool o)
