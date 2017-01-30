@@ -3,6 +3,7 @@ module ConsumerExample
 
 where
 
+import Control.Arrow  ((&&&))
 import Data.Monoid ((<>))
 import Kafka
 import Kafka.Consumer
@@ -12,6 +13,8 @@ consumerProps :: ConsumerProperties
 consumerProps = consumerBrokersList [BrokerAddress "localhost:9092"]
              <> groupId (ConsumerGroupId "consumer_example_group")
              <> noAutoCommit
+             <> reballanceCallback (ReballanceCallback printingRebalanceCallback)
+             <> offsetsCommitCallback (OffsetsCommitCallback printingOffsetCallback)
 
 -- Subscription to topics
 consumerSub :: Subscription
@@ -33,3 +36,22 @@ processMessages kafka = do
                    print $ "Offsets: " <> maybe "Committed." show err
           ) [0 :: Integer .. 20]
     return $ Right ()
+
+printingRebalanceCallback :: KafkaConsumer -> KafkaError -> [TopicPartition] -> IO ()
+printingRebalanceCallback k e ps = do
+    putStrLn "Rebalance callback!"
+    print ("Rebalance Error: " ++ show e)
+    mapM_ (print . show . (tpTopicName &&& tpPartition &&& tpOffset)) ps
+    case e of
+        KafkaResponseError RdKafkaRespErrAssignPartitions ->
+            assign k ps >>= print . show
+        KafkaResponseError RdKafkaRespErrRevokePartitions ->
+            assign k [] >>= print . show
+        x -> print "UNKNOWN (and unlikely!)" >> print (show x)
+
+
+printingOffsetCallback :: KafkaConsumer -> KafkaError -> [TopicPartition] -> IO ()
+printingOffsetCallback _ e ps = do
+    putStrLn "Offsets callback!"
+    print ("Offsets Error:" ++ show e)
+    mapM_ (print . show . (tpTopicName &&& tpPartition &&& tpOffset)) ps
