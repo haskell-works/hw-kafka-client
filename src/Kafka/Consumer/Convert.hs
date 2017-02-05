@@ -7,8 +7,8 @@ import qualified Data.ByteString as BS
 import           Foreign
 import           Foreign.C.Error
 import           Foreign.C.String
-import           Kafka
 import           Kafka.Consumer.Types
+import           Kafka.Types
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.RdKafkaEnum
 import           Kafka.Internal.Shared

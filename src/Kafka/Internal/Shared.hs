@@ -5,9 +5,9 @@ import           Control.Exception
 import qualified Data.ByteString            as BS
 import qualified Data.ByteString.Internal   as BSI
 import           Foreign.C.Error
-import           Kafka
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.RdKafkaEnum
+import           Kafka.Types
 
 word8PtrToBS :: Int -> Word8Ptr -> IO BS.ByteString
 word8PtrToBS len ptr = BSI.create len $ \bsptr ->

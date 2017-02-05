@@ -16,21 +16,19 @@ import qualified Data.Map as M
 import qualified Data.ByteString                 as BS
 import qualified Data.ByteString.Internal        as BSI
 import           Foreign                         hiding (void)
-import           Kafka
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.RdKafkaEnum
 import           Kafka.Internal.Setup
 import           Kafka.Producer.Convert
-import           Kafka.Producer.Types
-import           Kafka.Producer.ProducerProperties
 -- import           Data.Function (on)
 -- import           Data.List (sortBy, groupBy)
 -- import           Data.Ord (comparing)
 
 import qualified Kafka.Internal.RdKafkaEnum      as RDE
 
-import qualified Kafka.Producer.Types as X
-import qualified Kafka.Producer.ProducerProperties as X
+import Kafka.Types as X
+import Kafka.Producer.Types as X
+import Kafka.Producer.ProducerProperties as X
 
 runProducer :: ProducerProperties
             -> (KafkaProducer -> IO (Either KafkaError a))

@@ -6,7 +6,7 @@ where
 import Data.Bifunctor
 import Data.Int
 import Data.Typeable
-import Kafka
+import Kafka.Types
 import Kafka.Internal.RdKafka
 
 data KafkaConsumer = KafkaConsumer { kcKafkaPtr :: !RdKafkaTPtr, kcKafkaConf :: !RdKafkaConfTPtr} deriving (Show)

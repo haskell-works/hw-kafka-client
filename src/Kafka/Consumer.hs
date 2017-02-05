@@ -25,11 +25,7 @@ import           Control.Monad.IO.Class
 import qualified Data.ByteString as BS
 import qualified Data.Map as M
 import           Foreign                         hiding (void)
-import           Kafka
-import           Kafka.Consumer.ConsumerProperties
-import           Kafka.Consumer.Subscription
 import           Kafka.Consumer.Convert
-import           Kafka.Consumer.Types
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.RdKafkaEnum
 import           Kafka.Internal.Setup
@@ -38,10 +34,10 @@ import           Kafka.Internal.Shared
 import qualified Kafka.Consumer.Types   as CIT
 import qualified Kafka.Internal.RdKafkaEnum      as RDE
 
-import qualified Kafka.Types as X
-import qualified Kafka.Consumer.Types as X
-import qualified Kafka.Consumer.Subscription as X
-import qualified Kafka.Consumer.ConsumerProperties as X
+import Kafka.Types as X
+import Kafka.Consumer.Types as X
+import Kafka.Consumer.Subscription as X
+import Kafka.Consumer.ConsumerProperties as X
 
 -- | Runs high-level kafka consumer.
 --

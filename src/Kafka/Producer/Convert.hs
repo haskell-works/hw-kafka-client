@@ -3,9 +3,9 @@ where
 
 import           Foreign.C.Error
 import           Foreign.C.Types
-import           Kafka
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.Shared
+import           Kafka.Types
 import           Kafka.Producer.Types
 
 copyMsgFlags :: Int
