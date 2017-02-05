@@ -9,12 +9,17 @@ import Kafka.Consumer.Types
 import qualified Data.Map as M
 import qualified Data.List as L
 
-data ConsumerProperties = ConsumerProperties (Map String String) (Maybe ReballanceCallback) (Maybe OffsetsCommitCallback)
+data ConsumerProperties = ConsumerProperties
+  { cpProps             :: Map String String
+  , cpRebalanceCallback :: Maybe ReballanceCallback
+  , cpOffsetsCallback   :: Maybe OffsetsCommitCallback
+  , cpLogLevel          :: Maybe KafkaLogLevel
+  }
 
 instance Monoid ConsumerProperties where
-  mempty = ConsumerProperties M.empty Nothing Nothing
-  mappend (ConsumerProperties m1 rb1 oc1) (ConsumerProperties m2 rb2 oc2) =
-    ConsumerProperties (M.union m1 m2) (rb2 `mplus` rb1) (oc2 `mplus` oc1)
+  mempty = ConsumerProperties M.empty Nothing Nothing Nothing
+  mappend (ConsumerProperties m1 rb1 oc1 ll1) (ConsumerProperties m2 rb2 oc2 ll2) =
+    ConsumerProperties (M.union m1 m2) (rb2 `mplus` rb1) (oc2 `mplus` oc1) (ll2 `mplus` ll1)
 
 consumerBrokersList :: [BrokerAddress] -> ConsumerProperties
 consumerBrokersList bs =
@@ -46,7 +51,7 @@ clientId (ClientId cid) =
 --
 --     * When 'RdKafkaRespErrRevokePartitions' happens 'assign' should be called with an empty list of partitions.
 reballanceCallback :: ReballanceCallback -> ConsumerProperties
-reballanceCallback cb = ConsumerProperties M.empty (Just cb) Nothing
+reballanceCallback cb = ConsumerProperties M.empty (Just cb) Nothing Nothing
 
 -- | Sets offset commit callback for use with consumer groups.
 --
@@ -59,8 +64,8 @@ reballanceCallback cb = ConsumerProperties M.empty (Just cb) Nothing
 -- with `KafkaError` == `KafkaResponseError` `RdKafkaRespErrNoOffset` which is not to be considered
 -- an error.
 offsetsCommitCallback :: OffsetsCommitCallback -> ConsumerProperties
-offsetsCommitCallback cb = ConsumerProperties M.empty Nothing (Just cb)
+offsetsCommitCallback cb = ConsumerProperties M.empty Nothing (Just cb) Nothing
 
 extraConsumerProps :: Map String String -> ConsumerProperties
-extraConsumerProps m = ConsumerProperties m Nothing Nothing
+extraConsumerProps m = ConsumerProperties m Nothing Nothing Nothing
 {-# INLINE extraConsumerProps #-}

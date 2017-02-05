@@ -34,7 +34,7 @@ processMessages kafka = do
                    print $ "Message: " <> show msg1
                    err <- commitAllOffsets OffsetCommit kafka
                    print $ "Offsets: " <> maybe "Committed." show err
-          ) [0 :: Integer .. 20]
+          ) [0 :: Integer .. 10]
     return $ Right ()
 
 printingRebalanceCallback :: KafkaConsumer -> KafkaError -> [TopicPartition] -> IO ()

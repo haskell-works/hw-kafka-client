@@ -72,6 +72,7 @@ newConsumer cp (Subscription ts tp) = liftIO $ do
   case flip KafkaConsumer kc <$> rdk of
     Left err -> return $ Left err
     Right kafka -> do
+      forM_ (cpLogLevel cp) (setConsumerLogLevel kafka)
       sub <- subscribe kafka ts
       case sub of
         Nothing  -> return $ Right kafka
@@ -114,13 +115,17 @@ assign (KafkaConsumer k _) ps =
 
 
 -- | Closes the consumer and destroys it.
-closeConsumer :: KafkaConsumer -> IO (Maybe KafkaError)
+closeConsumer :: MonadIO m => KafkaConsumer -> m (Maybe KafkaError)
 closeConsumer (KafkaConsumer k _) =
-  (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaConsumerClose k
+  liftIO $ (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaConsumerClose k
+
+setConsumerLogLevel :: KafkaConsumer -> KafkaLogLevel -> IO ()
+setConsumerLogLevel (KafkaConsumer k _) level =
+  liftIO $ rdKafkaSetLogLevel k (fromEnum level)
 
 -----------------------------------------------------------------------------
 newConsumerConf :: ConsumerProperties -> IO KafkaConf
-newConsumerConf (ConsumerProperties m rcb ccb) = do
+newConsumerConf (ConsumerProperties m rcb ccb _) = do
   conf <- kafkaConf (KafkaProps $ M.toList m)
   forM_ rcb (\(ReballanceCallback cb) -> setRebalanceCallback conf cb)
   forM_ ccb (\(OffsetsCommitCallback cb) -> setOffsetCommitCallback conf cb)
