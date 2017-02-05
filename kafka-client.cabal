@@ -34,6 +34,7 @@ executable kafka-client-example
                      , bytestring
                      , containers
                      , temporary
+                     , transformers
                      , unix
                      , kafka-client
 
@@ -43,6 +44,7 @@ library
                      , bytestring
                      , containers
                      , temporary
+                     , transformers
                      , unix
   exposed-modules:
     Kafka

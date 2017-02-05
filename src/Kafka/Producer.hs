@@ -11,6 +11,7 @@ where
 
 import           Control.Exception
 import           Control.Monad
+import           Control.Monad.IO.Class
 import qualified Data.Map as M
 import qualified Data.ByteString                 as BS
 import qualified Data.ByteString.Internal        as BSI
@@ -46,8 +47,8 @@ runProducer props f =
     runHandler (Right prod) = f prod
 
 -- | Creates a new kafka producer
-newProducer :: ProducerProperties -> IO (Either KafkaError KafkaProducer)
-newProducer (ProducerProperties kp tp) = do
+newProducer :: MonadIO m => ProducerProperties -> m (Either KafkaError KafkaProducer)
+newProducer (ProducerProperties kp tp) = liftIO $ do
   (KafkaConf kc) <- kafkaConf (KafkaProps $ M.toList kp)
   (TopicConf tc) <- topicConf (TopicProps $ M.toList tp)
   mbKafka        <- newRdKafkaT RdKafkaProducer kc
@@ -59,10 +60,11 @@ newProducer (ProducerProperties kp tp) = do
 -- | Produce a single unkeyed message to either a random partition or specified partition. Since
 -- librdkafka is backed by a queue, this function can return before messages are sent. See
 -- 'drainOutQueue' to wait for queue to empty.
-produceMessage :: KafkaProducer
-               -> ProducerRecord    -- ^ the message to enqueue. This function is undefined for keyed messages.
-               -> IO (Maybe KafkaError)  -- ^ 'Nothing' on success, error if something went wrong.
-produceMessage (KafkaProducer k _ tc) m =
+produceMessage :: MonadIO m
+               => KafkaProducer
+               -> ProducerRecord
+               -> m (Maybe KafkaError)
+produceMessage (KafkaProducer k _ tc) m = liftIO $
   bracket mkTopic clTopic withTopic
     where
       (TopicName tn, key, partition, payload) = keyAndPayload m
@@ -126,13 +128,13 @@ produceMessage (KafkaProducer k _ tc) m =
 --                                 , key'RdKafkaMessageT       = keyPtr
 --                                 }
 
-closeProducer :: KafkaProducer -> IO ()
+closeProducer :: MonadIO m => KafkaProducer -> m ()
 closeProducer = drainOutQueue
 
 -- | Drains the outbound queue for a producer. This function is called automatically at the end of
 -- 'runKafkaProducer' or 'runKafkaProducerConf' and usually doesn't need to be called directly.
-drainOutQueue :: KafkaProducer -> IO ()
-drainOutQueue kp@(KafkaProducer k _ _) = do
+drainOutQueue :: MonadIO m => KafkaProducer -> m ()
+drainOutQueue kp@(KafkaProducer k _ _) = liftIO $ do
     pollEvents k 100
     l <- outboundQueueLength k
     unless (l == 0) $ drainOutQueue kp

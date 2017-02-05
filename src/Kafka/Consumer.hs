@@ -21,6 +21,7 @@ where
 
 import           Control.Exception
 import           Control.Monad (forM_)
+import           Control.Monad.IO.Class
 import qualified Data.ByteString as BS
 import qualified Data.Map as M
 import           Foreign                         hiding (void)
@@ -62,10 +63,11 @@ runConsumer cp sub f =
 
 -- | Creates a kafka consumer.
 -- A new consumer MUST be closed with 'closeConsumer' function.
-newConsumer :: ConsumerProperties
+newConsumer :: MonadIO m
+            => ConsumerProperties
             -> Subscription
-            -> IO (Either KafkaError KafkaConsumer)
-newConsumer cp (Subscription ts tp) = do
+            -> m (Either KafkaError KafkaConsumer)
+newConsumer cp (Subscription ts tp) = liftIO $ do
   -- (Kafka kkk (KafkaConf kc)) <- newKafka (KafkaProps $ M.toList m)
   (KafkaConf kc) <- newConsumerConf cp
   tp' <- topicConf (TopicProps $ M.toList tp)
@@ -80,35 +82,39 @@ newConsumer cp (Subscription ts tp) = do
         Just err -> closeConsumer kafka >> return (Left err)
 
 -- | Polls the next message from a subscription
-pollMessage :: KafkaConsumer
+pollMessage :: MonadIO m
+            => KafkaConsumer
             -> Timeout -- ^ the timeout, in milliseconds (@10^3@ per second)
-            -> IO (Either KafkaError (ConsumerRecord (Maybe BS.ByteString) (Maybe BS.ByteString))) -- ^ Left on error or timeout, right for success
+            -> m (Either KafkaError (ConsumerRecord (Maybe BS.ByteString) (Maybe BS.ByteString))) -- ^ Left on error or timeout, right for success
 pollMessage (KafkaConsumer k _) (Timeout ms) =
-    rdKafkaConsumerPoll k (fromIntegral ms) >>= fromMessagePtr
+    liftIO $ rdKafkaConsumerPoll k (fromIntegral ms) >>= fromMessagePtr
 
 -- | Commit message's offset on broker for the message's partition.
-commitOffsetMessage :: OffsetCommit
+commitOffsetMessage :: MonadIO m
+                    => OffsetCommit
                     -> KafkaConsumer
                     -> ConsumerRecord k v
-                    -> IO (Maybe KafkaError)
+                    -> m (Maybe KafkaError)
 commitOffsetMessage o k m =
-  toNativeTopicPartitionList [topicPartitionFromMessage m] >>= commitOffsets o k
+  liftIO $ toNativeTopicPartitionList [topicPartitionFromMessage m] >>= commitOffsets o k
 
 -- | Commit offsets for all currently assigned partitions.
-commitAllOffsets :: OffsetCommit
+commitAllOffsets :: MonadIO m
+                 => OffsetCommit
                  -> KafkaConsumer
-                 -> IO (Maybe KafkaError)
-commitAllOffsets o k = newForeignPtr_ nullPtr >>= commitOffsets o k
+                 -> m (Maybe KafkaError)
+commitAllOffsets o k =
+  liftIO $ newForeignPtr_ nullPtr >>= commitOffsets o k
 
 -- | Assigns specified partitions to a current consumer.
 -- Assigning an empty list means unassigning from all partitions that are currently assigned.
 -- See 'setRebalanceCallback' for more details.
-assign :: KafkaConsumer -> [TopicPartition] -> IO KafkaError
+assign :: MonadIO m => KafkaConsumer -> [TopicPartition] -> m KafkaError
 assign (KafkaConsumer k _) ps =
     let pl = if null ps
                 then newForeignPtr_ nullPtr
                 else toNativeTopicPartitionList ps
-    in  KafkaResponseError <$> (pl >>= rdKafkaAssign k)
+    in  liftIO $ KafkaResponseError <$> (pl >>= rdKafkaAssign k)
 
 
 -- | Closes the consumer and destroys it.
