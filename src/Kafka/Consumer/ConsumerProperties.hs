@@ -66,6 +66,9 @@ reballanceCallback cb = ConsumerProperties M.empty (Just cb) Nothing Nothing
 offsetsCommitCallback :: OffsetsCommitCallback -> ConsumerProperties
 offsetsCommitCallback cb = ConsumerProperties M.empty Nothing (Just cb) Nothing
 
+consumerLogLevel :: KafkaLogLevel -> ConsumerProperties
+consumerLogLevel ll = ConsumerProperties M.empty Nothing Nothing (Just ll)
+
 extraConsumerProps :: Map String String -> ConsumerProperties
 extraConsumerProps m = ConsumerProperties m Nothing Nothing Nothing
 {-# INLINE extraConsumerProps #-}

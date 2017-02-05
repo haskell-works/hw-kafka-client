@@ -46,15 +46,19 @@ runProducer props f =
 
 -- | Creates a new kafka producer
 newProducer :: MonadIO m => ProducerProperties -> m (Either KafkaError KafkaProducer)
-newProducer (ProducerProperties kp tp) = liftIO $ do
+newProducer (ProducerProperties kp tp ll) = liftIO $ do
   (KafkaConf kc) <- kafkaConf (KafkaProps $ M.toList kp)
   (TopicConf tc) <- topicConf (TopicProps $ M.toList tp)
   mbKafka        <- newRdKafkaT RdKafkaProducer kc
-  return $ case mbKafka of
-    Left err    -> Left $ KafkaError err
-    Right kafka -> Right $ KafkaProducer kafka kc tc
+  case mbKafka of
+    Left err    -> return . Left $ KafkaError err
+    Right kafka -> do
+      forM_ ll (rdKafkaSetLogLevel kafka . fromEnum)
+      return .Right $ KafkaProducer kafka kc tc
 
-
+-- setConsumerLogLevel :: KafkaConsumer -> KafkaLogLevel -> IO ()
+-- setConsumerLogLevel (KafkaConsumer k _) level =
+--   liftIO $ rdKafkaSetLogLevel k (fromEnum level)
 -- | Produce a single unkeyed message to either a random partition or specified partition. Since
 -- librdkafka is backed by a queue, this function can return before messages are sent. See
 -- 'drainOutQueue' to wait for queue to empty.

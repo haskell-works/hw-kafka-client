@@ -119,10 +119,6 @@ closeConsumer :: MonadIO m => KafkaConsumer -> m (Maybe KafkaError)
 closeConsumer (KafkaConsumer k _) =
   liftIO $ (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaConsumerClose k
 
-setConsumerLogLevel :: KafkaConsumer -> KafkaLogLevel -> IO ()
-setConsumerLogLevel (KafkaConsumer k _) level =
-  liftIO $ rdKafkaSetLogLevel k (fromEnum level)
-
 -----------------------------------------------------------------------------
 newConsumerConf :: ConsumerProperties -> IO KafkaConf
 newConsumerConf (ConsumerProperties m rcb ccb _) = do
@@ -195,3 +191,7 @@ setDefaultTopicConf kc (TopicConf tc) =
 commitOffsets :: OffsetCommit -> KafkaConsumer -> RdKafkaTopicPartitionListTPtr -> IO (Maybe KafkaError)
 commitOffsets o (KafkaConsumer k _) pl =
     (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaCommit k pl (offsetCommitToBool o)
+
+setConsumerLogLevel :: KafkaConsumer -> KafkaLogLevel -> IO ()
+setConsumerLogLevel (KafkaConsumer k _) level =
+  liftIO $ rdKafkaSetLogLevel k (fromEnum level)

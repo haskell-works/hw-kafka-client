@@ -26,6 +26,7 @@ newtype Timeout = Timeout Int deriving (Show, Eq, Read)
 data KafkaLogLevel =
   KafkaLogEmerg | KafkaLogAlert | KafkaLogCrit | KafkaLogErr | KafkaLogWarning |
   KafkaLogNotice | KafkaLogInfo | KafkaLogDebug
+  deriving (Show, Eq)
 
 instance Enum KafkaLogLevel where
    toEnum 0 = KafkaLogEmerg
