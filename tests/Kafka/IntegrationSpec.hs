@@ -14,8 +14,6 @@ import           System.Environment
 import qualified Data.ByteString as BS
 
 import           Kafka
-import           Kafka.Consumer
-import           Kafka.Producer
 
 import           Test.Hspec
 
