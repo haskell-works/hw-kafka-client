@@ -63,19 +63,17 @@ instance Bifunctor ConsumerRecord where
 instance Functor (ConsumerRecord k) where
   fmap = second
 
-crSequenceKey :: ConsumerRecord (Maybe k) v -> Maybe (ConsumerRecord k v)
+crSequenceKey :: Functor t => ConsumerRecord (t k) v -> t (ConsumerRecord k v)
 crSequenceKey cr = (\k -> crMapKey (const k) cr) <$> messageKey cr
 {-# INLINE crSequenceKey #-}
 
-crSequenceValue :: ConsumerRecord k (Maybe v) -> Maybe (ConsumerRecord k v)
+crSequenceValue :: Functor t => ConsumerRecord k (t v) -> t (ConsumerRecord k v)
 crSequenceValue cr = (\v -> crMapValue (const v) cr) <$> messagePayload cr
 {-# INLINE crSequenceValue #-}
 
-crSequenceKV :: ConsumerRecord (Maybe k) (Maybe v) -> Maybe (ConsumerRecord k v)
-crSequenceKV cr = do
-  k <- messageKey cr
-  v <- messagePayload cr
-  return $ bimap (const k) (const v) cr
+crSequenceKV :: Applicative t => ConsumerRecord (t k) (t v) -> t (ConsumerRecord k v)
+crSequenceKV cr =
+  (\k v -> bimap (const k) (const v) cr) <$> messageKey cr <*> messagePayload cr
 {-# INLINE crSequenceKV #-}
 
 crMapKey :: (k -> k') -> ConsumerRecord k v -> ConsumerRecord k' v
