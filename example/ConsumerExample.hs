@@ -5,7 +5,6 @@ where
 
 import Control.Arrow  ((&&&))
 import Data.Monoid ((<>))
-import Kafka
 import Kafka.Consumer
 
 -- Global consumer properties
@@ -15,6 +14,7 @@ consumerProps = consumerBrokersList [BrokerAddress "localhost:9092"]
              <> noAutoCommit
              <> reballanceCallback (ReballanceCallback printingRebalanceCallback)
              <> offsetsCommitCallback (OffsetsCommitCallback printingOffsetCallback)
+             <> consumerLogLevel KafkaLogInfo
 
 -- Subscription to topics
 consumerSub :: Subscription
@@ -23,6 +23,7 @@ consumerSub = topics [TopicName "kafka-client-example-topic"]
 
 runConsumerExample :: IO ()
 runConsumerExample = do
+    print $ cpLogLevel consumerProps
     res <- runConsumer consumerProps consumerSub processMessages
     print $ show res
 

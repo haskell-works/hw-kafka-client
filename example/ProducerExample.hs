@@ -4,12 +4,13 @@ module ProducerExample
 where
 
 import Control.Monad (forM_)
-import Kafka
+import Data.Monoid
 import Kafka.Producer
 
 -- Global producer properties
 producerProps :: ProducerProperties
 producerProps = producerBrokersList [BrokerAddress "localhost:9092"]
+             <> producerLogLevel KafkaLogDebug
 
 -- Topic to send messages to
 targetTopic :: TopicName

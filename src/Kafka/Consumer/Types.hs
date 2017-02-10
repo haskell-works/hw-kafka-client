@@ -63,14 +63,32 @@ instance Bifunctor ConsumerRecord where
 instance Functor (ConsumerRecord k) where
   fmap = second
 
+crSequenceKey :: ConsumerRecord (Maybe k) v -> Maybe (ConsumerRecord k v)
+crSequenceKey cr = (\k -> crMapKey (const k) cr) <$> messageKey cr
+{-# INLINE crSequenceKey #-}
+
+crSequenceValue :: ConsumerRecord k (Maybe v) -> Maybe (ConsumerRecord k v)
+crSequenceValue cr = (\v -> crMapValue (const v) cr) <$> messagePayload cr
+{-# INLINE crSequenceValue #-}
+
+crSequenceKV :: ConsumerRecord (Maybe k) (Maybe v) -> Maybe (ConsumerRecord k v)
+crSequenceKV cr = do
+  k <- messageKey cr
+  v <- messagePayload cr
+  return $ bimap (const k) (const v) cr
+{-# INLINE crSequenceKV #-}
+
 crMapKey :: (k -> k') -> ConsumerRecord k v -> ConsumerRecord k' v
 crMapKey = first
+{-# INLINE crMapKey #-}
 
 crMapValue :: (v -> v') -> ConsumerRecord k v -> ConsumerRecord k v'
 crMapValue = second
+{-# INLINE crMapValue #-}
 
 crMapKV :: (k -> k') -> (v -> v') -> ConsumerRecord k v -> ConsumerRecord k' v'
 crMapKV = bimap
+{-# INLINE crMapKV #-}
 
 data PartitionOffset =
   -- | Start reading from the beginning of the partition

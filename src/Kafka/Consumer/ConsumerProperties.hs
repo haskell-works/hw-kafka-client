@@ -16,6 +16,7 @@ data ConsumerProperties = ConsumerProperties
   , cpLogLevel          :: Maybe KafkaLogLevel
   }
 
+
 instance Monoid ConsumerProperties where
   mempty = ConsumerProperties M.empty Nothing Nothing Nothing
   mappend (ConsumerProperties m1 rb1 oc1 ll1) (ConsumerProperties m2 rb2 oc2 ll2) =
