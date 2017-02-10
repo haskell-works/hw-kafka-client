@@ -88,6 +88,24 @@ crMapKV :: (k -> k') -> (v -> v') -> ConsumerRecord k v -> ConsumerRecord k' v'
 crMapKV = bimap
 {-# INLINE crMapKV #-}
 
+crTraverseKeyM :: (Functor t, Monad m)
+               => (k -> m (t k'))
+               -> ConsumerRecord k v
+               -> m (t (ConsumerRecord k' v))
+crTraverseKeyM f r = do
+  res <- f (messageKey r)
+  return $ (\x -> crMapKey (const x) r) <$> res
+{-# INLINE crTraverseKeyM #-}
+
+crTraverseValueM :: (Functor t, Monad m)
+               => (v -> m (t v'))
+               -> ConsumerRecord k v
+               -> m (t (ConsumerRecord k v'))
+crTraverseValueM f r = do
+  res <- f (messagePayload r)
+  return $ (\x -> crMapValue (const x) r) <$> res
+{-# INLINE crTraverseValueM #-}
+
 data PartitionOffset =
   -- | Start reading from the beginning of the partition
     PartitionOffsetBeginning
