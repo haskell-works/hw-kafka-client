@@ -13,11 +13,11 @@ testValue = "some-value"
 
 testRecord :: ConsumerRecord (Maybe String) (Maybe String)
 testRecord = ConsumerRecord
-  { messageTopic     = TopicName "some-topic"
-  , messagePartition = PartitionId 0
-  , messageOffset    = Offset 5
-  , messageKey       = Just testKey
-  , messagePayload   = Just testValue
+  { crTopic     = TopicName "some-topic"
+  , crPartition = PartitionId 0
+  , crOffset    = Offset 5
+  , crKey       = Just testKey
+  , crValue     = Just testValue
   }
 
 spec :: Spec

@@ -47,13 +47,13 @@ data TopicPartition = TopicPartition
 
 -- | Represents /received/ messages from a Kafka broker (i.e. used in a consumer)
 data ConsumerRecord k v = ConsumerRecord
-  { messageTopic     :: !TopicName
+  { crTopic     :: !TopicName
     -- | Kafka partition this message was received from
-  , messagePartition :: !PartitionId
-    -- | Offset within the 'messagePartition' Kafka partition
-  , messageOffset    :: !Offset
-  , messageKey       :: !k
-  , messagePayload   :: !v
+  , crPartition :: !PartitionId
+    -- | Offset within the 'crPartition' Kafka partition
+  , crOffset    :: !Offset
+  , crKey       :: !k
+  , crValue     :: !v
   }
   deriving (Eq, Show, Read, Typeable)
 
@@ -76,30 +76,30 @@ crMapKV = bimap
 {-# INLINE crMapKV #-}
 
 crSequenceKey :: Functor t => ConsumerRecord (t k) v -> t (ConsumerRecord k v)
-crSequenceKey cr = (\k -> crMapKey (const k) cr) <$> messageKey cr
+crSequenceKey cr = (\k -> crMapKey (const k) cr) <$> crKey cr
 {-# INLINE crSequenceKey #-}
 
 crSequenceValue :: Functor t => ConsumerRecord k (t v) -> t (ConsumerRecord k v)
-crSequenceValue cr = (\v -> crMapValue (const v) cr) <$> messagePayload cr
+crSequenceValue cr = (\v -> crMapValue (const v) cr) <$> crValue cr
 {-# INLINE crSequenceValue #-}
 
 crSequenceKV :: Applicative t => ConsumerRecord (t k) (t v) -> t (ConsumerRecord k v)
 crSequenceKV cr =
-  (\k v -> bimap (const k) (const v) cr) <$> messageKey cr <*> messagePayload cr
+  (\k v -> bimap (const k) (const v) cr) <$> crKey cr <*> crValue cr
 {-# INLINE crSequenceKV #-}
 
 crTraverseKey :: Functor t
               => (k -> t k')
               -> ConsumerRecord k v
               -> t (ConsumerRecord k' v)
-crTraverseKey f r = (\k -> crMapKey (const k) r) <$> f (messageKey r)
+crTraverseKey f r = (\k -> crMapKey (const k) r) <$> f (crKey r)
 {-# INLINE crTraverseKey #-}
 
 crTraverseValue :: Functor t
                 => (v -> t v')
                 -> ConsumerRecord k v
                 -> t (ConsumerRecord k v')
-crTraverseValue f r = (\v -> crMapValue (const v) r) <$> f (messagePayload r)
+crTraverseValue f r = (\v -> crMapValue (const v) r) <$> f (crValue r)
 {-# INLINE crTraverseValue #-}
 
 crTraverseKV :: Applicative t
@@ -108,7 +108,7 @@ crTraverseKV :: Applicative t
              -> ConsumerRecord k v
              -> t (ConsumerRecord k' v')
 crTraverseKV f g r =
-  (\k v -> bimap (const k) (const v) r) <$> f (messageKey r) <*> g (messagePayload r)
+  (\k v -> bimap (const k) (const v) r) <$> f (crKey r) <*> g (crValue r)
 {-# INLINE crTraverseKV #-}
 
 crTraverseKeyM :: (Functor t, Monad m)
@@ -116,7 +116,7 @@ crTraverseKeyM :: (Functor t, Monad m)
                -> ConsumerRecord k v
                -> m (t (ConsumerRecord k' v))
 crTraverseKeyM f r = do
-  res <- f (messageKey r)
+  res <- f (crKey r)
   return $ (\x -> crMapKey (const x) r) <$> res
 {-# INLINE crTraverseKeyM #-}
 
@@ -125,7 +125,7 @@ crTraverseValueM :: (Functor t, Monad m)
                -> ConsumerRecord k v
                -> m (t (ConsumerRecord k v'))
 crTraverseValueM f r = do
-  res <- f (messagePayload r)
+  res <- f (crValue r)
   return $ (\x -> crMapValue (const x) r) <$> res
 {-# INLINE crTraverseValueM #-}
 
@@ -135,8 +135,8 @@ crTraverseKVM :: (Applicative t, Monad m)
               -> ConsumerRecord k v
               -> m (t (ConsumerRecord k' v'))
 crTraverseKVM f g r = do
-  keyRes <- f (messageKey r)
-  valRes <- g (messagePayload r)
+  keyRes <- f (crKey r)
+  valRes <- g (crValue r)
   return $ (\k v -> bimap (const k) (const v) r) <$> keyRes <*> valRes
 {-# INLINE crTraverseKVM #-}
 

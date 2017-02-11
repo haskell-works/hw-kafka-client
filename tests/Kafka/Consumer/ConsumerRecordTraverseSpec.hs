@@ -13,11 +13,11 @@ testValue = "some-value"
 
 testRecord :: ConsumerRecord String String
 testRecord = ConsumerRecord
-  { messageTopic     = TopicName "some-topic"
-  , messagePartition = PartitionId 0
-  , messageOffset    = Offset 5
-  , messageKey       = testKey
-  , messagePayload   = testValue
+  { crTopic     = TopicName "some-topic"
+  , crPartition = PartitionId 0
+  , crOffset    = Offset 5
+  , crKey       = testKey
+  , crValue     = testValue
   }
 
 liftValue :: a -> Maybe (Either String a)

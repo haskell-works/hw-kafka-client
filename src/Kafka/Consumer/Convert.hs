@@ -77,8 +77,8 @@ toNativeTopicPartitionList ps = do
 
 topicPartitionFromMessage :: ConsumerRecord k v -> TopicPartition
 topicPartitionFromMessage m =
-  let (Offset moff) = messageOffset m
-   in TopicPartition (messageTopic m) (messagePartition m) (PartitionOffset moff)
+  let (Offset moff) = crOffset m
+   in TopicPartition (crTopic m) (crPartition m) (PartitionOffset moff)
 
 fromMessagePtr :: RdKafkaMessageTPtr -> IO (Either KafkaError (ConsumerRecord (Maybe BS.ByteString) (Maybe BS.ByteString)))
 fromMessagePtr ptr =
