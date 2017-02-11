@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Kafka.Consumer.ConsumerRecordSpec
+module Kafka.Consumer.ConsumerRecordMapSpec
 ( spec
 ) where
 

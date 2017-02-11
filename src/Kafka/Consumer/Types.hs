@@ -63,6 +63,18 @@ instance Bifunctor ConsumerRecord where
 instance Functor (ConsumerRecord k) where
   fmap = second
 
+crMapKey :: (k -> k') -> ConsumerRecord k v -> ConsumerRecord k' v
+crMapKey = first
+{-# INLINE crMapKey #-}
+
+crMapValue :: (v -> v') -> ConsumerRecord k v -> ConsumerRecord k v'
+crMapValue = second
+{-# INLINE crMapValue #-}
+
+crMapKV :: (k -> k') -> (v -> v') -> ConsumerRecord k v -> ConsumerRecord k' v'
+crMapKV = bimap
+{-# INLINE crMapKV #-}
+
 crSequenceKey :: Functor t => ConsumerRecord (t k) v -> t (ConsumerRecord k v)
 crSequenceKey cr = (\k -> crMapKey (const k) cr) <$> messageKey cr
 {-# INLINE crSequenceKey #-}
@@ -76,17 +88,28 @@ crSequenceKV cr =
   (\k v -> bimap (const k) (const v) cr) <$> messageKey cr <*> messagePayload cr
 {-# INLINE crSequenceKV #-}
 
-crMapKey :: (k -> k') -> ConsumerRecord k v -> ConsumerRecord k' v
-crMapKey = first
-{-# INLINE crMapKey #-}
+crTraverseKey :: Functor t
+              => (k -> t k')
+              -> ConsumerRecord k v
+              -> t (ConsumerRecord k' v)
+crTraverseKey f r = (\k -> crMapKey (const k) r) <$> f (messageKey r)
+{-# INLINE crTraverseKey #-}
 
-crMapValue :: (v -> v') -> ConsumerRecord k v -> ConsumerRecord k v'
-crMapValue = second
-{-# INLINE crMapValue #-}
+crTraverseValue :: Functor t
+                => (v -> t v')
+                -> ConsumerRecord k v
+                -> t (ConsumerRecord k v')
+crTraverseValue f r = (\v -> crMapValue (const v) r) <$> f (messagePayload r)
+{-# INLINE crTraverseValue #-}
 
-crMapKV :: (k -> k') -> (v -> v') -> ConsumerRecord k v -> ConsumerRecord k' v'
-crMapKV = bimap
-{-# INLINE crMapKV #-}
+crTraverseKV :: Applicative t
+             => (k -> t k')
+             -> (v -> t v')
+             -> ConsumerRecord k v
+             -> t (ConsumerRecord k' v')
+crTraverseKV f g r =
+  (\k v -> bimap (const k) (const v) r) <$> f (messageKey r) <*> g (messagePayload r)
+{-# INLINE crTraverseKV #-}
 
 crTraverseKeyM :: (Functor t, Monad m)
                => (k -> m (t k'))
@@ -105,6 +128,17 @@ crTraverseValueM f r = do
   res <- f (messagePayload r)
   return $ (\x -> crMapValue (const x) r) <$> res
 {-# INLINE crTraverseValueM #-}
+
+crTraverseKVM :: (Applicative t, Monad m)
+              => (k -> m (t k'))
+              -> (v -> m (t v'))
+              -> ConsumerRecord k v
+              -> m (t (ConsumerRecord k' v'))
+crTraverseKVM f g r = do
+  keyRes <- f (messageKey r)
+  valRes <- g (messagePayload r)
+  return $ (\k v -> bimap (const k) (const v) r) <$> keyRes <*> valRes
+{-# INLINE crTraverseKVM #-}
 
 data PartitionOffset =
   -- | Start reading from the beginning of the partition
