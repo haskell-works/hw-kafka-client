@@ -3,6 +3,8 @@ module Kafka.Consumer.ConsumerRecordTraverseSpec
 ( spec
 ) where
 
+import Data.Bitraversable
+import Data.Bifunctor
 import Kafka.Types
 import Kafka.Consumer.Types
 import Test.Hspec
@@ -20,36 +22,65 @@ testRecord = ConsumerRecord
   , crValue     = testValue
   }
 
-liftValue :: a -> Maybe (Either String a)
-liftValue = pure . pure
+liftValue :: a -> Maybe a
+liftValue = Just
 
-liftNothing :: a -> Maybe (Either String a)
+liftNothing :: a -> Maybe a
 liftNothing _ = Nothing
+
+liftValueM :: a -> Maybe (Either String a)
+liftValueM = pure . pure
+
+liftNothingM :: a -> Maybe (Either String a)
+liftNothingM _ = Nothing
 
 testError :: Either String a
 testError = Left "test error"
-liftError :: a -> Maybe (Either String a)
-liftError _ = Just testError
+
+liftErrorM :: a -> Maybe (Either String a)
+liftErrorM _ = Just testError
 
 spec :: Spec
 spec = describe "Kafka.Consumer.ConsumerRecordTraverseSpec" $ do
+  it "should sequence" $ do
+    sequence  (liftValue <$> testRecord) `shouldBe` Just testRecord
+    sequenceA (liftValue <$> testRecord) `shouldBe` Just testRecord
+    sequence (liftNothing <$> testRecord) `shouldBe` Nothing
+
+  it "should traverse" $ do
+    traverse liftValue testRecord `shouldBe` Just testRecord
+    traverse liftNothing testRecord `shouldBe` Nothing
+
+  it "should bisequence" $ do
+    bisequence (bimap liftValue liftValue testRecord) `shouldBe` Just testRecord
+    bisequence (bimap liftNothing liftValue testRecord) `shouldBe` Nothing
+    bisequence (bimap liftValue liftNothing testRecord) `shouldBe` Nothing
+    bisequenceA (bimap liftValue liftValue testRecord) `shouldBe` Just testRecord
+    bisequenceA (bimap liftNothing liftValue testRecord) `shouldBe` Nothing
+    bisequenceA (bimap liftValue liftNothing testRecord) `shouldBe` Nothing
+
+  it "should bitraverse" $ do
+    bitraverse liftValue liftValue testRecord `shouldBe` Just testRecord
+    bitraverse liftNothing liftValue testRecord `shouldBe` Nothing
+    bitraverse liftValue liftNothing testRecord `shouldBe` Nothing
+
   it "should traverse key (monadic)" $
-    crTraverseKeyM liftValue testRecord `shouldBe` Just (Right testRecord)
+    crTraverseKeyM liftValueM testRecord `shouldBe` Just (Right testRecord)
 
   it "should traverse value (monadic)" $
-    crTraverseValueM liftValue testRecord `shouldBe` Just (Right testRecord)
+    crTraverseValueM liftValueM testRecord `shouldBe` Just (Right testRecord)
 
   it "should traverse KV (monadic)" $
-    crTraverseKVM liftValue liftValue testRecord `shouldBe` Just (Right testRecord)
+    crTraverseKVM liftValueM liftValueM testRecord `shouldBe` Just (Right testRecord)
 
   it "should traverse and report error (monadic)" $ do
-    crTraverseKeyM liftError testRecord `shouldBe` Just testError
-    crTraverseValueM liftError testRecord `shouldBe` Just testError
-    crTraverseKVM liftValue liftError testRecord `shouldBe` Just testError
-    crTraverseKVM liftError liftValue testRecord `shouldBe` Just testError
+    crTraverseKeyM liftErrorM testRecord `shouldBe` Just testError
+    crTraverseValueM liftErrorM testRecord `shouldBe` Just testError
+    crTraverseKVM liftValueM liftErrorM testRecord `shouldBe` Just testError
+    crTraverseKVM liftErrorM liftValueM testRecord `shouldBe` Just testError
 
   it "should traverse and report empty container (monadic)" $ do
-    crTraverseKeyM liftNothing testRecord `shouldBe` Nothing
-    crTraverseValueM liftNothing testRecord `shouldBe` Nothing
-    crTraverseKVM liftValue liftNothing testRecord `shouldBe` Nothing
-    crTraverseKVM liftNothing liftValue testRecord `shouldBe` Nothing
+    crTraverseKeyM liftNothingM testRecord `shouldBe` Nothing
+    crTraverseValueM liftNothingM testRecord `shouldBe` Nothing
+    crTraverseKVM liftValueM liftNothingM testRecord `shouldBe` Nothing
+    crTraverseKVM liftNothingM liftValueM testRecord `shouldBe` Nothing

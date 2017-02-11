@@ -4,6 +4,8 @@ module Kafka.Consumer.Types
 where
 
 import Data.Bifunctor
+import Data.Bifoldable
+import Data.Bitraversable
 import Data.Int
 import Data.Typeable
 import Kafka.Types
@@ -63,6 +65,19 @@ instance Bifunctor ConsumerRecord where
 instance Functor (ConsumerRecord k) where
   fmap = second
 
+instance Foldable (ConsumerRecord k) where
+  foldMap f r = f (crValue r)
+
+instance Traversable (ConsumerRecord k) where
+  traverse f r = (\v -> crMapValue (const v) r) <$> f (crValue r)
+
+instance Bifoldable ConsumerRecord where
+  bifoldMap f g r = f (crKey r) `mappend` g (crValue r)
+
+instance Bitraversable ConsumerRecord where
+  bitraverse f g r =
+    (\k v -> bimap (const k) (const v) r) <$> f (crKey r) <*> g (crValue r)
+
 crMapKey :: (k -> k') -> ConsumerRecord k v -> ConsumerRecord k' v
 crMapKey = first
 {-# INLINE crMapKey #-}
@@ -107,8 +122,7 @@ crTraverseKV :: Applicative t
              -> (v -> t v')
              -> ConsumerRecord k v
              -> t (ConsumerRecord k' v')
-crTraverseKV f g r =
-  (\k v -> bimap (const k) (const v) r) <$> f (crKey r) <*> g (crValue r)
+crTraverseKV = bitraverse
 {-# INLINE crTraverseKV #-}
 
 crTraverseKeyM :: (Functor t, Monad m)
@@ -117,7 +131,7 @@ crTraverseKeyM :: (Functor t, Monad m)
                -> m (t (ConsumerRecord k' v))
 crTraverseKeyM f r = do
   res <- f (crKey r)
-  return $ (\x -> crMapKey (const x) r) <$> res
+  return $ (\x -> first (const x) r) <$> res
 {-# INLINE crTraverseKeyM #-}
 
 crTraverseValueM :: (Functor t, Monad m)
@@ -126,7 +140,7 @@ crTraverseValueM :: (Functor t, Monad m)
                -> m (t (ConsumerRecord k v'))
 crTraverseValueM f r = do
   res <- f (crValue r)
-  return $ (\x -> crMapValue (const x) r) <$> res
+  return $ (\x -> second (const x) r) <$> res
 {-# INLINE crTraverseValueM #-}
 
 crTraverseKVM :: (Applicative t, Monad m)
