@@ -120,11 +120,11 @@ traverseM :: (Traversable t, Applicative f, Monad m)
 traverseM f r = sequenceA <$> traverse f r
 {-# INLINE traverseM #-}
 
-bitraverseM :: (Applicative t, Monad m)
-            => (k -> m (t k'))
-            -> (v -> m (t v'))
-            -> ConsumerRecord k v
-            -> m (t (ConsumerRecord k' v'))
+bitraverseM :: (Bitraversable t, Applicative f, Monad m)
+            => (k -> m (f k'))
+            -> (v -> m (f v'))
+            -> t k v
+            -> m (f (t k' v'))
 bitraverseM f g r = bisequenceA <$> bimapM f g r
 {-# INLINE bitraverseM #-}
 
