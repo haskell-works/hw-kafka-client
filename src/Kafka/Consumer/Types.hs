@@ -61,22 +61,27 @@ data ConsumerRecord k v = ConsumerRecord
 
 instance Bifunctor ConsumerRecord where
   bimap f g (ConsumerRecord t p o k v) =  ConsumerRecord t p o (f k) (g v)
+  {-# INLINE bimap #-}
 
 instance Functor (ConsumerRecord k) where
   fmap = second
+  {-# INLINE fmap #-}
 
 instance Foldable (ConsumerRecord k) where
   foldMap f r = f (crValue r)
+  {-# INLINE foldMap #-}
 
 instance Traversable (ConsumerRecord k) where
   traverse f r = (\v -> crMapValue (const v) r) <$> f (crValue r)
+  {-# INLINE traverse #-}
 
 instance Bifoldable ConsumerRecord where
   bifoldMap f g r = f (crKey r) `mappend` g (crValue r)
+  {-# INLINE bifoldMap #-}
 
 instance Bitraversable ConsumerRecord where
-  bitraverse f g r =
-    (\k v -> bimap (const k) (const v) r) <$> f (crKey r) <*> g (crValue r)
+  bitraverse f g r = (\k v -> bimap (const k) (const v) r) <$> f (crKey r) <*> g (crValue r)
+  {-# INLINE bitraverse #-}
 
 crMapKey :: (k -> k') -> ConsumerRecord k v -> ConsumerRecord k' v
 crMapKey = first
@@ -90,83 +95,43 @@ crMapKV :: (k -> k') -> (v -> v') -> ConsumerRecord k v -> ConsumerRecord k' v'
 crMapKV = bimap
 {-# INLINE crMapKV #-}
 
-crSequenceKey :: Functor t => ConsumerRecord (t k) v -> t (ConsumerRecord k v)
-crSequenceKey cr = (\k -> crMapKey (const k) cr) <$> crKey cr
-{-# INLINE crSequenceKey #-}
+sequenceFirst :: (Bitraversable t, Applicative f) => t (f k) v -> f (t k v)
+sequenceFirst = bitraverse id pure
+{-# INLINE sequenceFirst #-}
 
-crSequenceValue :: Functor t => ConsumerRecord k (t v) -> t (ConsumerRecord k v)
-crSequenceValue cr = (\v -> crMapValue (const v) cr) <$> crValue cr
-{-# INLINE crSequenceValue #-}
+traverseFirst :: (Bitraversable t, Applicative f)
+              => (k -> f k')
+              -> t k v
+              -> f (t k' v)
+traverseFirst f = bitraverse f pure
+{-# INLINE traverseFirst #-}
 
-crSequenceKV :: Applicative t => ConsumerRecord (t k) (t v) -> t (ConsumerRecord k v)
-crSequenceKV cr =
-  (\k v -> bimap (const k) (const v) cr) <$> crKey cr <*> crValue cr
-{-# INLINE crSequenceKV #-}
+traverseFirstM :: (Bitraversable t, Applicative f, Monad m)
+               => (k -> m (f k'))
+               -> t k v
+               -> m (f (t k' v))
+traverseFirstM f r = bitraverse id pure <$> bitraverse f pure r
+{-# INLINE traverseFirstM #-}
 
-crTraverseKey :: Functor t
-              => (k -> t k')
-              -> ConsumerRecord k v
-              -> t (ConsumerRecord k' v)
-crTraverseKey f r = (\k -> crMapKey (const k) r) <$> f (crKey r)
-{-# INLINE crTraverseKey #-}
+traverseM :: (Traversable t, Applicative f, Monad m)
+          => (v -> m (f v'))
+          -> t v
+          -> m (f (t v'))
+traverseM f r = sequenceA <$> traverse f r
+{-# INLINE traverseM #-}
 
-crTraverseValue :: Functor t
-                => (v -> t v')
-                -> ConsumerRecord k v
-                -> t (ConsumerRecord k v')
-crTraverseValue f r = (\v -> crMapValue (const v) r) <$> f (crValue r)
-{-# INLINE crTraverseValue #-}
-
-crTraverseKV :: Applicative t
-             => (k -> t k')
-             -> (v -> t v')
-             -> ConsumerRecord k v
-             -> t (ConsumerRecord k' v')
-crTraverseKV = bitraverse
-{-# INLINE crTraverseKV #-}
-
-crTraverseKeyM :: (Functor t, Monad m)
-               => (k -> m (t k'))
-               -> ConsumerRecord k v
-               -> m (t (ConsumerRecord k' v))
-crTraverseKeyM f r = do
-  res <- f (crKey r)
-  return $ (\x -> first (const x) r) <$> res
-{-# INLINE crTraverseKeyM #-}
-
-crTraverseValueM :: (Functor t, Monad m)
-               => (v -> m (t v'))
-               -> ConsumerRecord k v
-               -> m (t (ConsumerRecord k v'))
-crTraverseValueM f r = do
-  res <- f (crValue r)
-  return $ (\x -> second (const x) r) <$> res
-{-# INLINE crTraverseValueM #-}
-
-crTraverseKVM :: (Applicative t, Monad m)
-              => (k -> m (t k'))
-              -> (v -> m (t v'))
-              -> ConsumerRecord k v
-              -> m (t (ConsumerRecord k' v'))
-crTraverseKVM f g r = do
-  keyRes <- f (crKey r)
-  valRes <- g (crValue r)
-  return $ (\k v -> bimap (const k) (const v) r) <$> keyRes <*> valRes
-{-# INLINE crTraverseKVM #-}
+bitraverseM :: (Applicative t, Monad m)
+            => (k -> m (t k'))
+            -> (v -> m (t v'))
+            -> ConsumerRecord k v
+            -> m (t (ConsumerRecord k' v'))
+bitraverseM f g r = bisequenceA <$> bimapM f g r
+{-# INLINE bitraverseM #-}
 
 data PartitionOffset =
-  -- | Start reading from the beginning of the partition
     PartitionOffsetBeginning
-
-  -- | Start reading from the end
   | PartitionOffsetEnd
-
-  -- | Start reading from a specific location within the partition
   | PartitionOffset Int64
-
-  -- | Start reading from the stored offset. See
-  -- <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md librdkafka's documentation>
-  -- for offset store configuration.
   | PartitionOffsetStored
   | PartitionOffsetInvalid
   deriving (Eq, Show)

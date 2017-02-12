@@ -65,22 +65,22 @@ spec = describe "Kafka.Consumer.ConsumerRecordTraverseSpec" $ do
     bitraverse liftValue liftNothing testRecord `shouldBe` Nothing
 
   it "should traverse key (monadic)" $
-    crTraverseKeyM liftValueM testRecord `shouldBe` Just (Right testRecord)
+    traverseFirstM liftValueM testRecord `shouldBe` Just (Right testRecord)
 
   it "should traverse value (monadic)" $
-    crTraverseValueM liftValueM testRecord `shouldBe` Just (Right testRecord)
+    traverseM liftValueM testRecord `shouldBe` Just (Right testRecord)
 
   it "should traverse KV (monadic)" $
-    crTraverseKVM liftValueM liftValueM testRecord `shouldBe` Just (Right testRecord)
+    bitraverseM liftValueM liftValueM testRecord `shouldBe` Just (Right testRecord)
 
   it "should traverse and report error (monadic)" $ do
-    crTraverseKeyM liftErrorM testRecord `shouldBe` Just testError
-    crTraverseValueM liftErrorM testRecord `shouldBe` Just testError
-    crTraverseKVM liftValueM liftErrorM testRecord `shouldBe` Just testError
-    crTraverseKVM liftErrorM liftValueM testRecord `shouldBe` Just testError
+    traverseFirstM liftErrorM testRecord `shouldBe` Just testError
+    traverseM liftErrorM testRecord `shouldBe` Just testError
+    bitraverseM liftValueM liftErrorM testRecord `shouldBe` Just testError
+    bitraverseM liftErrorM liftValueM testRecord `shouldBe` Just testError
 
   it "should traverse and report empty container (monadic)" $ do
-    crTraverseKeyM liftNothingM testRecord `shouldBe` Nothing
-    crTraverseValueM liftNothingM testRecord `shouldBe` Nothing
-    crTraverseKVM liftValueM liftNothingM testRecord `shouldBe` Nothing
-    crTraverseKVM liftNothingM liftValueM testRecord `shouldBe` Nothing
+    traverseFirstM liftNothingM testRecord `shouldBe` Nothing
+    traverseM liftNothingM testRecord `shouldBe` Nothing
+    bitraverseM liftValueM liftNothingM testRecord `shouldBe` Nothing
+    bitraverseM liftNothingM liftValueM testRecord `shouldBe` Nothing
