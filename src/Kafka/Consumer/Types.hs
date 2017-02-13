@@ -13,7 +13,7 @@ import Kafka.Internal.RdKafka
 
 data KafkaConsumer = KafkaConsumer { kcKafkaPtr :: !RdKafkaTPtr, kcKafkaConf :: !RdKafkaConfTPtr} deriving (Show)
 
-newtype ReballanceCallback = ReballanceCallback (KafkaConsumer -> KafkaError -> [TopicPartition] -> IO ())
+newtype ReballanceCallback    = ReballanceCallback    (KafkaConsumer -> KafkaError -> [TopicPartition] -> IO ())
 newtype OffsetsCommitCallback = OffsetsCommitCallback (KafkaConsumer -> KafkaError -> [TopicPartition] -> IO ())
 
 newtype ConsumerGroupId = ConsumerGroupId String deriving (Show, Eq)

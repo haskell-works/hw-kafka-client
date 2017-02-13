@@ -61,3 +61,33 @@ data KafkaError =
     deriving (Eq, Show, Typeable)
 
 instance Exception KafkaError
+
+data KafkaDebug =
+    DebugGeneric
+  | DebugBroker
+  | DebugTopic
+  | DebugMetadata
+  | DebugQueue
+  | DebugMsg
+  | DebugProtocol
+  | DebugCgrp
+  | DebugSecurity
+  | DebugFetch
+  | DebugFeature
+  | DebugAll
+    deriving (Eq, Show, Typeable)
+
+kafkaDebugToString :: KafkaDebug -> String
+kafkaDebugToString d =case d of
+  DebugGeneric   -> "generic"
+  DebugBroker    -> "broker"
+  DebugTopic     -> "topic"
+  DebugMetadata  -> "metadata"
+  DebugQueue     -> "queue"
+  DebugMsg       -> "msg"
+  DebugProtocol  -> "protocol"
+  DebugCgrp      -> "cgrp"
+  DebugSecurity  -> "security"
+  DebugFetch     -> "fetch"
+  DebugFeature   -> "feature"
+  DebugAll       -> "all"

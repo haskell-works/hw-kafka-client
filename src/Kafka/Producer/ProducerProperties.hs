@@ -32,3 +32,10 @@ extraProducerProps m = ProducerProperties m M.empty Nothing
 
 extraProducerTopicProps :: Map String String -> ProducerProperties
 extraProducerTopicProps m = ProducerProperties M.empty m Nothing
+
+-- | Sets debug features for the producer
+producerDebug :: [KafkaDebug] -> ProducerProperties
+producerDebug [] = extraProducerProps M.empty
+producerDebug d =
+  let points = L.intercalate "," (kafkaDebugToString <$> d)
+   in extraProducerProps $ M.fromList [("debug", points)]
