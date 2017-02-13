@@ -27,6 +27,14 @@ producerBrokersList bs =
 producerLogLevel :: KafkaLogLevel -> ProducerProperties
 producerLogLevel ll = ProducerProperties M.empty M.empty (Just ll)
 
+producerCompression :: KafkaCompressionCodec -> ProducerProperties
+producerCompression c =
+  extraProducerProps $ M.singleton "compression.codec" (kafkaCompressionCodecToString c)
+
+producerTopicCompression :: KafkaCompressionCodec -> ProducerProperties
+producerTopicCompression c =
+  extraProducerTopicProps $ M.singleton "compression.codec" (kafkaCompressionCodecToString c)
+
 extraProducerProps :: Map String String -> ProducerProperties
 extraProducerProps m = ProducerProperties m M.empty Nothing
 

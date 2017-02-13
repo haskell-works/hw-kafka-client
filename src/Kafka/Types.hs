@@ -75,7 +75,7 @@ data KafkaDebug =
   | DebugFetch
   | DebugFeature
   | DebugAll
-    deriving (Eq, Show, Typeable)
+  deriving (Eq, Show, Typeable)
 
 kafkaDebugToString :: KafkaDebug -> String
 kafkaDebugToString d =case d of
@@ -91,3 +91,17 @@ kafkaDebugToString d =case d of
   DebugFetch     -> "fetch"
   DebugFeature   -> "feature"
   DebugAll       -> "all"
+
+data KafkaCompressionCodec =
+    NoCompression
+  | Gzip
+  | Snappy
+  | Lz4
+  deriving (Eq, Show, Typeable)
+
+kafkaCompressionCodecToString :: KafkaCompressionCodec -> String
+kafkaCompressionCodecToString c = case c of
+  NoCompression -> "none"
+  Gzip          -> "gzip"
+  Snappy        -> "snappy"
+  Lz4           -> "lz4"

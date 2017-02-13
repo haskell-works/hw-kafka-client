@@ -69,6 +69,10 @@ offsetsCommitCallback cb = ConsumerProperties M.empty Nothing (Just cb) Nothing
 consumerLogLevel :: KafkaLogLevel -> ConsumerProperties
 consumerLogLevel ll = ConsumerProperties M.empty Nothing Nothing (Just ll)
 
+consumerCompression :: KafkaCompressionCodec -> ConsumerProperties
+consumerCompression c =
+  extraConsumerProps $ M.singleton "compression.codec" (kafkaCompressionCodecToString c)
+
 extraConsumerProps :: Map String String -> ConsumerProperties
 extraConsumerProps m = ConsumerProperties m Nothing Nothing Nothing
 {-# INLINE extraConsumerProps #-}
