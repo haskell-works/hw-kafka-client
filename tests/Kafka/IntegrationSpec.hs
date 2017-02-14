@@ -69,8 +69,8 @@ receiveMessages kafka =
 
 testMessages :: TopicName -> [ProducerRecord]
 testMessages t =
-    [ ProducerRecord t UnassignedPartition "test from producer"
-    , KeyedProducerRecord t "key" UnassignedPartition "test from producer (with key)"
+    [ ProducerRecord t UnassignedPartition Nothing (Just "test from producer")
+    , ProducerRecord t UnassignedPartition (Just "key") (Just "test from producer (with key)")
     ]
 
 sendMessages :: [ProducerRecord] -> KafkaProducer -> IO (Either KafkaError ())

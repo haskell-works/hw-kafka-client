@@ -3,7 +3,7 @@ module Kafka.Producer
 , runProducer
 , newProducer
 , produceMessage
-, drainOutQueue
+, flushProducer
 , closeProducer
 , RDE.RdKafkaRespErrT (..)
 )
@@ -56,31 +56,27 @@ newProducer (ProducerProperties kp tp ll) = liftIO $ do
       forM_ ll (rdKafkaSetLogLevel kafka . fromEnum)
       return .Right $ KafkaProducer kafka kc tc
 
--- setConsumerLogLevel :: KafkaConsumer -> KafkaLogLevel -> IO ()
--- setConsumerLogLevel (KafkaConsumer k _) level =
---   liftIO $ rdKafkaSetLogLevel k (fromEnum level)
--- | Produce a single unkeyed message to either a random partition or specified partition. Since
--- librdkafka is backed by a queue, this function can return before messages are sent. See
--- 'drainOutQueue' to wait for queue to empty.
+-- | Produce a single message.
+-- Since librdkafka is backed by a queue, this function can return before messages are sent. See
+-- 'flushProducer' to wait for queue to empty.
 produceMessage :: MonadIO m
                => KafkaProducer
                -> ProducerRecord
                -> m (Maybe KafkaError)
 produceMessage (KafkaProducer k _ tc) m = liftIO $
-  bracket mkTopic clTopic withTopic
+  bracket (mkTopic $ prTopic m) clTopic withTopic
     where
-      (TopicName tn, key, partition, payload) = keyAndPayload m
-      mkTopic = newUnmanagedRdKafkaTopicT k tn tc
+      mkTopic (TopicName tn) = newUnmanagedRdKafkaTopicT k tn tc
 
       clTopic (Left _) = return ()
       clTopic (Right t) = destroyUnmanagedRdKafkaTopic t
 
       withTopic (Left err) = return . Just . KafkaError $ err
       withTopic (Right t) =
-        withBS (Just payload) $ \payloadPtr payloadLength ->
-          withBS key $ \keyPtr keyLength ->
+        withBS (prValue m) $ \payloadPtr payloadLength ->
+          withBS (prKey m) $ \keyPtr keyLength ->
             handleProduceErr =<<
-              rdKafkaProduce t (producePartitionCInt partition)
+              rdKafkaProduce t (producePartitionCInt (prPartition m))
                 copyMsgFlags payloadPtr (fromIntegral payloadLength)
                 keyPtr (fromIntegral keyLength) nullPtr
 --
@@ -93,7 +89,7 @@ produceMessage (KafkaProducer k _ tc) m = liftIO $
 --               keyPtr (fromIntegral keyLength) nullPtr
 --
 -- | Produce a batch of messages. Since librdkafka is backed by a queue, this function can return
--- before messages are sent. See 'drainOutQueue' to wait for the queue to be empty.
+-- before messages are sent. See 'flushProducer' to wait for the queue to be empty.
 -- produceMessageBatch :: KafkaTopic  -- ^ topic pointer
 --                     -> [ProducerRecord] -- ^ list of messages to enqueue.
 --                     -> IO [(ProducerRecord, KafkaError)] -- list of failed messages with their errors. This will be empty on success.
@@ -131,20 +127,17 @@ produceMessage (KafkaProducer k _ tc) m = liftIO $
 --                                 }
 
 closeProducer :: MonadIO m => KafkaProducer -> m ()
-closeProducer = drainOutQueue
+closeProducer = flushProducer
 
 -- | Drains the outbound queue for a producer. This function is called automatically at the end of
 -- 'runKafkaProducer' or 'runKafkaProducerConf' and usually doesn't need to be called directly.
-drainOutQueue :: MonadIO m => KafkaProducer -> m ()
-drainOutQueue kp@(KafkaProducer k _ _) = liftIO $ do
+flushProducer :: MonadIO m => KafkaProducer -> m ()
+flushProducer kp@(KafkaProducer k _ _) = liftIO $ do
     pollEvents k 100
     l <- outboundQueueLength k
-    unless (l == 0) $ drainOutQueue kp
+    unless (l == 0) $ flushProducer kp
 
 ------------------------------------------------------------------------------------
-keyAndPayload :: ProducerRecord -> (TopicName, Maybe BS.ByteString, ProducePartition, BS.ByteString)
-keyAndPayload (ProducerRecord topic partition payload) = (topic, Nothing, partition, payload)
-keyAndPayload (KeyedProducerRecord topic key partition payload) = (topic, Just key, partition, payload)
 
 withBS :: Maybe BS.ByteString -> (Ptr a -> Int -> IO b) -> IO b
 withBS Nothing f = f nullPtr 0

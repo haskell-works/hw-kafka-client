@@ -24,10 +24,10 @@ runProducerExample = do
 
 sendMessages :: KafkaProducer -> IO (Either KafkaError String)
 sendMessages prod = do
-  err1 <- produceMessage prod (ProducerRecord targetTopic UnassignedPartition "test from producer")
+  err1 <- produceMessage prod (ProducerRecord targetTopic UnassignedPartition Nothing (Just "test from producer"))
   forM_ err1 print
 
-  err2 <- produceMessage prod (KeyedProducerRecord targetTopic "key" UnassignedPartition "test from producer (with key)")
+  err2 <- produceMessage prod (ProducerRecord targetTopic UnassignedPartition (Just "key") (Just "test from producer (with key)"))
   forM_ err2 print
 
   return $ Right "All done, Sir."
