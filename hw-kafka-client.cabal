@@ -1,7 +1,7 @@
-name:                kafka-client
+name:                hw-kafka-client
 version:             1.0.0
-homepage:            https://github.com/haskell-works/kafka-client
-bug-reports:         https://github.com/haskell-works/kafka-client/issues
+homepage:            https://github.com/haskell-works/hw-kafka-client
+bug-reports:         https://github.com/haskell-works/hw-kafka-client/issues
 license:             MIT
 license-file:        LICENSE
 author:              Alexey Raga <alexey.raga@gmail.com>
@@ -22,7 +22,7 @@ description:         Apache Kafka bindings backed by the librdkafka C library.
 
 source-repository head
   type:     git
-  location: git://github.com/haskell-works/kafka-client.git
+  location: git://github.com/haskell-works/hw-kafka-client.git
 
 executable kafka-client-example
   main-is:             Main.hs
@@ -37,7 +37,7 @@ executable kafka-client-example
                      , temporary
                      , transformers
                      , unix
-                     , kafka-client
+                     , hw-kafka-client
 
 library
   Build-tools:       c2hs
@@ -89,7 +89,7 @@ test-suite tests
                      , bifunctors
                      , bytestring
                      , containers
-                     , kafka-client
+                     , hw-kafka-client
                      , monad-loops
                      , hspec
                      , regex-posix
