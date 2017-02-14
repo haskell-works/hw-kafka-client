@@ -28,6 +28,7 @@ consumerProps :: ConsumerProperties
 consumerProps = consumerBrokersList [BrokerAddress "localhost:9092"]
              <> groupId (ConsumerGroupId "consumer_example_group")
              <> noAutoCommit
+             <> consumerDebug [DebugAll]
 
 -- Subscription to topics
 consumerSub :: Subscription
@@ -81,10 +82,20 @@ runProducerExample = do
 
 sendMessages :: KafkaProducer -> IO (Either KafkaError String)
 sendMessages prod = do
-  err1 <- produceMessage prod (ProducerRecord targetTopic UnassignedPartition "test from producer")
+  err1 <- produceMessage prod ProducerRecord
+                                { prTopic = targetTopic
+                                , prPartition = UnassignedPartition
+                                , prKey = Nothing
+                                , prValue = Just "test from producer"
+                                }
   forM_ err1 print
 
-  err2 <- produceMessage prod (KeyedProducerRecord targetTopic "key" UnassignedPartition "test from producer (with key)")
+  err2 <- produceMessage prod ProducerRecord
+                                { prTopic = targetTopic
+                                , prPartition = UnassignedPartition
+                                , prKey = Just "key"
+                                , prValue = Just "test from producer (with key)"
+                                }
   forM_ err2 print
 
   return $ Right "All done."
@@ -105,7 +116,7 @@ As such, we suggest you install from the source:
 
 Sometimes it is helpful to specify openssl includes explicitly:
 
-    LDFLAGS=-L/usr/local/opt/openssl/include CPPFLAGS=-I/usr/local/opt/openssl/include ./configure
+    LDFLAGS=-L/usr/local/opt/openssl/lib CPPFLAGS=-I/usr/local/opt/openssl/include ./configure
 
 ## Installing Kafka
 
