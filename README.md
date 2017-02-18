@@ -8,6 +8,9 @@ Kafka bindings for Haskell backed by the
 This project is inspired by [Haskakafka](https://github.com/cosbynator/haskakafka)
 which unfortunately doesn't seem to be actively maintained.
 
+## Ecosystem
+HaskellWorks Kafka ecosystem is described here: https://github.com/haskell-works/hw-kafka
+
 # Consumer
 High level consumers are supported by `librdkafka` starting from version 0.9.  
 High-level consumers provide an abstraction for consuming messages from multiple
@@ -39,16 +42,16 @@ consumerSub = topics [TopicName "kafka-client-example-topic"]
 runConsumerExample :: IO ()
 runConsumerExample = do
     res <- runConsumer consumerProps consumerSub processMessages
-    print $ show res
+    print res
 
 -------------------------------------------------------------------
 processMessages :: KafkaConsumer -> IO (Either KafkaError ())
 processMessages kafka = do
     mapM_ (\_ -> do
                    msg1 <- pollMessage kafka (Timeout 1000)
-                   print $ "Message: " <> show msg1
+                   putStrLn $ "Message: " <> show msg1
                    err <- commitAllOffsets kafka OffsetCommit
-                   print $ "Offsets: " <> maybe "Committed." show err
+                   putStrLn $ "Offsets: " <> maybe "Committed." show err
           ) [0 .. 10]
     return $ Right ()
 ```
@@ -78,9 +81,9 @@ targetTopic = TopicName "kafka-client-example-topic"
 runProducerExample :: IO ()
 runProducerExample = do
     res <- runProducer producerProps sendMessages
-    print $ show res
+    print res
 
-sendMessages :: KafkaProducer -> IO (Either KafkaError String)
+sendMessages :: KafkaProducer -> IO (Either KafkaError ())
 sendMessages prod = do
   err1 <- produceMessage prod ProducerRecord
                                 { prTopic = targetTopic
@@ -98,7 +101,7 @@ sendMessages prod = do
                                 }
   forM_ err2 print
 
-  return $ Right "All done."
+  return $ Right ()
 ```
 
 # Installation

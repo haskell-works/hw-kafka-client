@@ -9,6 +9,7 @@ import Kafka.Consumer.Types
 import qualified Data.Map as M
 import qualified Data.List as L
 
+-- | Properties to create 'KafkaConsumer'.
 data ConsumerProperties = ConsumerProperties
   { cpProps             :: Map String String
   , cpRebalanceCallback :: Maybe ReballanceCallback
@@ -26,10 +27,12 @@ consumerBrokersList bs =
   let bs' = L.intercalate "," ((\(BrokerAddress x) -> x) <$> bs)
    in extraConsumerProps $ M.fromList [("bootstrap.servers", bs')]
 
+-- | Disables auto commit for the consumer
 noAutoCommit :: ConsumerProperties
 noAutoCommit =
   extraConsumerProps $ M.fromList [("enable.auto.commit", "false")]
 
+-- | Consumer group id
 groupId :: ConsumerGroupId -> ConsumerProperties
 groupId (ConsumerGroupId cid) =
   extraConsumerProps $ M.fromList [("group.id", cid)]
@@ -66,18 +69,24 @@ reballanceCallback cb = ConsumerProperties M.empty (Just cb) Nothing Nothing
 offsetsCommitCallback :: OffsetsCommitCallback -> ConsumerProperties
 offsetsCommitCallback cb = ConsumerProperties M.empty Nothing (Just cb) Nothing
 
+-- | Sets the logging level.
+-- Usually is used with 'consumerDebug' to configure which logs are needed.
 consumerLogLevel :: KafkaLogLevel -> ConsumerProperties
 consumerLogLevel ll = ConsumerProperties M.empty Nothing Nothing (Just ll)
 
+-- | Sets the compression codec for the consumer.
 consumerCompression :: KafkaCompressionCodec -> ConsumerProperties
 consumerCompression c =
   extraConsumerProps $ M.singleton "compression.codec" (kafkaCompressionCodecToString c)
 
+-- | Any configuration options that are supported by /librdkafka/.
+-- The full list can be found <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md here>
 extraConsumerProps :: Map String String -> ConsumerProperties
 extraConsumerProps m = ConsumerProperties m Nothing Nothing Nothing
 {-# INLINE extraConsumerProps #-}
 
--- | Sets debug features for the consumer
+-- | Sets debug features for the consumer.
+-- Usually is used with 'consumerLogLevel'.
 consumerDebug :: [KafkaDebug] -> ConsumerProperties
 consumerDebug [] = extraConsumerProps M.empty
 consumerDebug d =

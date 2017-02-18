@@ -64,7 +64,6 @@ newConsumer :: MonadIO m
             -> Subscription
             -> m (Either KafkaError KafkaConsumer)
 newConsumer cp (Subscription ts tp) = liftIO $ do
-  -- (Kafka kkk (KafkaConf kc)) <- newKafka (KafkaProps $ M.toList m)
   (KafkaConf kc) <- newConsumerConf cp
   tp' <- topicConf (TopicProps $ M.toList tp)
   _   <- setDefaultTopicConf kc tp'
@@ -81,7 +80,7 @@ newConsumer cp (Subscription ts tp) = liftIO $ do
 -- | Polls the next message from a subscription
 pollMessage :: MonadIO m
             => KafkaConsumer
-            -> Timeout -- ^ the timeout, in milliseconds (@10^3@ per second)
+            -> Timeout -- ^ the timeout, in milliseconds
             -> m (Either KafkaError (ConsumerRecord (Maybe BS.ByteString) (Maybe BS.ByteString))) -- ^ Left on error or timeout, right for success
 pollMessage (KafkaConsumer k _) (Timeout ms) =
     liftIO $ rdKafkaConsumerPoll k (fromIntegral ms) >>= fromMessagePtr
@@ -105,7 +104,6 @@ commitAllOffsets o k =
 
 -- | Assigns specified partitions to a current consumer.
 -- Assigning an empty list means unassigning from all partitions that are currently assigned.
--- See 'setRebalanceCallback' for more details.
 assign :: MonadIO m => KafkaConsumer -> [TopicPartition] -> m KafkaError
 assign (KafkaConsumer k _) ps =
     let pl = if null ps
@@ -114,7 +112,7 @@ assign (KafkaConsumer k _) ps =
     in  liftIO $ KafkaResponseError <$> (pl >>= rdKafkaAssign k)
 
 
--- | Closes the consumer and destroys it.
+-- | Closes the consumer.
 closeConsumer :: MonadIO m => KafkaConsumer -> m (Maybe KafkaError)
 closeConsumer (KafkaConsumer k _) =
   liftIO $ (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaConsumerClose k

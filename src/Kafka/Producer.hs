@@ -1,14 +1,16 @@
+{-# LANGUAGE TupleSections #-}
 module Kafka.Producer
 ( module X
 , runProducer
 , newProducer
-, produceMessage
+, produceMessage, produceMessageBatch
 , flushProducer
 , closeProducer
 , RDE.RdKafkaRespErrT (..)
 )
 where
 
+import           Control.Arrow ((&&&))
 import           Control.Exception
 import           Control.Monad
 import           Control.Monad.IO.Class
@@ -20,9 +22,9 @@ import           Kafka.Internal.RdKafka
 import           Kafka.Internal.RdKafkaEnum
 import           Kafka.Internal.Setup
 import           Kafka.Producer.Convert
--- import           Data.Function (on)
--- import           Data.List (sortBy, groupBy)
--- import           Data.Ord (comparing)
+import           Data.Function (on)
+import           Data.List (sortBy, groupBy)
+import           Data.Ord (comparing)
 
 import qualified Kafka.Internal.RdKafkaEnum      as RDE
 
@@ -30,6 +32,9 @@ import Kafka.Types as X
 import Kafka.Producer.Types as X
 import Kafka.Producer.ProducerProperties as X
 
+-- | Runs Kafka Producer.
+-- The callback provided is expected to call 'produceMessage'
+-- or/and 'produceMessageBatch' to send messages to Kafka.
 runProducer :: ProducerProperties
             -> (KafkaProducer -> IO (Either KafkaError a))
             -> IO (Either KafkaError a)
@@ -45,6 +50,7 @@ runProducer props f =
     runHandler (Right prod) = f prod
 
 -- | Creates a new kafka producer
+-- A newly created producer must be closed with 'closeProducer' function.
 newProducer :: MonadIO m => ProducerProperties -> m (Either KafkaError KafkaProducer)
 newProducer (ProducerProperties kp tp ll) = liftIO $ do
   (KafkaConf kc) <- kafkaConf (KafkaProps $ M.toList kp)
@@ -56,7 +62,7 @@ newProducer (ProducerProperties kp tp ll) = liftIO $ do
       forM_ ll (rdKafkaSetLogLevel kafka . fromEnum)
       return .Right $ KafkaProducer kafka kc tc
 
--- | Produce a single message.
+-- | Sends a single message.
 -- Since librdkafka is backed by a queue, this function can return before messages are sent. See
 -- 'flushProducer' to wait for queue to empty.
 produceMessage :: MonadIO m
@@ -68,8 +74,7 @@ produceMessage (KafkaProducer k _ tc) m = liftIO $
     where
       mkTopic (TopicName tn) = newUnmanagedRdKafkaTopicT k tn tc
 
-      clTopic (Left _) = return ()
-      clTopic (Right t) = destroyUnmanagedRdKafkaTopic t
+      clTopic = either (return . const ()) destroyUnmanagedRdKafkaTopic
 
       withTopic (Left err) = return . Just . KafkaError $ err
       withTopic (Right t) =
@@ -79,58 +84,67 @@ produceMessage (KafkaProducer k _ tc) m = liftIO $
               rdKafkaProduce t (producePartitionCInt (prPartition m))
                 copyMsgFlags payloadPtr (fromIntegral payloadLength)
                 keyPtr (fromIntegral keyLength) nullPtr
---
--- let (topic, key, partition, payload) = keyAndPayload m
--- in withBS (Just payload) $ \payloadPtr payloadLength ->
---         withBS key $ \keyPtr keyLength ->
---           handleProduceErr =<<
---             rdKafkaProduce t (producePartitionCInt partition)
---               copyMsgFlags payloadPtr (fromIntegral payloadLength)
---               keyPtr (fromIntegral keyLength) nullPtr
---
--- | Produce a batch of messages. Since librdkafka is backed by a queue, this function can return
--- before messages are sent. See 'flushProducer' to wait for the queue to be empty.
--- produceMessageBatch :: KafkaTopic  -- ^ topic pointer
---                     -> [ProducerRecord] -- ^ list of messages to enqueue.
---                     -> IO [(ProducerRecord, KafkaError)] -- list of failed messages with their errors. This will be empty on success.
--- produceMessageBatch (KafkaTopic t _ _) pms =
---   concat <$> mapM sendBatch (partBatches pms)
---   where
---     partBatches msgs = (\x -> (pmPartition (head x), x)) <$> batches msgs
---     batches = groupBy ((==) `on` pmPartition) . sortBy (comparing pmPartition)
---     sendBatch (part, ms) = do
---       msgs <- forM ms toNativeMessage
---       let msgsCount = length msgs
---       withArray msgs $ \batchPtr -> do
---         batchPtrF <- newForeignPtr_ batchPtr
---         numRet    <- rdKafkaProduceBatch t (producePartitionCInt part) copyMsgFlags batchPtrF msgsCount
---         if numRet == msgsCount then return []
---         else do
---           errs <- mapM (return . err'RdKafkaMessageT <=< peekElemOff batchPtr)
---                        [0..(fromIntegral $ msgsCount - 1)]
---           return [(m, KafkaResponseError e) | (m, e) <- zip pms errs, e /= RdKafkaRespErrNoError]
---       where
---           toNativeMessage msg =
---               let (key, partition, payload) = keyAndPayload msg
---               in  withBS (Just payload) $ \payloadPtr payloadLength ->
---                       withBS key $ \keyPtr keyLength ->
---                           withForeignPtr t $ \ptrTopic ->
---                               return RdKafkaMessageT
---                                 { err'RdKafkaMessageT       = RdKafkaRespErrNoError
---                                 , topic'RdKafkaMessageT     = ptrTopic
---                                 , partition'RdKafkaMessageT = producePartitionInt partition
---                                 , len'RdKafkaMessageT       = payloadLength
---                                 , payload'RdKafkaMessageT   = payloadPtr
---                                 , offset'RdKafkaMessageT    = 0
---                                 , keyLen'RdKafkaMessageT    = keyLength
---                                 , key'RdKafkaMessageT       = keyPtr
---                                 }
 
+
+-- | Sends a batch of messages.
+-- Returns a list of messages which it was unable to send with corresponding errors.
+-- Since librdkafka is backed by a queue, this function can return before messages are sent. See
+-- 'flushProducer' to wait for queue to empty.
+produceMessageBatch :: MonadIO m
+                    => KafkaProducer
+                    -> [ProducerRecord]
+                    -> m [(ProducerRecord, KafkaError)]
+                    -- ^ An empty list when the operation is successful,
+                    -- otherwise a list of "failed" messages with corresponsing errors. 
+produceMessageBatch (KafkaProducer k _ tc) messages = liftIO $
+  concat <$> forM (mkBatches messages) sendBatch
+  where
+    mkSortKey = prTopic &&& prPartition
+    mkBatches = groupBy ((==) `on` mkSortKey) . sortBy (comparing mkSortKey)
+
+    mkTopic (TopicName tn) = newUnmanagedRdKafkaTopicT k tn tc
+
+    clTopic = either (return . const ()) destroyUnmanagedRdKafkaTopic
+
+    sendBatch [] = return []
+    sendBatch batch = bracket (mkTopic $ prTopic (head batch)) clTopic (withTopic batch)
+
+    withTopic ms (Left err) = return $ (, KafkaError err) <$> ms
+    withTopic ms (Right t) = do
+      let (partInt, partCInt) = (producePartitionInt &&& producePartitionCInt) $ prPartition (head ms)
+      withForeignPtr t $ \topicPtr -> do
+        nativeMs <- forM ms (toNativeMessage topicPtr partInt)
+        withArrayLen nativeMs $ \len batchPtr -> do
+          batchPtrF <- newForeignPtr_ batchPtr
+          numRet    <- rdKafkaProduceBatch t partCInt copyMsgFlags batchPtrF len
+          if numRet == len then return []
+          else do
+            errs <- mapM (return . err'RdKafkaMessageT <=< peekElemOff batchPtr)
+                         [0..(fromIntegral $ len - 1)]
+            return [(m, KafkaResponseError e) | (m, e) <- zip messages errs, e /= RdKafkaRespErrNoError]
+
+    toNativeMessage t p m =
+      withBS (prValue m) $ \payloadPtr payloadLength ->
+        withBS (prKey m) $ \keyPtr keyLength ->
+          return RdKafkaMessageT
+            { err'RdKafkaMessageT       = RdKafkaRespErrNoError
+            , topic'RdKafkaMessageT     = t
+            , partition'RdKafkaMessageT = p
+            , len'RdKafkaMessageT       = payloadLength
+            , payload'RdKafkaMessageT   = payloadPtr
+            , offset'RdKafkaMessageT    = 0
+            , keyLen'RdKafkaMessageT    = keyLength
+            , key'RdKafkaMessageT       = keyPtr
+            }
+
+-- | Closes the producer.
+-- Will wait until the outbound queue is drained before returning the control.
 closeProducer :: MonadIO m => KafkaProducer -> m ()
 closeProducer = flushProducer
 
--- | Drains the outbound queue for a producer. This function is called automatically at the end of
--- 'runKafkaProducer' or 'runKafkaProducerConf' and usually doesn't need to be called directly.
+-- | Drains the outbound queue for a producer.
+--  This function is also called automatically when the producer is closed
+-- with 'closeProducer' to ensure that all queued messages make it to Kafka.
 flushProducer :: MonadIO m => KafkaProducer -> m ()
 flushProducer kp@(KafkaProducer k _ _) = liftIO $ do
     pollEvents k 100

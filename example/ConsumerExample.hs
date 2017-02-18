@@ -25,34 +25,35 @@ runConsumerExample :: IO ()
 runConsumerExample = do
     print $ cpLogLevel consumerProps
     res <- runConsumer consumerProps consumerSub processMessages
-    print $ show res
+    print res
 
 -------------------------------------------------------------------
 processMessages :: KafkaConsumer -> IO (Either KafkaError ())
 processMessages kafka = do
     mapM_ (\_ -> do
                    msg1 <- pollMessage kafka (Timeout 1000)
-                   print $ "Message: " <> show msg1
+                   putStrLn $ "Message: " <> show msg1
                    err <- commitAllOffsets OffsetCommit kafka
-                   print $ "Offsets: " <> maybe "Committed." show err
+                   putStrLn $ "Offsets: " <> maybe "Committed." show err
           ) [0 :: Integer .. 10]
     return $ Right ()
 
 printingRebalanceCallback :: KafkaConsumer -> KafkaError -> [TopicPartition] -> IO ()
 printingRebalanceCallback k e ps = do
-    putStrLn "Rebalance callback!"
-    print ("Rebalance Error: " ++ show e)
-    mapM_ (print . show . (tpTopicName &&& tpPartition &&& tpOffset)) ps
     case e of
-        KafkaResponseError RdKafkaRespErrAssignPartitions ->
-            assign k ps >>= print . show
-        KafkaResponseError RdKafkaRespErrRevokePartitions ->
-            assign k [] >>= print . show
-        x -> print "UNKNOWN (and unlikely!)" >> print (show x)
+        KafkaResponseError RdKafkaRespErrAssignPartitions -> do
+            putStr "[Rebalance] Assign partitions: "
+            mapM_ (print . (tpTopicName &&& tpPartition &&& tpOffset)) ps
+            assign k ps >>= print
+        KafkaResponseError RdKafkaRespErrRevokePartitions -> do
+            putStr "[Rebalance] Revoke partitions: "
+            mapM_ (print . (tpTopicName &&& tpPartition &&& tpOffset)) ps
+            assign k [] >>= print
+        x -> print "Rebalance: UNKNOWN (and unlikely!)" >> print x
 
 
 printingOffsetCallback :: KafkaConsumer -> KafkaError -> [TopicPartition] -> IO ()
 printingOffsetCallback _ e ps = do
     putStrLn "Offsets callback!"
     print ("Offsets Error:" ++ show e)
-    mapM_ (print . show . (tpTopicName &&& tpPartition &&& tpOffset)) ps
+    mapM_ (print . (tpTopicName &&& tpPartition &&& tpOffset)) ps

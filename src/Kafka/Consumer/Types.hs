@@ -47,13 +47,11 @@ data TopicPartition = TopicPartition
   , tpPartition :: PartitionId
   , tpOffset    :: PartitionOffset } deriving (Show, Eq)
 
--- | Represents /received/ messages from a Kafka broker (i.e. used in a consumer)
+-- | Represents a /received/ message from Kafka (i.e. used in a consumer)
 data ConsumerRecord k v = ConsumerRecord
-  { crTopic     :: !TopicName
-    -- | Kafka partition this message was received from
-  , crPartition :: !PartitionId
-    -- | Offset within the 'crPartition' Kafka partition
-  , crOffset    :: !Offset
+  { crTopic     :: !TopicName    -- ^ Kafka topic this message was received from
+  , crPartition :: !PartitionId  -- ^ Kafka partition this message was received from
+  , crOffset    :: !Offset       -- ^ Offset within the 'crPartition' Kafka partition
   , crKey       :: !k
   , crValue     :: !v
   }

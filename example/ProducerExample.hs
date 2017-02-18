@@ -6,6 +6,7 @@ where
 import Control.Monad (forM_)
 import Data.Monoid
 import Kafka.Producer
+import Data.ByteString (ByteString)
 
 -- Global producer properties
 producerProps :: ProducerProperties
@@ -16,28 +17,33 @@ producerProps = producerBrokersList [BrokerAddress "localhost:9092"]
 targetTopic :: TopicName
 targetTopic = TopicName "kafka-client-example-topic"
 
+mkMessage :: Maybe ByteString -> Maybe ByteString -> ProducerRecord
+mkMessage k v = ProducerRecord
+                  { prTopic = targetTopic
+                  , prPartition = UnassignedPartition
+                  , prKey = k
+                  , prValue = v
+                  }
+
 -- Run an example
 runProducerExample :: IO ()
 runProducerExample = do
     res <- runProducer producerProps sendMessages
-    print $ show res
+    print res
 
-sendMessages :: KafkaProducer -> IO (Either KafkaError String)
+sendMessages :: KafkaProducer -> IO (Either KafkaError ())
 sendMessages prod = do
-  err1 <- produceMessage prod ProducerRecord
-                                { prTopic = targetTopic
-                                , prPartition = UnassignedPartition
-                                , prKey = Nothing
-                                , prValue = Just "test from producer"
-                                }
+  err1 <- produceMessage prod (mkMessage Nothing (Just "test from producer") )
   forM_ err1 print
 
-  err2 <- produceMessage prod ProducerRecord
-                                { prTopic = targetTopic
-                                , prPartition = UnassignedPartition
-                                , prKey = Just "key"
-                                , prValue = Just "test from producer (with key)"
-                                }
+  err2 <- produceMessage prod (mkMessage (Just "key") (Just "test from producer (with key)"))
   forM_ err2 print
 
-  return $ Right "All done, Sir."
+  errs <- produceMessageBatch prod
+            [ mkMessage (Just "b-1") (Just "batch-1")
+            , mkMessage (Just "b-2") (Just "batch-2")
+            , mkMessage Nothing      (Just "batch-3")
+            ]
+
+  forM_ errs (print . snd)
+  return $ Right ()
