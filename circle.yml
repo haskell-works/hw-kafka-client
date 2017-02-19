@@ -3,19 +3,15 @@ machine:
     version: 7.10.2
   services:
     - docker
-    
+
 dependencies:
   cache_directories:
     - "~/.stack"
 
   pre:
     - wget -qO- https://get.haskellstack.org/ | sh
-    - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.9 10
-    - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.9 10
-    - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
-    - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.8 20
     - "git fetch --unshallow || true"
-  
+
   override:
     - build/build-librdkafka.sh
     - stack setup
@@ -28,9 +24,9 @@ dependencies:
 test:
   pre:
     - build/test-env.sh
-  
+
   override:
     - build/integration-tests.sh
-  
+
   post:
     - find . -path "*/test-reports/*" -exec mv {} ${CIRCLE_TEST_REPORTS} \;
