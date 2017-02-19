@@ -1,5 +1,5 @@
-# kafka-client  
-[![Circle CI](https://circleci.com/gh/haskell-works/kafka-client.svg?style=svg&circle-token=5f3ada2650dd600bc0fd4787143024867b2afc4e)](https://circleci.com/gh/haskell-works/kafka-client)
+# hw-kafka-client  
+[![CircleCI](https://circleci.com/gh/haskell-works/hw-kafka-client.svg?style=svg&circle-token=5f3ada2650dd600bc0fd4787143024867b2afc4e)](https://circleci.com/gh/haskell-works/hw-kafka-client)
 
 Kafka bindings for Haskell backed by the
 [librdkafka C module](https://github.com/edenhill/librdkafka).

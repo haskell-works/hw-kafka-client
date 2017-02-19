@@ -70,7 +70,7 @@ cp -R $builddir/doc/html/$pkg/ $dir/$pkg-$ver-docs
 tar cvz -C $dir --format=ustar -f $dir/$pkg-$ver-docs.tar.gz $pkg-$ver-docs
 
 # Upload
-echo curl -X PUT \
+curl -X PUT \
      -H 'Content-Type: application/x-tar' \
      -H 'Content-Encoding: gzip' \
      -u "$user" \
