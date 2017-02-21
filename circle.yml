@@ -13,7 +13,7 @@ dependencies:
     - "git fetch --unshallow || true"
 
   override:
-    - build/build-librdkafka.sh
+    - scripts/build-librdkafka.sh
     - stack setup
     - stack clean
     - LD_LIBRARY_PATH=/usr/local/lib stack build --test --no-run-tests --haddock --no-haddock-deps
