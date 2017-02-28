@@ -39,7 +39,7 @@ processMessages kafka = do
     return $ Right ()
 
 printingRebalanceCallback :: KafkaConsumer -> KafkaError -> [TopicPartition] -> IO ()
-printingRebalanceCallback k e ps = do
+printingRebalanceCallback k e ps =
     case e of
         KafkaResponseError RdKafkaRespErrAssignPartitions -> do
             putStr "[Rebalance] Assign partitions: "
@@ -54,6 +54,5 @@ printingRebalanceCallback k e ps = do
 
 printingOffsetCallback :: KafkaConsumer -> KafkaError -> [TopicPartition] -> IO ()
 printingOffsetCallback _ e ps = do
-    putStrLn "Offsets callback!"
-    print ("Offsets Error:" ++ show e)
+    print ("Offsets callback:" ++ show e)
     mapM_ (print . (tpTopicName &&& tpPartition &&& tpOffset)) ps

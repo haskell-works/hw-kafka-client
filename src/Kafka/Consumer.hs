@@ -71,11 +71,16 @@ newConsumer cp (Subscription ts tp) = liftIO $ do
   case flip KafkaConsumer kc <$> rdk of
     Left err -> return $ Left err
     Right kafka -> do
-      forM_ (cpLogLevel cp) (setConsumerLogLevel kafka)
-      sub <- subscribe kafka ts
-      case sub of
-        Nothing  -> return $ Right kafka
+      redErr <- redirectCallbacksPoll kafka
+      case redErr of
         Just err -> closeConsumer kafka >> return (Left err)
+        Nothing -> do
+          forM_ (cpLogLevel cp) (setConsumerLogLevel kafka)
+          sub <- subscribe kafka ts
+          case sub of
+            Nothing  -> return $ Right kafka
+            Just err -> closeConsumer kafka >> return (Left err)
+
 
 -- | Polls the next message from a subscription
 pollMessage :: MonadIO m
@@ -193,3 +198,7 @@ commitOffsets o (KafkaConsumer k _) pl =
 setConsumerLogLevel :: KafkaConsumer -> KafkaLogLevel -> IO ()
 setConsumerLogLevel (KafkaConsumer k _) level =
   liftIO $ rdKafkaSetLogLevel k (fromEnum level)
+
+redirectCallbacksPoll :: KafkaConsumer -> IO (Maybe KafkaError)
+redirectCallbacksPoll (KafkaConsumer k _) =
+  (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaPollSetConsumer k
