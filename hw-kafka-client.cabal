@@ -23,6 +23,11 @@ description:         Apache Kafka bindings backed by the librdkafka C library.
 
 extra-source-files:   README.md
 
+flag examples
+  default: False
+  manual: True
+  description: Also compile examples
+
 source-repository head
   type:     git
   location: git://github.com/haskell-works/hw-kafka-client.git
@@ -41,6 +46,11 @@ executable kafka-client-example
                      , transformers
                      , unix
                      , hw-kafka-client
+
+  if flag(examples)
+    buildable: True
+  else
+    buildable: False
 
 library
   Build-tools:       c2hs

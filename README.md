@@ -19,7 +19,18 @@ by providing automatic rebalancing functionality. When a new consumer joins a co
 group the set of consumers attempt to "rebalance" the load to assign partitions to each consumer.
 
 ### Example:
-A working consumer example can be found here: [ConsumerExample.hs](example/ConsumerExample.hs)
+```
+$ stack build --flag hw-kafka-client:examples
+```
+
+or
+
+```
+$ stack build --exec kafka-client-example --flag hw-kafka-client:examples
+```
+
+A working consumer example can be found here: [ConsumerExample.hs](example/ConsumerExample.hs)</br>
+To run an example please compile with the `examples` flag:
 
 ```Haskell
 import Data.Monoid ((<>))
