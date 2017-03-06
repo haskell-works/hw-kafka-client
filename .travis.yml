@@ -71,7 +71,7 @@ matrix:
 
   # The Stack builds. We can pass in arbitrary Stack arguments via the ARGS
   # variable, such as using --stack-yaml to point to a different file.
-  - env: BUILD=stack ARGS="--flag hw-kafka-client:examples"
+  - env: BUILD=stack ARGS=""
     compiler: ": #stack default"
     addons: {apt: {packages: [libgmp-dev]}}
 
@@ -83,25 +83,25 @@ matrix:
   #   compiler: ": #stack 7.10.2"
   #   addons: {apt: {packages: [libgmp-dev]}}
 
-  - env: BUILD=stack ARGS="--resolver lts-6 --flag hw-kafka-client:examples"
+  - env: BUILD=stack ARGS="--resolver lts-6"
     compiler: ": #stack 7.10.3"
     addons: {apt: {packages: [libgmp-dev]}}
 
-  - env: BUILD=stack ARGS="--resolver lts-7 --flag hw-kafka-client:examples"
+  - env: BUILD=stack ARGS="--resolver lts-7"
     compiler: ": #stack 8.0.1"
     addons: {apt: {packages: [libgmp-dev]}}
 
-  - env: BUILD=stack ARGS="--resolver lts-8 --flag hw-kafka-client:examples"
+  - env: BUILD=stack ARGS="--resolver lts-8"
     compiler: ": #stack 8.0.8"
     addons: {apt: {packages: [libgmp-dev]}}
 
   # Nightly builds are allowed to fail
-  - env: BUILD=stack ARGS="--resolver nightly --flag hw-kafka-client:examples"
+  - env: BUILD=stack ARGS="--resolver nightly"
     compiler: ": #stack nightly"
     addons: {apt: {packages: [libgmp-dev]}}
 
   # Build on macOS in addition to Linux
-  - env: BUILD=stack ARGS=" --flag hw-kafka-client:examples"
+  - env: BUILD=stack ARGS=""
     compiler: ": #stack default osx"
     os: osx
 
@@ -114,19 +114,19 @@ matrix:
   #   compiler: ": #stack 7.10.2 osx"
   #   os: osx
 
-  - env: BUILD=stack ARGS="--resolver lts-6 --flag hw-kafka-client:examples"
+  - env: BUILD=stack ARGS="--resolver lts-6"
     compiler: ": #stack 7.10.3 osx"
     os: osx
 
-  - env: BUILD=stack ARGS="--resolver lts-7 --flag hw-kafka-client:examples"
+  - env: BUILD=stack ARGS="--resolver lts-7"
     compiler: ": #stack 8.0.1 osx"
     os: osx
 
-  - env: BUILD=stack ARGS="--resolver lts-8 --flag hw-kafka-client:examples"
+  - env: BUILD=stack ARGS="--resolver lts-8"
     compiler: ": #stack 8.0.2 osx"
     os: osx
 
-  - env: BUILD=stack ARGS="--resolver nightly --flag hw-kafka-client:examples"
+  - env: BUILD=stack ARGS="--resolver nightly "
     compiler: ": #stack nightly osx"
     os: osx
 
@@ -202,7 +202,7 @@ script:
   set -ex
   case "$BUILD" in
     stack)
-      stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps
+      stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps --flag hw-kafka-client:examples
       ;;
     cabal)
       cabal install --enable-tests --enable-benchmarks --force-reinstalls --ghc-options=-O0 --reorder-goals --max-backjumps=-1 $CABALARGS $PACKAGES
