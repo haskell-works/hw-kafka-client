@@ -79,6 +79,14 @@ consumerCompression :: KafkaCompressionCodec -> ConsumerProperties
 consumerCompression c =
   extraConsumerProps $ M.singleton "compression.codec" (kafkaCompressionCodecToString c)
 
+-- | Suppresses consumer disconnects logs.
+--
+-- It might be useful to turn this off when interacting with brokers
+-- with an aggressive connection.max.idle.ms value.
+consumerSuppressDisconnectLogs :: ConsumerProperties
+consumerSuppressDisconnectLogs =
+  extraConsumerProps $ M.fromList [("log.connection.close", "false")]
+
 -- | Any configuration options that are supported by /librdkafka/.
 -- The full list can be found <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md here>
 extraConsumerProps :: Map String String -> ConsumerProperties
