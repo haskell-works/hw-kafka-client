@@ -1,32 +1,71 @@
-machine:
-  ghc:
-    version: 7.10.2
-  services:
-    - docker
+version: 2.0
+jobs:
+  build:
+    working_directory: ~/hw-kafka-client
+    docker:
+      - image: fpco/stack-build:latest
 
-dependencies:
-  cache_directories:
-    - "~/.stack"
+    environment:
+      LD_LIBRARY_PATH: /usr/local/lib
 
-  pre:
-    - wget -qO- https://get.haskellstack.org/ | sh
-    - "git fetch --unshallow || true"
+    steps:
+      - checkout
+      - restore_cache:
+          keys: 
+            - dot-stack-{{ checksum "stack.yaml" }}-{{ checksum "hw-kafka-client.cabal" }}
+            - dot-stack
+      - restore_cache:
+          key: stack-work-{{ checksum "stack.yaml" }}
+      - restore_cache:
+          key: librdkafka-{{ checksum "scripts/build-librdkafka.sh" }}
 
-  override:
-    - scripts/build-librdkafka.sh
-    - stack setup
-    - stack clean
-    - LD_LIBRARY_PATH=/usr/local/lib stack build --test --no-run-tests --haddock --no-haddock-deps
+      - run:
+          name: Build librdkafka
+          command: ./scripts/build-librdkafka.sh
 
-  post:
-    - ./scripts/copy-docs.sh
+      - run:
+          name: Build librdkafka
+          command: ./scripts/build-librdkafka.sh
 
-test:
-  pre:
-    - build/test-env.sh
+      - run: stack setup
+      - run: stack build --test --no-run-tests --haddock --no-haddock-deps
 
-  override:
-    - build/integration-tests.sh
+      # - run:
+      #     name: Install Docker client
+      #     command: |
+      #       set -x
+      #       VER="17.03.0-ce"
+      #       curl -L -o /tmp/docker-$VER.tgz https://get.docker.com/builds/Linux/x86_64/docker-$VER.tgz
+      #       tar -xz -C /tmp -f /tmp/docker-$VER.tgz
+      #       mv /tmp/docker/* /usr/bin
 
-  post:
-    - find . -path "*/test-reports/*" -exec mv {} ${CIRCLE_TEST_REPORTS} \;
+      # - run:
+      #     name: Build the container
+      #     command: ./scripts/container.sh build
+
+      - run: ./scripts/copy-docs.sh
+
+      # - run:
+      #     name: Running unit tests
+      #     command: stack test
+
+      - save_cache:
+          key: dot-stack-base
+          paths:
+            - ~/.stack
+
+      - save_cache:
+          key: dot-stack-{{ checksum "stack.yaml" }}-{{ checksum "hw-kafka-client.cabal" }}
+          paths:
+            - ~/.stack
+
+      - save_cache:
+          key: stack-work-{{ checksum "stack.yaml" }}
+          paths: ~/hw-kafka-client/.stack-work
+
+      - save_cache:
+          key: librdkafka-{{ checksum "scripts/build-librdkafka.sh" }}
+          paths: ~/hw-kafka-client/.librdkafka
+
+      - store_artifacts:
+          path: /tmp/doc

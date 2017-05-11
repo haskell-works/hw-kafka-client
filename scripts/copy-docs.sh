@@ -1,14 +1,8 @@
 #!/bin/bash
 set -e
 
-cabal_file=$(find . -maxdepth 1 -name "*.cabal" -print -quit)
-if [ ! -f "$cabal_file" ]; then
-  echo "Run this script in the top-level package directory"
-  exit 1
-fi
-
-pkg=$(awk -F ":[[:space:]]*" 'tolower($1)=="name"    { print $2 }' < "$cabal_file")
-ver=$(awk -F ":[[:space:]]*" 'tolower($1)=="version" { print $2 }' < "$cabal_file")
+pkg=$(cat *.cabal | grep -e "^name" | tr -s " " | cut -d' ' -f2)
+ver=$(cat *.cabal | grep -e "^version" | tr -s " " | cut -d' ' -f2)
 
 if [ -z "$pkg" ]; then
   echo "Unable to determine package name"
@@ -22,4 +16,6 @@ fi
 
 echo "Detected package: $pkg-$ver"
 
-cp -R $(stack path --local-install-root)/doc/$pkg-$ver/ $CIRCLE_ARTIFACTS/$pkg-$ver-docs
+mkdir -p mkdir /tmp/doc
+
+cp -R $(stack path --local-install-root)/doc/$pkg-$ver/ /tmp/doc/$pkg-$ver
