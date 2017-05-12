@@ -5,6 +5,15 @@ jobs:
     docker:
       - image: fpco/stack-build:latest
 
+      - image: confluentinc/cp-zookeeper
+        environment:
+          ZOOKEEPER_CLIENT_PORT: 2181
+
+      - image: confluentinc/cp-kafka
+        environment:
+          KAFKA_ZOOKEEPER_CONNECT: "localhost:2181"
+          KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
+        
     environment:
       LD_LIBRARY_PATH: /usr/local/lib
 
@@ -45,9 +54,9 @@ jobs:
 
       - run: ./scripts/copy-docs.sh
 
-      # - run:
-      #     name: Running unit tests
-      #     command: stack test
+      - run:
+          name: Running unit tests
+          command: stack test
 
       - save_cache:
           key: dot-stack-base
