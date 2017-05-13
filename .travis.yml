@@ -11,8 +11,8 @@
 # Use new container infrastructure to enable caching
 sudo: true
 dist: trusty
-# services:
-#   - docker
+services:
+  - docker
 
 # Do not choose a language; we provide our own build tools.
 language: generic
@@ -23,6 +23,8 @@ cache:
   - $HOME/.ghc
   - $HOME/.cabal
   - $HOME/.stack
+  - $TRAVIS_BUILD_DIR/.librdkafka
+  - $TRAVIS_BUILD_DIR/.stack-work
 
 # The different configurations we want to test. We have BUILD=cabal which uses
 # cabal-install, and BUILD=stack which uses Stack. More documentation on each
@@ -139,6 +141,7 @@ before_install:
 # Using compiler above sets CC to an invalid value, so unset it
 - unset CC
 
+- export DOCKER_IP=`ifconfig | grep "inet addr:" | grep "Bcast:0.0.0.0" | cut -d ':' -f2 | awk '{ print $1}'`
 - export LD_LIBRARY_PATH=/usr/local/lib
 
 # - docker-compose --version
@@ -191,18 +194,27 @@ install:
   esac
   set +ex
 
-# before_script:
-# - export DOCKER_IP=`ifconfig | grep "inet addr:" | grep "Bcast:0.0.0.0" | cut -d":" -f2 | awk '{ print $1}'`
-# - echo $DOCKER_IP
-# - docker-compose up -d
-# - sleep 5
+before_script:
+- |
+  if [ $TRAVIS_OS_NAME == "linux" ]
+  then
+    export KAFKA_TEST_BROKER=$DOCKER_IP
+    docker run -d --name zookeeper -p 2181:2181 -e ZOOKEEPER_CLIENT_PORT=2181 confluentinc/cp-zookeeper
+    docker run -d --name kafka -p 9092:9092 -e KAFKA_ADVERTISED_LISTENERS="PLAINTEXT://$DOCKER_IP:9092" -e KAFKA_ZOOKEEPER_CONNECT="$DOCKER_IP:2181" confluentinc/cp-kafka
+    sleep 10
+  fi
 
 script:
 - |
   set -ex
   case "$BUILD" in
     stack)
-      stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps --flag hw-kafka-client:examples
+      if [ $TRAVIS_OS_NAME == "osx" ]
+      then
+        stack --no-terminal $ARGS build --flag hw-kafka-client:examples      
+      else
+        stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps --flag hw-kafka-client:examples
+      fi
       ;;
     cabal)
       cabal install --enable-tests --enable-benchmarks --force-reinstalls --ghc-options=-O0 --reorder-goals --max-backjumps=-1 $CABALARGS $PACKAGES
