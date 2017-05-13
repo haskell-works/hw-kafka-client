@@ -6,12 +6,12 @@ module Kafka.IntegrationSpec
 ) where
 
 import           Control.Exception
-import           Control.Monad (forM_)
+import           Control.Monad       (forM_)
 import           Control.Monad.Loops
-import           Data.Monoid ((<>))
+import qualified Data.ByteString     as BS
 import           Data.Either
+import           Data.Monoid         ((<>))
 import           System.Environment
-import qualified Data.ByteString as BS
 
 import           Kafka
 
@@ -37,21 +37,21 @@ subscription t = topics [t]
 
 spec :: Spec
 spec = describe "Kafka.IntegrationSpec" $ do
-    -- it "sends messages to test topic" $ do
-    --     broker <- brokerAddress
-    --     topic  <- testTopic
-    --     let msgs = testMessages topic
-    --     res    <- runProducer (producerProps broker) (sendMessages msgs)
-    --     res `shouldBe` Right ()
-    --
-    -- it "consumes messages from test topic" $ do
-    --     broker <- brokerAddress
-    --     topic  <- testTopic
-    --     res    <- runConsumer
-    --                   (consumerProps broker)
-    --                   (subscription topic)
-    --                   receiveMessages
-    --     length <$> res `shouldBe` Right 2
+    it "sends messages to test topic" $ do
+        broker <- brokerAddress
+        topic  <- testTopic
+        let msgs = testMessages topic
+        res    <- runProducer (producerProps broker) (sendMessages msgs)
+        res `shouldBe` Right ()
+
+    it "consumes messages from test topic" $ do
+        broker <- brokerAddress
+        topic  <- testTopic
+        res    <- runConsumer
+                      (consumerProps broker)
+                      (subscription topic)
+                      receiveMessages
+        length <$> res `shouldBe` Right 2
 
     it "Integration spec is finished" $ 1 `shouldBe` 1
 
