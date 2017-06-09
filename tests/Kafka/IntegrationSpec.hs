@@ -53,7 +53,7 @@ spec = describe "Kafka.IntegrationSpec" $ do
                       receiveMessages
         length <$> res `shouldBe` Right 2
 
-    it "Integration spec is finished" $ 1 `shouldBe` 1
+    it "Integration spec is finished" $ True `shouldBe` True
 
 ----------------------------------------------------------------------------------------------------------------
 
