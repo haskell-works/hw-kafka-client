@@ -126,7 +126,7 @@ As such, we suggest you install from the source:
     git clone https://github.com/edenhill/librdkafka
     cd librdkafka
     ./configure
-    make && sudo make install
+    make && make install
 
 Sometimes it is helpful to specify openssl includes explicitly:
 
