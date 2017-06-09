@@ -93,6 +93,12 @@ extraConsumerProps :: Map String String -> ConsumerProperties
 extraConsumerProps m = ConsumerProperties m Nothing Nothing Nothing
 {-# INLINE extraConsumerProps #-}
 
+-- | Any configuration options that are supported by /librdkafka/.
+-- The full list can be found <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md here>
+extraConsumerProp :: String -> String -> ConsumerProperties
+extraConsumerProp k v = ConsumerProperties (M.singleton k v) Nothing Nothing Nothing
+{-# INLINE extraConsumerProp #-}
+
 -- | Sets debug features for the consumer.
 -- Usually is used with 'consumerLogLevel'.
 consumerDebug :: [KafkaDebug] -> ConsumerProperties
@@ -100,3 +106,8 @@ consumerDebug [] = extraConsumerProps M.empty
 consumerDebug d =
   let points = L.intercalate "," (kafkaDebugToString <$> d)
    in extraConsumerProps $ M.fromList [("debug", points)]
+
+consumerQueuedMaxMessagesKBytes :: Int -> ConsumerProperties
+consumerQueuedMaxMessagesKBytes kBytes =
+  extraConsumerProp "queued.max.messages.kbytes" (show kBytes)
+{-# INLINE consumerQueuedMaxMessagesKBytes #-}
