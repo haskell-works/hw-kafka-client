@@ -106,3 +106,8 @@ consumerDebug [] = extraConsumerProps M.empty
 consumerDebug d =
   let points = L.intercalate "," (kafkaDebugToString <$> d)
    in extraConsumerProps $ M.fromList [("debug", points)]
+
+consumerQueuedMaxMessagesKBytes :: Int -> ConsumerProperties
+consumerQueuedMaxMessagesKBytes kBytes =
+  extraConsumerProp "queued.max.messages.kbytes" (show kBytes)
+{-# INLINE consumerQueuedMaxMessagesKBytes #-}
