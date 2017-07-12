@@ -1,15 +1,16 @@
-{-# LANGUAGE DeriveDataTypeable, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveDataTypeable         #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Kafka.Consumer.Types
 
 where
 
-import Data.Bifunctor
-import Data.Bifoldable
-import Data.Bitraversable
-import Data.Int
-import Data.Typeable
-import Kafka.Types
-import Kafka.Internal.RdKafka
+import           Data.Bifoldable
+import           Data.Bifunctor
+import           Data.Bitraversable
+import           Data.Int
+import           Data.Typeable
+import           Kafka.Internal.RdKafka
+import           Kafka.Types
 
 data KafkaConsumer = KafkaConsumer { kcKafkaPtr :: !RdKafkaTPtr, kcKafkaConf :: !RdKafkaConfTPtr} deriving (Show)
 
@@ -18,7 +19,7 @@ newtype OffsetsCommitCallback = OffsetsCommitCallback (KafkaConsumer -> KafkaErr
 
 newtype ConsumerGroupId = ConsumerGroupId String deriving (Show, Eq)
 newtype Offset          = Offset Int64 deriving (Show, Eq, Read)
-newtype PartitionId     = PartitionId Int deriving (Show, Eq, Read)
+newtype PartitionId     = PartitionId Int deriving (Show, Eq, Read, Ord)
 newtype Millis          = Millis Int deriving (Show, Eq, Ord, Num)
 newtype ClientId        = ClientId String deriving (Show, Eq, Ord)
 data OffsetReset        = Earliest | Latest deriving (Show, Eq)
