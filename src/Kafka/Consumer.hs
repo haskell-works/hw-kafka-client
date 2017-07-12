@@ -7,6 +7,7 @@ module Kafka.Consumer
 , pollMessage
 , commitOffsetMessage
 , commitAllOffsets
+, commitPartitionsOffsets
 , closeConsumer
 
 -- ReExport Types
@@ -20,24 +21,24 @@ module Kafka.Consumer
 where
 
 import           Control.Exception
-import           Control.Monad (forM_)
+import           Control.Monad                     (forM_)
 import           Control.Monad.IO.Class
-import qualified Data.ByteString as BS
-import qualified Data.Map as M
-import           Foreign                         hiding (void)
+import qualified Data.ByteString                   as BS
+import qualified Data.Map                          as M
+import           Foreign                           hiding (void)
 import           Kafka.Consumer.Convert
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.RdKafkaEnum
 import           Kafka.Internal.Setup
 import           Kafka.Internal.Shared
 
-import qualified Kafka.Consumer.Types   as CIT
-import qualified Kafka.Internal.RdKafkaEnum      as RDE
+import qualified Kafka.Consumer.Types              as CIT
+import qualified Kafka.Internal.RdKafkaEnum        as RDE
 
-import Kafka.Types as X
-import Kafka.Consumer.Types as X
-import Kafka.Consumer.Subscription as X
-import Kafka.Consumer.ConsumerProperties as X
+import           Kafka.Consumer.ConsumerProperties as X
+import           Kafka.Consumer.Subscription       as X
+import           Kafka.Consumer.Types              as X
+import           Kafka.Types                       as X
 
 -- | Runs high-level kafka consumer.
 --
@@ -106,6 +107,15 @@ commitAllOffsets :: MonadIO m
                  -> m (Maybe KafkaError)
 commitAllOffsets o k =
   liftIO $ newForeignPtr_ nullPtr >>= commitOffsets o k
+
+-- | Commit offsets for all currently assigned partitions.
+commitPartitionsOffsets :: MonadIO m
+                 => OffsetCommit
+                 -> KafkaConsumer
+                 -> [TopicPartition]
+                 -> m (Maybe KafkaError)
+commitPartitionsOffsets o k ps =
+  liftIO $ toNativeTopicPartitionList ps >>= commitOffsets o k
 
 -- | Assigns specified partitions to a current consumer.
 -- Assigning an empty list means unassigning from all partitions that are currently assigned.
