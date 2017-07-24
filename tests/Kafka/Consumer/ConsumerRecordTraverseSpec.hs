@@ -3,10 +3,10 @@ module Kafka.Consumer.ConsumerRecordTraverseSpec
 ( spec
 ) where
 
-import Data.Bitraversable
 import Data.Bifunctor
-import Kafka.Types
+import Data.Bitraversable
 import Kafka.Consumer.Types
+import Kafka.Types
 import Test.Hspec
 
 testKey, testValue :: String
@@ -18,6 +18,7 @@ testRecord = ConsumerRecord
   { crTopic     = TopicName "some-topic"
   , crPartition = PartitionId 0
   , crOffset    = Offset 5
+  , crTimestamp = NoTimestamp
   , crKey       = testKey
   , crValue     = testValue
   }

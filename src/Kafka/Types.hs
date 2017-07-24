@@ -4,7 +4,7 @@ where
 
 import Control.Exception
 import Data.Typeable
-import Kafka.Internal.RdKafkaEnum
+import Kafka.Internal.RdKafka (RdKafkaRespErrT)
 
 -- | Topic name to be consumed
 --
@@ -39,14 +39,14 @@ instance Enum KafkaLogLevel where
    toEnum 7 = KafkaLogDebug
    toEnum _ = undefined
 
-   fromEnum KafkaLogEmerg = 0
-   fromEnum KafkaLogAlert = 1
-   fromEnum KafkaLogCrit = 2
-   fromEnum KafkaLogErr = 3
+   fromEnum KafkaLogEmerg   = 0
+   fromEnum KafkaLogAlert   = 1
+   fromEnum KafkaLogCrit    = 2
+   fromEnum KafkaLogErr     = 3
    fromEnum KafkaLogWarning = 4
-   fromEnum KafkaLogNotice = 5
-   fromEnum KafkaLogInfo = 6
-   fromEnum KafkaLogDebug = 7
+   fromEnum KafkaLogNotice  = 5
+   fromEnum KafkaLogInfo    = 6
+   fromEnum KafkaLogDebug   = 7
 
 --
 -- | Any Kafka errors
@@ -79,18 +79,18 @@ data KafkaDebug =
 
 kafkaDebugToString :: KafkaDebug -> String
 kafkaDebugToString d =case d of
-  DebugGeneric   -> "generic"
-  DebugBroker    -> "broker"
-  DebugTopic     -> "topic"
-  DebugMetadata  -> "metadata"
-  DebugQueue     -> "queue"
-  DebugMsg       -> "msg"
-  DebugProtocol  -> "protocol"
-  DebugCgrp      -> "cgrp"
-  DebugSecurity  -> "security"
-  DebugFetch     -> "fetch"
-  DebugFeature   -> "feature"
-  DebugAll       -> "all"
+  DebugGeneric  -> "generic"
+  DebugBroker   -> "broker"
+  DebugTopic    -> "topic"
+  DebugMetadata -> "metadata"
+  DebugQueue    -> "queue"
+  DebugMsg      -> "msg"
+  DebugProtocol -> "protocol"
+  DebugCgrp     -> "cgrp"
+  DebugSecurity -> "security"
+  DebugFetch    -> "fetch"
+  DebugFeature  -> "feature"
+  DebugAll      -> "all"
 
 data KafkaCompressionCodec =
     NoCompression

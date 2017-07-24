@@ -16,29 +16,27 @@ module Kafka.Consumer
 , CIT.PartitionOffset (..)
 , CIT.TopicPartition (..)
 , CIT.ConsumerRecord (..)
-, RDE.RdKafkaRespErrT (..)
+, RdKafkaRespErrT (..)
 )
 where
 
 import           Control.Exception
-import           Control.Monad                     (forM_)
+import           Control.Monad          (forM_)
 import           Control.Monad.IO.Class
-import qualified Data.ByteString                   as BS
-import qualified Data.Map                          as M
-import           Foreign                           hiding (void)
+import qualified Data.ByteString        as BS
+import qualified Data.Map               as M
+import           Foreign                hiding (void)
 import           Kafka.Consumer.Convert
 import           Kafka.Internal.RdKafka
-import           Kafka.Internal.RdKafkaEnum
 import           Kafka.Internal.Setup
 import           Kafka.Internal.Shared
 
-import qualified Kafka.Consumer.Types              as CIT
-import qualified Kafka.Internal.RdKafkaEnum        as RDE
+import qualified Kafka.Consumer.Types as CIT
 
-import           Kafka.Consumer.ConsumerProperties as X
-import           Kafka.Consumer.Subscription       as X
-import           Kafka.Consumer.Types              as X
-import           Kafka.Types                       as X
+import Kafka.Consumer.ConsumerProperties as X
+import Kafka.Consumer.Subscription       as X
+import Kafka.Consumer.Types              as X
+import Kafka.Types                       as X
 
 -- | Runs high-level kafka consumer.
 --

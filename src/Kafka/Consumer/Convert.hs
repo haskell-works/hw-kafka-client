@@ -3,15 +3,14 @@ module Kafka.Consumer.Convert
 where
 
 import           Control.Monad
-import qualified Data.ByteString as BS
+import qualified Data.ByteString        as BS
 import           Foreign
 import           Foreign.C.Error
 import           Foreign.C.String
 import           Kafka.Consumer.Types
-import           Kafka.Types
 import           Kafka.Internal.RdKafka
-import           Kafka.Internal.RdKafkaEnum
 import           Kafka.Internal.Shared
+import           Kafka.Types
 
 -- | Converts offsets sync policy to integer (the way Kafka understands it):
 --
@@ -23,8 +22,8 @@ import           Kafka.Internal.Shared
 offsetSyncToInt :: OffsetStoreSync -> Int
 offsetSyncToInt sync =
     case sync of
-        OffsetSyncDisable -> -1
-        OffsetSyncImmediate -> 0
+        OffsetSyncDisable     -> -1
+        OffsetSyncImmediate   -> 0
         OffsetSyncInterval ms -> ms
 {-# INLINE offsetSyncToInt #-}
 
@@ -87,30 +86,43 @@ fromMessagePtr ptr =
     else do
         s <- peek realPtr
         msg <- if err'RdKafkaMessageT s /= RdKafkaRespErrNoError
-            then return . Left . KafkaResponseError $ err'RdKafkaMessageT s
-            else Right <$> fromMessageStorable s
+                then return . Left . KafkaResponseError $ err'RdKafkaMessageT s
+                else Right <$> mkRecord s
         rdKafkaMessageDestroy realPtr
         return msg
+    where
+        mkRecord msg = do
+            topic     <- readTopic msg
+            key       <- readKey msg
+            payload   <- readPayload msg
+            timestamp <- readTimestamp ptr
+            return ConsumerRecord
+                { crTopic     = TopicName topic
+                , crPartition = PartitionId $ partition'RdKafkaMessageT msg
+                , crOffset    = Offset $ offset'RdKafkaMessageT msg
+                , crTimestamp = timestamp
+                , crKey       = key
+                , crValue     = payload
+                }
 
-fromMessageStorable :: RdKafkaMessageT -> IO (ConsumerRecord (Maybe BS.ByteString) (Maybe BS.ByteString))
-fromMessageStorable s = do
-    topic   <- newForeignPtr_ (topic'RdKafkaMessageT s) >>= rdKafkaTopicName
+        readTopic msg = newForeignPtr_ (topic'RdKafkaMessageT msg) >>= rdKafkaTopicName
+        readPayload = readBS len'RdKafkaMessageT payload'RdKafkaMessageT
+        readKey = readBS keyLen'RdKafkaMessageT key'RdKafkaMessageT
+        readTimestamp msg =
+            alloca $ \p -> do
+                typeP <- newForeignPtr_ p
+                ts <- fromIntegral <$> rdKafkaMessageTimestamp msg typeP
+                tsType <- peek p
+                return $ case tsType of
+                    RdKafkaTimestampCreateTime    -> CreateTime ts
+                    RdKafkaTimestampLogAppendTime -> LogAppendTime ts
+                    RdKafkaTimestampNotAvailable  -> NoTimestamp
 
-    payload <- if payload'RdKafkaMessageT s == nullPtr
-                  then return Nothing
-                  else Just <$> word8PtrToBS (len'RdKafkaMessageT s) (payload'RdKafkaMessageT s)
+        readBS flen fdata s = if fdata s == nullPtr
+                        then return Nothing
+                        else Just <$> word8PtrToBS (flen s) (fdata s)
 
-    key <- if key'RdKafkaMessageT s == nullPtr
-               then return Nothing
-               else Just <$> word8PtrToBS (keyLen'RdKafkaMessageT s) (key'RdKafkaMessageT s)
-
-    return $ ConsumerRecord
-             (TopicName topic)
-             (PartitionId $ partition'RdKafkaMessageT s)
-             (Offset $ offset'RdKafkaMessageT s)
-             key
-             payload
 
 offsetCommitToBool :: OffsetCommit -> Bool
-offsetCommitToBool OffsetCommit = False
+offsetCommitToBool OffsetCommit      = False
 offsetCommitToBool OffsetCommitAsync = True

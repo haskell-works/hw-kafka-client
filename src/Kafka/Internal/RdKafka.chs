@@ -10,7 +10,6 @@ import Foreign
 import Foreign.C.Error
 import Foreign.C.String
 import Foreign.C.Types
-import Kafka.Internal.RdKafkaEnum
 import System.IO
 import System.Posix.IO
 import System.Posix.Types
@@ -25,6 +24,11 @@ type CInt32T = {#type int32_t #}
 
 type Word8Ptr = Ptr Word8
 type CCharBufPointer  = Ptr CChar
+
+{#enum rd_kafka_type_t as ^ {underscoreToCase} deriving (Show, Eq) #}
+{#enum rd_kafka_conf_res_t as ^ {underscoreToCase} deriving (Show, Eq) #}
+{#enum rd_kafka_resp_err_t as ^ {underscoreToCase} deriving (Show, Eq) #}
+{#enum rd_kafka_timestamp_type_t as ^ {underscoreToCase} deriving (Show, Eq) #}
 
 type RdKafkaMsgFlag = Int
 rdKafkaMsgFlagFree :: RdKafkaMsgFlag
@@ -636,6 +640,17 @@ foreign import ccall unsafe "rdkafka.h &rd_kafka_message_destroy"
 
 foreign import ccall unsafe "rdkafka.h rd_kafka_message_destroy"
     rdKafkaMessageDestroy :: Ptr RdKafkaMessageT -> IO ()
+
+{#pointer *rd_kafka_timestamp_type_t as RdKafkaTimestampTypeTPtr foreign -> RdKafkaTimestampTypeT #}
+
+instance Storable RdKafkaTimestampTypeT where
+  sizeOf _    = {#sizeof rd_kafka_timestamp_type_t#}
+  alignment _ = {#alignof rd_kafka_timestamp_type_t#}
+  peek p      = cIntToEnum <$> peek (castPtr p)
+  poke p x    = poke (castPtr p) (enumToCInt x)
+
+{#fun unsafe rd_kafka_message_timestamp as ^
+    {`RdKafkaMessageTPtr', `RdKafkaTimestampTypeTPtr'} -> `CInt64T' cIntConv #}
 
 -- rd_kafka_conf
 {#fun rd_kafka_conf_new as ^

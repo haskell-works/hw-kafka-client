@@ -6,31 +6,28 @@ module Kafka.Producer
 , produceMessage, produceMessageBatch
 , flushProducer
 , closeProducer
-, RDE.RdKafkaRespErrT (..)
+, RdKafkaRespErrT (..)
 )
 where
 
-import           Control.Arrow ((&&&))
+import           Control.Arrow            ((&&&))
 import           Control.Exception
 import           Control.Monad
 import           Control.Monad.IO.Class
-import qualified Data.Map as M
-import qualified Data.ByteString                 as BS
-import qualified Data.ByteString.Internal        as BSI
-import           Foreign                         hiding (void)
+import qualified Data.ByteString          as BS
+import qualified Data.ByteString.Internal as BSI
+import           Data.Function            (on)
+import           Data.List                (groupBy, sortBy)
+import qualified Data.Map                 as M
+import           Data.Ord                 (comparing)
+import           Foreign                  hiding (void)
 import           Kafka.Internal.RdKafka
-import           Kafka.Internal.RdKafkaEnum
 import           Kafka.Internal.Setup
 import           Kafka.Producer.Convert
-import           Data.Function (on)
-import           Data.List (sortBy, groupBy)
-import           Data.Ord (comparing)
 
-import qualified Kafka.Internal.RdKafkaEnum      as RDE
-
-import Kafka.Types as X
-import Kafka.Producer.Types as X
 import Kafka.Producer.ProducerProperties as X
+import Kafka.Producer.Types              as X
+import Kafka.Types                       as X
 
 -- | Runs Kafka Producer.
 -- The callback provided is expected to call 'produceMessage'
@@ -43,10 +40,10 @@ runProducer props f =
   where
     mkProducer = newProducer props
 
-    clProducer (Left _) = return ()
+    clProducer (Left _)     = return ()
     clProducer (Right prod) = closeProducer prod
 
-    runHandler (Left err) = return $ Left err
+    runHandler (Left err)   = return $ Left err
     runHandler (Right prod) = f prod
 
 -- | Creates a new kafka producer
@@ -95,7 +92,7 @@ produceMessageBatch :: MonadIO m
                     -> [ProducerRecord]
                     -> m [(ProducerRecord, KafkaError)]
                     -- ^ An empty list when the operation is successful,
-                    -- otherwise a list of "failed" messages with corresponsing errors. 
+                    -- otherwise a list of "failed" messages with corresponsing errors.
 produceMessageBatch (KafkaProducer k _ tc) messages = liftIO $
   concat <$> forM (mkBatches messages) sendBatch
   where
@@ -106,7 +103,7 @@ produceMessageBatch (KafkaProducer k _ tc) messages = liftIO $
 
     clTopic = either (return . const ()) destroyUnmanagedRdKafkaTopic
 
-    sendBatch [] = return []
+    sendBatch []    = return []
     sendBatch batch = bracket (mkTopic $ prTopic (head batch)) clTopic (withTopic batch)
 
     withTopic ms (Left err) = return $ (, KafkaError err) <$> ms
