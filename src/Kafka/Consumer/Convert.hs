@@ -114,8 +114,8 @@ fromMessagePtr ptr =
                 ts <- fromIntegral <$> rdKafkaMessageTimestamp msg typeP
                 tsType <- peek p
                 return $ case tsType of
-                    RdKafkaTimestampCreateTime    -> CreateTime ts
-                    RdKafkaTimestampLogAppendTime -> LogAppendTime ts
+                    RdKafkaTimestampCreateTime    -> CreateTime (Millis ts)
+                    RdKafkaTimestampLogAppendTime -> LogAppendTime (Millis ts)
                     RdKafkaTimestampNotAvailable  -> NoTimestamp
 
         readBS flen fdata s = if fdata s == nullPtr

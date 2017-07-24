@@ -20,13 +20,13 @@ newtype OffsetsCommitCallback = OffsetsCommitCallback (KafkaConsumer -> KafkaErr
 newtype ConsumerGroupId = ConsumerGroupId String deriving (Show, Eq)
 newtype Offset          = Offset Int64 deriving (Show, Eq, Read)
 newtype PartitionId     = PartitionId Int deriving (Show, Eq, Read, Ord)
-newtype Millis          = Millis Int deriving (Show, Eq, Ord, Num)
+newtype Millis          = Millis Int deriving (Show, Read, Eq, Ord, Num)
 newtype ClientId        = ClientId String deriving (Show, Eq, Ord)
 data OffsetReset        = Earliest | Latest deriving (Show, Eq)
 
 data Timestamp =
-    CreateTime !Int64
-  | LogAppendTime !Int64
+    CreateTime !Millis
+  | LogAppendTime !Millis
   | NoTimestamp
   deriving (Show, Eq, Read)
 

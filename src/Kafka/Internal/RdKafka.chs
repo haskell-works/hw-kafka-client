@@ -652,6 +652,9 @@ instance Storable RdKafkaTimestampTypeT where
 {#fun unsafe rd_kafka_message_timestamp as ^
     {`RdKafkaMessageTPtr', `RdKafkaTimestampTypeTPtr'} -> `CInt64T' cIntConv #}
 
+{#fun unsafe rd_kafka_offsets_for_times as rdKafkaOffsetsForTimes
+    {`RdKafkaTPtr', `RdKafkaTopicPartitionListTPtr', `Int'} -> `RdKafkaRespErrT' cIntToEnum #}
+
 -- rd_kafka_conf
 {#fun rd_kafka_conf_new as ^
     {} -> `RdKafkaConfTPtr' #}
