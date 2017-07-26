@@ -4,8 +4,8 @@ module Kafka.Consumer.ConsumerRecordMapSpec
 ) where
 
 import Data.Bitraversable
-import Kafka.Types
 import Kafka.Consumer.Types
+import Kafka.Types
 import Test.Hspec
 
 testKey, testValue :: String
@@ -17,6 +17,7 @@ testRecord = ConsumerRecord
   { crTopic     = TopicName "some-topic"
   , crPartition = PartitionId 0
   , crOffset    = Offset 5
+  , crTimestamp = NoTimestamp
   , crKey       = Just testKey
   , crValue     = Just testValue
   }

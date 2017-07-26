@@ -2,11 +2,10 @@ module Kafka.Internal.Shared
 where
 
 import           Control.Exception
-import qualified Data.ByteString            as BS
-import qualified Data.ByteString.Internal   as BSI
+import qualified Data.ByteString          as BS
+import qualified Data.ByteString.Internal as BSI
 import           Foreign.C.Error
 import           Kafka.Internal.RdKafka
-import           Kafka.Internal.RdKafkaEnum
 import           Kafka.Types
 
 word8PtrToBS :: Int -> Word8Ptr -> IO BS.ByteString
@@ -21,25 +20,25 @@ throwOnError :: IO (Maybe String) -> IO ()
 throwOnError action = do
     m <- action
     case m of
-        Just e -> throw $ KafkaError e
+        Just e  -> throw $ KafkaError e
         Nothing -> return ()
 
 hasError :: KafkaError -> Bool
 hasError err = case err of
     KafkaResponseError RdKafkaRespErrNoError -> False
-    _ -> True
+    _                                        -> True
 {-# INLINE hasError #-}
 
 kafkaErrorToEither :: KafkaError -> Either KafkaError ()
 kafkaErrorToEither err = case err of
     KafkaResponseError RdKafkaRespErrNoError -> Right ()
-    _ -> Left err
+    _                                        -> Left err
 {-# INLINE kafkaErrorToEither #-}
 
 kafkaErrorToMaybe :: KafkaError -> Maybe KafkaError
 kafkaErrorToMaybe err = case err of
     KafkaResponseError RdKafkaRespErrNoError -> Nothing
-    _ -> Just err
+    _                                        -> Just err
 {-# INLINE kafkaErrorToMaybe #-}
 
 maybeToLeft :: Maybe a -> Either a ()

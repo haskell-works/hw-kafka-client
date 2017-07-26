@@ -4,13 +4,13 @@ module Kafka.Consumer.Types
 
 where
 
-import           Data.Bifoldable
-import           Data.Bifunctor
-import           Data.Bitraversable
-import           Data.Int
-import           Data.Typeable
-import           Kafka.Internal.RdKafka
-import           Kafka.Types
+import Data.Bifoldable
+import Data.Bifunctor
+import Data.Bitraversable
+import Data.Int
+import Data.Typeable
+import Kafka.Internal.RdKafka
+import Kafka.Types
 
 data KafkaConsumer = KafkaConsumer { kcKafkaPtr :: !RdKafkaTPtr, kcKafkaConf :: !RdKafkaConfTPtr} deriving (Show)
 
@@ -20,9 +20,15 @@ newtype OffsetsCommitCallback = OffsetsCommitCallback (KafkaConsumer -> KafkaErr
 newtype ConsumerGroupId = ConsumerGroupId String deriving (Show, Eq)
 newtype Offset          = Offset Int64 deriving (Show, Eq, Read)
 newtype PartitionId     = PartitionId Int deriving (Show, Eq, Read, Ord)
-newtype Millis          = Millis Int deriving (Show, Eq, Ord, Num)
+newtype Millis          = Millis Int deriving (Show, Read, Eq, Ord, Num)
 newtype ClientId        = ClientId String deriving (Show, Eq, Ord)
 data OffsetReset        = Earliest | Latest deriving (Show, Eq)
+
+data Timestamp =
+    CreateTime !Millis
+  | LogAppendTime !Millis
+  | NoTimestamp
+  deriving (Show, Eq, Read)
 
 -- | Offsets commit mode
 data OffsetCommit =
@@ -53,13 +59,14 @@ data ConsumerRecord k v = ConsumerRecord
   { crTopic     :: !TopicName    -- ^ Kafka topic this message was received from
   , crPartition :: !PartitionId  -- ^ Kafka partition this message was received from
   , crOffset    :: !Offset       -- ^ Offset within the 'crPartition' Kafka partition
+  , crTimestamp :: !Timestamp    -- ^ Message timestamp
   , crKey       :: !k
   , crValue     :: !v
   }
   deriving (Eq, Show, Read, Typeable)
 
 instance Bifunctor ConsumerRecord where
-  bimap f g (ConsumerRecord t p o k v) =  ConsumerRecord t p o (f k) (g v)
+  bimap f g (ConsumerRecord t p o ts k v) =  ConsumerRecord t p o ts (f k) (g v)
   {-# INLINE bimap #-}
 
 instance Functor (ConsumerRecord k) where
@@ -134,3 +141,9 @@ data PartitionOffset =
   | PartitionOffsetStored
   | PartitionOffsetInvalid
   deriving (Eq, Show)
+
+data CommitPartitionOffset = CommitPartitionOffset
+  { cpoTopicName   :: !TopicName
+  , cpoPartitionId :: !PartitionId
+  , cpoOffset      :: !Offset
+  } deriving (Eq, Show)
