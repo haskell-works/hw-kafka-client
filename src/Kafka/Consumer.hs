@@ -3,7 +3,7 @@ module Kafka.Consumer
 ( module X
 , runConsumer
 , newConsumer
-, assign
+, assign, assignment, subscription
 , pollMessage
 , commitOffsetMessage
 , commitAllOffsets
@@ -20,6 +20,7 @@ module Kafka.Consumer
 )
 where
 
+import           Control.Arrow
 import           Control.Exception
 import           Control.Monad          (forM_)
 import           Control.Monad.IO.Class
@@ -66,7 +67,7 @@ newConsumer cp (Subscription ts tp) = liftIO $ do
   (KafkaConf kc) <- newConsumerConf cp
   tp' <- topicConf (TopicProps $ M.toList tp)
   _   <- setDefaultTopicConf kc tp'
-  rdk <- mapLeft KafkaError <$> newRdKafkaT RdKafkaConsumer kc
+  rdk <- left KafkaError <$> newRdKafkaT RdKafkaConsumer kc
   case flip KafkaConsumer kc <$> rdk of
     Left err -> return $ Left err
     Right kafka -> do
@@ -124,6 +125,17 @@ assign (KafkaConsumer k _) ps =
                 else toNativeTopicPartitionList ps
     in  liftIO $ KafkaResponseError <$> (pl >>= rdKafkaAssign k)
 
+-- | Returns current consumer's assignment
+assignment :: MonadIO m => KafkaConsumer -> m (Either KafkaError [TopicPartition])
+assignment (KafkaConsumer k _) = liftIO $ do
+  tpl <- rdKafkaAssignment k
+  traverse fromNativeTopicPartitionList'' (left KafkaResponseError tpl)
+
+-- | Returns current consumer's subscription
+subscription :: MonadIO m => KafkaConsumer -> m (Either KafkaError [TopicPartition])
+subscription (KafkaConsumer k _) = liftIO $ do
+  tpl <- rdKafkaSubscription k
+  traverse fromNativeTopicPartitionList'' (left KafkaResponseError tpl)
 
 -- | Closes the consumer.
 closeConsumer :: MonadIO m => KafkaConsumer -> m (Maybe KafkaError)

@@ -45,6 +45,10 @@ int64ToOffset o
     | otherwise  = PartitionOffsetInvalid
 {-# INLINE int64ToOffset #-}
 
+fromNativeTopicPartitionList'' :: RdKafkaTopicPartitionListTPtr -> IO [TopicPartition]
+fromNativeTopicPartitionList'' ptr =
+    withForeignPtr ptr $ \fptr -> fromNativeTopicPartitionList' fptr
+
 fromNativeTopicPartitionList' :: Ptr RdKafkaTopicPartitionListT -> IO [TopicPartition]
 fromNativeTopicPartitionList' ppl = peek ppl >>= fromNativeTopicPartitionList
 

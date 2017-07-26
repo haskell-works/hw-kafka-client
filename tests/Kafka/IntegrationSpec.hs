@@ -31,8 +31,8 @@ consumerProps broker = consumerBrokersList [broker]
 producerProps :: BrokerAddress -> ProducerProperties
 producerProps broker = producerBrokersList [broker]
 
-subscription :: TopicName -> Subscription
-subscription t = topics [t]
+testSubscription :: TopicName -> Subscription
+testSubscription t = topics [t]
               <> offsetReset Earliest
 
 spec :: Spec
@@ -49,8 +49,21 @@ spec = describe "Kafka.IntegrationSpec" $ do
         topic  <- testTopic
         res    <- runConsumer
                       (consumerProps broker)
-                      (subscription topic)
-                      receiveMessages
+                      (testSubscription topic)
+                      (\k -> do
+                        msgs <- receiveMessages k
+
+                        sub  <- subscription k
+                        sub `shouldSatisfy` isRight
+                        length <$> sub `shouldBe` Right 1
+
+                        asgm <- assignment k
+                        asgm `shouldSatisfy` isRight
+                        length <$> asgm `shouldBe` Right 1
+
+                        return msgs
+                      )
+
         length <$> res `shouldBe` Right 2
 
         let timestamps = crTimestamp <$> either (const []) id res
