@@ -13,9 +13,9 @@ import           Data.Either
 import           Data.Monoid         ((<>))
 import           System.Environment
 
-import           Kafka
+import Kafka
 
-import           Test.Hspec
+import Test.Hspec
 
 brokerAddress :: IO BrokerAddress
 brokerAddress = BrokerAddress <$> getEnv "KAFKA_TEST_BROKER" `catch` \(_ :: SomeException) -> (return "localhost:9092")
@@ -52,6 +52,10 @@ spec = describe "Kafka.IntegrationSpec" $ do
                       (subscription topic)
                       receiveMessages
         length <$> res `shouldBe` Right 2
+
+        let timestamps = crTimestamp <$> either (const []) id res
+        forM_ timestamps $ \ts ->
+            ts `shouldNotBe` NoTimestamp
 
     it "Integration spec is finished" $ True `shouldBe` True
 
