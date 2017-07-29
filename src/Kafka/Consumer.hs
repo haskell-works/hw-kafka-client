@@ -126,16 +126,26 @@ assign (KafkaConsumer k _) ps =
     in  liftIO $ KafkaResponseError <$> (pl >>= rdKafkaAssign k)
 
 -- | Returns current consumer's assignment
-assignment :: MonadIO m => KafkaConsumer -> m (Either KafkaError [TopicPartition])
+assignment :: MonadIO m => KafkaConsumer -> m (Either KafkaError (M.Map TopicName [PartitionId]))
 assignment (KafkaConsumer k _) = liftIO $ do
   tpl <- rdKafkaAssignment k
-  traverse fromNativeTopicPartitionList'' (left KafkaResponseError tpl)
+  tps <- traverse fromNativeTopicPartitionList'' (left KafkaResponseError tpl)
+  return $ tpMap <$> tps
+  where
+    tpMap ts = toMap $ (tpTopicName &&& tpPartition) <$> ts
 
 -- | Returns current consumer's subscription
-subscription :: MonadIO m => KafkaConsumer -> m (Either KafkaError [TopicPartition])
+subscription :: MonadIO m => KafkaConsumer -> m (Either KafkaError [(TopicName, SubscribedPartitions)])
 subscription (KafkaConsumer k _) = liftIO $ do
   tpl <- rdKafkaSubscription k
-  traverse fromNativeTopicPartitionList'' (left KafkaResponseError tpl)
+  tps <- traverse fromNativeTopicPartitionList'' (left KafkaResponseError tpl)
+  return $ toSub <$> tps
+  where
+    toSub ts = M.toList $ subParts <$> tpMap ts
+    tpMap ts = toMap $ (tpTopicName &&& tpPartition) <$> ts
+    subParts [PartitionId (-1)] = SubscribedPartitionsAll
+    subParts ps                 = SubscribedPartitions ps
+
 
 -- | Closes the consumer.
 closeConsumer :: MonadIO m => KafkaConsumer -> m (Maybe KafkaError)
