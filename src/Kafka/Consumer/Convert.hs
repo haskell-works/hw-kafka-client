@@ -4,6 +4,7 @@ where
 
 import           Control.Monad
 import qualified Data.ByteString        as BS
+import           Data.Map.Strict        (Map, fromListWith)
 import           Foreign
 import           Foreign.C.Error
 import           Foreign.C.String
@@ -45,6 +46,10 @@ int64ToOffset o
     | otherwise  = PartitionOffsetInvalid
 {-# INLINE int64ToOffset #-}
 
+fromNativeTopicPartitionList'' :: RdKafkaTopicPartitionListTPtr -> IO [TopicPartition]
+fromNativeTopicPartitionList'' ptr =
+    withForeignPtr ptr $ \fptr -> fromNativeTopicPartitionList' fptr
+
 fromNativeTopicPartitionList' :: Ptr RdKafkaTopicPartitionListT -> IO [TopicPartition]
 fromNativeTopicPartitionList' ppl = peek ppl >>= fromNativeTopicPartitionList
 
@@ -78,6 +83,9 @@ topicPartitionFromMessage :: ConsumerRecord k v -> TopicPartition
 topicPartitionFromMessage m =
   let (Offset moff) = crOffset m
    in TopicPartition (crTopic m) (crPartition m) (PartitionOffset moff)
+
+toMap :: Ord k => [(k, v)] -> Map k [v]
+toMap kvs = fromListWith (++) [(k, [v]) | (k, v) <- kvs]
 
 fromMessagePtr :: RdKafkaMessageTPtr -> IO (Either KafkaError (ConsumerRecord (Maybe BS.ByteString) (Maybe BS.ByteString)))
 fromMessagePtr ptr =

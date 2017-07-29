@@ -24,6 +24,11 @@ newtype Millis          = Millis Int deriving (Show, Read, Eq, Ord, Num)
 newtype ClientId        = ClientId String deriving (Show, Eq, Ord)
 data OffsetReset        = Earliest | Latest deriving (Show, Eq)
 
+data SubscribedPartitions
+  = SubscribedPartitions [PartitionId]
+  | SubscribedPartitionsAll
+  deriving (Show, Eq)
+
 data Timestamp =
     CreateTime !Millis
   | LogAppendTime !Millis
