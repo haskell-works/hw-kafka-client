@@ -797,13 +797,23 @@ castMetadata ptr = castPtr ptr
 
 -- rd_kafka_metadata
 
-{#fun rd_kafka_metadata as ^
+{#fun rd_kafka_metadata as rdKafkaMetadata'
    {`RdKafkaTPtr', boolToCInt `Bool', `RdKafkaTopicTPtr',
     castMetadata `Ptr (Ptr RdKafkaMetadataT)', `Int'}
    -> `RdKafkaRespErrT' cIntToEnum #}
 
-{# fun rd_kafka_metadata_destroy as ^
-   {castPtr `Ptr RdKafkaMetadataT'} -> `()' #}
+foreign import ccall unsafe "rdkafka.h &rd_kafka_metadata_destroy"
+    rdKafkaMetadataDestroy :: FunPtr (Ptr RdKafkaMetadataT -> IO ())
+
+rdKafkaMetadata :: RdKafkaTPtr -> Maybe RdKafkaTopicTPtr -> IO (Either RdKafkaRespErrT RdKafkaMetadataTPtr)
+rdKafkaMetadata k mt = alloca $ \mptr -> do
+    tptr <- maybe (newForeignPtr_ nullPtr) pure mt
+    err <- rdKafkaMetadata' k True tptr mptr 0
+    case err of
+        RdKafkaRespErrNoError -> do
+            meta <- peek mptr >>= newForeignPtr rdKafkaMetadataDestroy
+            return (Right meta)
+        e -> return (Left e)
 
 {#fun rd_kafka_poll as ^
     {`RdKafkaTPtr', `Int'} -> `Int' #}
