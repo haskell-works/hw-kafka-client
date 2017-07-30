@@ -805,10 +805,10 @@ castMetadata ptr = castPtr ptr
 foreign import ccall unsafe "rdkafka.h &rd_kafka_metadata_destroy"
     rdKafkaMetadataDestroy :: FunPtr (Ptr RdKafkaMetadataT -> IO ())
 
-rdKafkaMetadata :: RdKafkaTPtr -> Maybe RdKafkaTopicTPtr -> IO (Either RdKafkaRespErrT RdKafkaMetadataTPtr)
-rdKafkaMetadata k mt = alloca $ \mptr -> do
+rdKafkaMetadata :: RdKafkaTPtr -> Bool -> Maybe RdKafkaTopicTPtr -> IO (Either RdKafkaRespErrT RdKafkaMetadataTPtr)
+rdKafkaMetadata k allTopics mt = alloca $ \mptr -> do
     tptr <- maybe (newForeignPtr_ nullPtr) pure mt
-    err <- rdKafkaMetadata' k True tptr mptr 0
+    err <- rdKafkaMetadata' k allTopics tptr mptr (-1)
     case err of
         RdKafkaRespErrNoError -> do
             meta <- peek mptr >>= newForeignPtr rdKafkaMetadataDestroy

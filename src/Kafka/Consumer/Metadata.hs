@@ -43,7 +43,7 @@ data TopicMetadata = TopicMetadata
 -- | Returns metadata for all topics in the cluster
 allTopicsMetadata :: MonadIO m => KafkaConsumer -> m (Either KafkaError KafkaMetadata)
 allTopicsMetadata (KafkaConsumer k _) = liftIO $ do
-  meta <- rdKafkaMetadata k Nothing
+  meta <- rdKafkaMetadata k True Nothing
   traverse fromKafkaMetadataPtr (left KafkaResponseError meta)
 
 -- | Returns metadata only for specified topic
@@ -54,7 +54,7 @@ topicMetadata (KafkaConsumer k _) (TopicName tn) = liftIO $ do
   case mbt of
     Left err -> return (Left $ KafkaError err)
     Right t -> do
-      meta <- rdKafkaMetadata k (Just t)
+      meta <- rdKafkaMetadata k False (Just t)
       traverse fromKafkaMetadataPtr (left KafkaResponseError meta)
 
 -------------------------------------------------------------------------------

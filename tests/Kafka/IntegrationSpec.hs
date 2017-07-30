@@ -14,6 +14,7 @@ import           Data.Monoid         ((<>))
 import           System.Environment
 
 import Kafka
+import Kafka.Consumer.Metadata
 
 import Test.Hspec
 
@@ -60,6 +61,16 @@ spec = describe "Kafka.IntegrationSpec" $ do
                         asgm <- assignment k
                         asgm `shouldSatisfy` isRight
                         length <$> asgm `shouldBe` Right 1
+
+                        allMeta <- allTopicsMetadata k
+                        allMeta `shouldSatisfy` isRight
+                        (length . kmBrokers) <$> allMeta `shouldBe` Right 1
+                        (length . kmTopics) <$> allMeta `shouldBe` Right 2
+
+                        tMeta <- topicMetadata k (TopicName "oho")
+                        tMeta `shouldSatisfy` isRight
+                        (length . kmBrokers) <$> tMeta `shouldBe` Right 1
+                        (length . kmTopics) <$> tMeta `shouldBe` Right 1
 
                         return msgs
                       )
