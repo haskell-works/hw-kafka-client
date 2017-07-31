@@ -6,6 +6,10 @@ import Control.Exception
 import Data.Typeable
 import Kafka.Internal.RdKafka (RdKafkaRespErrT)
 
+newtype BrokerId =
+  BrokerId Int
+  deriving (Show, Eq, Ord, Read)
+
 -- | Topic name to be consumed
 --
 -- Wildcard (regex) topics are supported by the /librdkafka/ assignor:

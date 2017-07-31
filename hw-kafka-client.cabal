@@ -68,6 +68,7 @@ library
     Kafka.Consumer.Subscription
     Kafka.Consumer.Types
     Kafka.Consumer
+    Kafka.Consumer.Metadata
     Kafka.Producer
     Kafka.Producer.ProducerProperties
     Kafka.Producer.Types
