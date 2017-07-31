@@ -24,9 +24,12 @@ brokerAddress = BrokerAddress <$> getEnv "KAFKA_TEST_BROKER" `catch` \(_ :: Some
 testTopic :: IO TopicName
 testTopic = TopicName <$> getEnv "KAFKA_TEST_TOPIC" `catch` \(_ :: SomeException) -> (return "kafka-client_tests")
 
+testGroupId :: ConsumerGroupId
+testGroupId = ConsumerGroupId "it_spec_02"
+
 consumerProps :: BrokerAddress -> ConsumerProperties
 consumerProps broker = consumerBrokersList [broker]
-                    <> groupId (ConsumerGroupId "it_spec_02")
+                    <> groupId testGroupId
                     <> noAutoCommit
 
 producerProps :: BrokerAddress -> ProducerProperties
@@ -79,6 +82,15 @@ spec = describe "Kafka.IntegrationSpec" $ do
                         tMeta `shouldSatisfy` isRight
                         (length . kmBrokers) <$> tMeta `shouldBe` Right 1
                         (length . kmTopics) <$> tMeta `shouldBe` Right 1
+
+                        allGroups <- allConsumerGroupsInfo k
+                        fmap giGroup <$> allGroups `shouldBe` Right [testGroupId]
+
+                        grp <- consumerGroupInfo k testGroupId
+                        fmap giGroup <$> grp `shouldBe` Right [testGroupId]
+
+                        noGroup <- consumerGroupInfo k (ConsumerGroupId "does-not-exist")
+                        noGroup `shouldBe` Right []
 
                         return msgs
                     )

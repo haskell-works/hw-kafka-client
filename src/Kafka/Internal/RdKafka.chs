@@ -581,16 +581,16 @@ instance Storable RdKafkaGroupMemberInfoT where
       {#set rd_kafka_group_member_info.member_assignment#}      p (castPtr      $ memberAssignment'RdKafkaGroupMemberInfoT x)
       {#set rd_kafka_group_member_info.member_assignment_size#} p (fromIntegral $ memberAssignmentSize'RdKafkaGroupMemberInfoT x)
 
-{#pointer *rd_kafka_group_member_info as RdKafkaGroupMemberInfoTPtr foreign -> RdKafkaGroupMemberInfoT #}
+{#pointer *rd_kafka_group_member_info as RdKafkaGroupMemberInfoTPtr -> RdKafkaGroupMemberInfoT #}
 
 data RdKafkaGroupInfoT = RdKafkaGroupInfoT
-    { broker'RdKafkaGroupInfoT       :: Ptr RdKafkaMetadataBrokerT
+    { broker'RdKafkaGroupInfoT       :: RdKafkaMetadataBrokerTPtr
     , group'RdKafkaGroupInfoT        :: CString
     , err'RdKafkaGroupInfoT          :: RdKafkaRespErrT
     , state'RdKafkaGroupInfoT        :: CString
     , protocolType'RdKafkaGroupInfoT :: CString
     , protocol'RdKafkaGroupInfoT     :: CString
-    , members'RdKafkaGroupInfoT      :: Ptr RdKafkaGroupMemberInfoT
+    , members'RdKafkaGroupInfoT      :: RdKafkaGroupMemberInfoTPtr
     , memberCnt'RdKafkaGroupInfoT    :: Int }
 
 instance Storable RdKafkaGroupInfoT where
@@ -633,23 +633,25 @@ instance Storable RdKafkaGroupListT where
 
 {#pointer *rd_kafka_group_list as RdKafkaGroupListTPtr foreign -> RdKafkaGroupListT #}
 
-{#fun rd_kafka_list_groups as ^
-    {`RdKafkaTPtr', `String', castPtr `Ptr (Ptr RdKafkaGroupListT)', `Int'}
+{#fun rd_kafka_list_groups as rdKafkaListGroups'
+    {`RdKafkaTPtr', `CString', castPtr `Ptr (Ptr RdKafkaGroupListT)', `Int'}
     -> `RdKafkaRespErrT' cIntToEnum #}
 
 foreign import ccall unsafe "rdkafka.h &rd_kafka_list_groups"
     rdKafkaGroupListDestroy :: FinalizerPtr RdKafkaGroupListT
 
--- listRdKafkaGroups :: RdKafkaTPtr -> String -> Int -> IO (Either RdKafkaRespErrT RdKafkaGroupListTPtr)
--- listRdKafkaGroups k g t = alloca $ \lstDblPtr -> do
---     err <- rdKafkaListGroups k g lstDblPtr t
---     case err of
---         RdKafkaRespErrNoError -> do
---             lstPtr <- peek lstDblPtr
---             lst    <- peek lstPtr
---             addForeignPtrFinalizer rdKafkaGroupListDestroy lstPtr
---             return $ Right lstPtr
---         e -> return $ Left e
+rdKafkaListGroups :: RdKafkaTPtr -> Maybe String -> Int -> IO (Either RdKafkaRespErrT RdKafkaGroupListTPtr)
+rdKafkaListGroups k g t = case g of
+    Nothing -> listGroups nullPtr
+    Just strGrp -> withCAString strGrp listGroups
+    where
+        listGroups grp = alloca $ \lstDblPtr -> do
+            err <- rdKafkaListGroups' k grp lstDblPtr t
+            case err of
+                RdKafkaRespErrNoError -> do
+                    lstPtr <- peek lstDblPtr >>= newForeignPtr rdKafkaGroupListDestroy
+                    return $ Right lstPtr
+                e -> return $ Left e
 -------------------------------------------------------------------------------------------------
 
 -- rd_kafka_message

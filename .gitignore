@@ -1,5 +1,7 @@
 # Created by http://www.gitignore.io
 
+.librdkafka/*
+
 ### OSX ###
 .DS_Store
 .AppleDouble
