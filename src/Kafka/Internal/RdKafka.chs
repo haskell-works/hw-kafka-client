@@ -659,6 +659,20 @@ foreign import ccall unsafe "rdkafka.h &rd_kafka_message_destroy"
 foreign import ccall unsafe "rdkafka.h rd_kafka_message_destroy"
     rdKafkaMessageDestroy :: Ptr RdKafkaMessageT -> IO ()
 
+{#fun rd_kafka_query_watermark_offsets as rdKafkaQueryWatermarkOffsets'
+    {`RdKafkaTPtr', `String', cIntConv `CInt32T',
+      alloca- `CInt64T' peek*, alloca- `CInt64T' peek*,
+      `Int'
+      } -> `RdKafkaRespErrT' cIntToEnum #}
+
+rdKafkaQueryWatermarkOffsets :: RdKafkaTPtr -> String -> Int -> Int -> IO (Either RdKafkaRespErrT (Int64, Int64))
+rdKafkaQueryWatermarkOffsets kafka topic partition timeout = do
+    (err, l, h) <- rdKafkaQueryWatermarkOffsets' kafka topic (cIntConv partition) timeout
+    return $ case err of
+                RdKafkaRespErrNoError -> Right (cIntConv l, cIntConv h)
+                e                     -> Left e
+
+
 {#pointer *rd_kafka_timestamp_type_t as RdKafkaTimestampTypeTPtr foreign -> RdKafkaTimestampTypeT #}
 
 instance Storable RdKafkaTimestampTypeT where
@@ -863,13 +877,20 @@ newRdKafkaTopicT kafkaPtr topic topicConfPtr = do
 -- Marshall / Unmarshall
 enumToCInt :: Enum a => a -> CInt
 enumToCInt = fromIntegral . fromEnum
+{-# INLINE enumToCInt #-}
+
 cIntToEnum :: Enum a => CInt -> a
 cIntToEnum = toEnum . fromIntegral
+{-# INLINE cIntToEnum #-}
+
 cIntConv :: (Integral a, Num b) =>  a -> b
 cIntConv = fromIntegral
+{-# INLINE cIntConv #-}
+
 boolToCInt :: Bool -> CInt
 boolToCInt True = CInt 1
 boolToCInt False = CInt 0
+{-# INLINE boolToCInt #-}
 
 -- Handle -> File descriptor
 

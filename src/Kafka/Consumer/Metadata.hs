@@ -2,6 +2,7 @@ module Kafka.Consumer.Metadata
 ( KafkaMetadata(..), BrokerMetadata(..), TopicMetadata(..), PartitionMetadata(..)
 , allTopicsMetadata
 , topicMetadata
+, watermarkOffsets
 )
 where
 
@@ -57,6 +58,23 @@ topicMetadata (KafkaConsumer k _) (TopicName tn) = liftIO $ do
       meta <- rdKafkaMetadata k False (Just t)
       traverse fromKafkaMetadataPtr (left KafkaResponseError meta)
 
+watermarkOffsets :: MonadIO m => KafkaConsumer -> TopicName -> m (Either KafkaError [(Int64, Int64)])
+watermarkOffsets k t = do
+  meta <- topicMetadata k t
+  case meta of
+    Left err -> return (Left err)
+    Right tm ->
+      if null (kmTopics tm) then return (Right []) else topicWatermarkOffsets' k (head $ kmTopics tm)
+
+topicWatermarkOffsets' :: MonadIO m => KafkaConsumer -> TopicMetadata -> m (Either KafkaError [(Int64, Int64)])
+topicWatermarkOffsets' (KafkaConsumer k _) tm = liftIO $ do
+  offs <- traverse (\p -> rdKafkaQueryWatermarkOffsets k tn p 0) pids
+  return $ left KafkaResponseError (sequence offs)
+
+  where
+    (TopicName tn) = tmTopicName tm
+    pids = (pid . pmPartitionId) <$> tmPartitions tm
+    pid (PartitionId i) = i
 -------------------------------------------------------------------------------
 
 fromTopicMetadataPtr :: RdKafkaMetadataTopicT -> IO TopicMetadata
