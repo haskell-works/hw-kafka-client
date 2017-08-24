@@ -16,6 +16,7 @@ Icon
 .Spotlight-V100
 .Trashes
 
+.librdkafka/*
 
 ### Haskell ###
 dist

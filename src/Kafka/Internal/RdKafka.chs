@@ -661,9 +661,10 @@ foreign import ccall unsafe "rdkafka.h rd_kafka_message_destroy"
 
 {#fun rd_kafka_query_watermark_offsets as rdKafkaQueryWatermarkOffsets'
     {`RdKafkaTPtr', `String', cIntConv `CInt32T',
-      alloca- `CInt64T' peek*, alloca- `CInt64T' peek*,
-      `Int'
+      alloca- `Int64' peekInt64Conv*, alloca- `Int64' peekInt64Conv*,
+      cIntConv `Int'
       } -> `RdKafkaRespErrT' cIntToEnum #}
+
 
 rdKafkaQueryWatermarkOffsets :: RdKafkaTPtr -> String -> Int -> Int -> IO (Either RdKafkaRespErrT (Int64, Int64))
 rdKafkaQueryWatermarkOffsets kafka topic partition timeout = do
@@ -671,7 +672,6 @@ rdKafkaQueryWatermarkOffsets kafka topic partition timeout = do
     return $ case err of
                 RdKafkaRespErrNoError -> Right (cIntConv l, cIntConv h)
                 e                     -> Left e
-
 
 {#pointer *rd_kafka_timestamp_type_t as RdKafkaTimestampTypeTPtr foreign -> RdKafkaTimestampTypeT #}
 
@@ -681,10 +681,10 @@ instance Storable RdKafkaTimestampTypeT where
   peek p      = cIntToEnum <$> peek (castPtr p)
   poke p x    = poke (castPtr p) (enumToCInt x)
 
-{#fun unsafe rd_kafka_message_timestamp as ^
+{#fun rd_kafka_message_timestamp as ^
     {`RdKafkaMessageTPtr', `RdKafkaTimestampTypeTPtr'} -> `CInt64T' cIntConv #}
 
-{#fun unsafe rd_kafka_offsets_for_times as rdKafkaOffsetsForTimes
+{#fun rd_kafka_offsets_for_times as rdKafkaOffsetsForTimes
     {`RdKafkaTPtr', `RdKafkaTopicPartitionListTPtr', `Int'} -> `RdKafkaRespErrT' cIntToEnum #}
 
 -- rd_kafka_conf
@@ -891,6 +891,10 @@ boolToCInt :: Bool -> CInt
 boolToCInt True = CInt 1
 boolToCInt False = CInt 0
 {-# INLINE boolToCInt #-}
+
+peekInt64Conv :: (Storable a, Integral a) =>  Ptr a -> IO Int64
+peekInt64Conv  = liftM cIntConv . peek
+{-# INLINE peekInt64Conv #-}
 
 -- Handle -> File descriptor
 
