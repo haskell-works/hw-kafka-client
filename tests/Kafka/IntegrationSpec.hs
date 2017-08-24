@@ -49,9 +49,9 @@ spec = describe "Kafka.IntegrationSpec" $ do
         broker <- brokerAddress
         topic  <- testTopic
         res    <- runConsumer
-                      (consumerProps broker)
-                      (testSubscription topic)
-                      (\k -> do
+                    (consumerProps broker)
+                    (testSubscription topic)
+                    (\k -> do
                         msgs <- receiveMessages k
 
                         {- Somehow this fails with "Assertion failed: (r == 0), function rwlock_wrlock, file tinycthread.c, line 1011." -}
@@ -79,7 +79,7 @@ spec = describe "Kafka.IntegrationSpec" $ do
                         (length . kmTopics) <$> tMeta `shouldBe` Right 1
 
                         return msgs
-                      )
+                    )
 
         length <$> res `shouldBe` Right 2
 

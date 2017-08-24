@@ -3,6 +3,7 @@ module Kafka.Consumer.Metadata
 , allTopicsMetadata
 , topicMetadata
 , watermarkOffsets
+, partitionWatermarkOffsets
 )
 where
 
@@ -52,11 +53,13 @@ topicMetadata :: MonadIO m => KafkaConsumer -> TopicName -> m (Either KafkaError
 topicMetadata (KafkaConsumer k _) (TopicName tn) = liftIO $ do
   tc <- newRdKafkaTopicConfT
   mbt <- newRdKafkaTopicT k tn tc
-  case mbt of
+  res <- case mbt of
     Left err -> return (Left $ KafkaError err)
     Right t -> do
       meta <- rdKafkaMetadata k False (Just t)
       traverse fromKafkaMetadataPtr (left KafkaResponseError meta)
+  print $ show (tc, mbt)
+  return res
 
 watermarkOffsets :: MonadIO m => KafkaConsumer -> TopicName -> m (Either KafkaError [(Int64, Int64)])
 watermarkOffsets k t = do
@@ -75,6 +78,12 @@ topicWatermarkOffsets' (KafkaConsumer k _) tm = liftIO $ do
     (TopicName tn) = tmTopicName tm
     pids = (pid . pmPartitionId) <$> tmPartitions tm
     pid (PartitionId i) = i
+
+partitionWatermarkOffsets :: MonadIO m => KafkaConsumer -> TopicName -> PartitionId -> m (Either KafkaError (Int64, Int64))
+partitionWatermarkOffsets (KafkaConsumer k _) (TopicName t) (PartitionId p) = liftIO $ do
+  offs <- rdKafkaQueryWatermarkOffsets k t p 0
+  return $ left KafkaResponseError offs
+
 -------------------------------------------------------------------------------
 
 fromTopicMetadataPtr :: RdKafkaMetadataTopicT -> IO TopicMetadata
