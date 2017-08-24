@@ -13,14 +13,15 @@ jobs:
         environment:
           KAFKA_ZOOKEEPER_CONNECT: "localhost:2181"
           KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
-        
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
     environment:
       LD_LIBRARY_PATH: /usr/local/lib
 
     steps:
       - checkout
       - restore_cache:
-          keys: 
+          keys:
             - dot-stack-{{ checksum "stack.yaml" }}-{{ checksum "hw-kafka-client.cabal" }}
             - dot-stack
       - restore_cache:
