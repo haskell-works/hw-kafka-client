@@ -56,7 +56,9 @@ spec = describe "Kafka.IntegrationSpec" $ do
 
                         {- Somehow this fails with "Assertion failed: (r == 0), function rwlock_wrlock, file tinycthread.c, line 1011." -}
                         wOffsets <- watermarkOffsets k topic
-                        print wOffsets
+                        length wOffsets `shouldBe` 1
+                        forM_ wOffsets (\x -> x `shouldSatisfy` isRight)
+
                         sub  <- subscription k
                         sub `shouldSatisfy` isRight
                         length <$> sub `shouldBe` Right 1
