@@ -49,31 +49,39 @@ spec = describe "Kafka.IntegrationSpec" $ do
         broker <- brokerAddress
         topic  <- testTopic
         res    <- runConsumer
-                      (consumerProps broker)
-                      (testSubscription topic)
-                      (\k -> do
+                    (consumerProps broker)
+                    (testSubscription topic)
+                    (\k -> do
                         msgs <- receiveMessages k
+
+                        {- Somehow this fails with "Assertion failed: (r == 0), function rwlock_wrlock, file tinycthread.c, line 1011." -}
+                        wOffsets <- watermarkOffsets k topic
+                        length wOffsets `shouldBe` 1
+                        forM_ wOffsets (\x -> x `shouldSatisfy` isRight)
 
                         sub  <- subscription k
                         sub `shouldSatisfy` isRight
                         length <$> sub `shouldBe` Right 1
 
+                        {-  Somehow this fails with "Assertion failed: (r == 0), function rwlock_wrlock, file tinycthread.c, line 1011." -}
                         asgm <- assignment k
                         asgm `shouldSatisfy` isRight
                         length <$> asgm `shouldBe` Right 1
 
+                        {-  Somehow this fails with "Assertion failed: (r == 0), function rwlock_wrlock, file tinycthread.c, line 1011." -}
                         allMeta <- allTopicsMetadata k
                         allMeta `shouldSatisfy` isRight
                         (length . kmBrokers) <$> allMeta `shouldBe` Right 1
                         (length . kmTopics) <$> allMeta `shouldBe` Right 2
 
+                        {- This is fine, it works and doesn't fail -}
                         tMeta <- topicMetadata k (TopicName "oho")
                         tMeta `shouldSatisfy` isRight
                         (length . kmBrokers) <$> tMeta `shouldBe` Right 1
                         (length . kmTopics) <$> tMeta `shouldBe` Right 1
 
                         return msgs
-                      )
+                    )
 
         length <$> res `shouldBe` Right 2
 

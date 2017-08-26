@@ -1,12 +1,16 @@
 module Kafka.Consumer.Metadata
 ( KafkaMetadata(..), BrokerMetadata(..), TopicMetadata(..), PartitionMetadata(..)
+, WatermarkOffsets(..)
 , allTopicsMetadata
 , topicMetadata
+, watermarkOffsets, watermarkOffsets'
+, partitionWatermarkOffsets
 )
 where
 
 import Control.Arrow          (left)
 import Control.Monad.IO.Class (MonadIO, liftIO)
+import Data.Bifunctor
 import Foreign
 import Foreign.C.String
 import Kafka.Consumer.Types
@@ -40,6 +44,13 @@ data TopicMetadata = TopicMetadata
   , tmError      :: Maybe KafkaError
   } deriving (Show, Eq)
 
+data WatermarkOffsets = WatermarkOffsets
+  { woTopicName     :: TopicName
+  , woPartitionId   :: PartitionId
+  , woLowWatermark  :: Offset
+  , woHighWatermark :: Offset
+  } deriving (Show, Eq)
+
 -- | Returns metadata for all topics in the cluster
 allTopicsMetadata :: MonadIO m => KafkaConsumer -> m (Either KafkaError KafkaMetadata)
 allTopicsMetadata (KafkaConsumer k _) = liftIO $ do
@@ -51,11 +62,37 @@ topicMetadata :: MonadIO m => KafkaConsumer -> TopicName -> m (Either KafkaError
 topicMetadata (KafkaConsumer k _) (TopicName tn) = liftIO $ do
   tc <- newRdKafkaTopicConfT
   mbt <- newRdKafkaTopicT k tn tc
-  case mbt of
+  res <- case mbt of
     Left err -> return (Left $ KafkaError err)
     Right t -> do
       meta <- rdKafkaMetadata k False (Just t)
       traverse fromKafkaMetadataPtr (left KafkaResponseError meta)
+  print $ show (tc, mbt)
+  return res
+
+-- | Query broker for low (oldest/beginning) and high (newest/end) offsets for a given topic.
+watermarkOffsets :: MonadIO m => KafkaConsumer -> TopicName -> m [Either KafkaError WatermarkOffsets]
+watermarkOffsets k t = do
+  meta <- topicMetadata k t
+  case meta of
+    Left err -> return [Left err]
+    Right tm -> if null (kmTopics tm)
+                  then return []
+                  else watermarkOffsets' k (head $ kmTopics tm)
+
+-- | Query broker for low (oldest/beginning) and high (newest/end) offsets for a given topic.
+watermarkOffsets' :: MonadIO m => KafkaConsumer -> TopicMetadata -> m [Either KafkaError WatermarkOffsets]
+watermarkOffsets' k tm =
+  let pids = pmPartitionId <$> tmPartitions tm
+  in liftIO $ traverse (partitionWatermarkOffsets k (tmTopicName tm)) pids
+
+-- | Query broker for low (oldest/beginning) and high (newest/end) offsets for a specific partition
+partitionWatermarkOffsets :: MonadIO m => KafkaConsumer -> TopicName -> PartitionId -> m (Either KafkaError WatermarkOffsets)
+partitionWatermarkOffsets (KafkaConsumer k _) (TopicName t) (PartitionId p) = liftIO $ do
+  offs <- rdKafkaQueryWatermarkOffsets k t p 0
+  return $ bimap KafkaResponseError toWatermark offs
+  where
+    toWatermark (l, h) = WatermarkOffsets (TopicName t) (PartitionId p) (Offset l) (Offset h)
 
 -------------------------------------------------------------------------------
 
