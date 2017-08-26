@@ -811,25 +811,41 @@ rdKafkaConsumeStop topicPtr partition = do
 castMetadata :: Ptr (Ptr RdKafkaMetadataT) -> Ptr (Ptr ())
 castMetadata ptr = castPtr ptr
 
+castPeek :: Ptr a -> IO (Ptr b)
+castPeek = peek . castPtr
+
 -- rd_kafka_metadata
+
+-- {#fun rd_kafka_metadata as rdKafkaMetadata'
+--    {`RdKafkaTPtr', boolToCInt `Bool', `RdKafkaTopicTPtr',
+--     castMetadata `Ptr (Ptr RdKafkaMetadataT)', `Int'}
+--    -> `RdKafkaRespErrT' cIntToEnum #}
 
 {#fun rd_kafka_metadata as rdKafkaMetadata'
    {`RdKafkaTPtr', boolToCInt `Bool', `RdKafkaTopicTPtr',
-    castMetadata `Ptr (Ptr RdKafkaMetadataT)', `Int'}
+    alloca- `Ptr RdKafkaMetadataT' castPeek*, `Int'}
    -> `RdKafkaRespErrT' cIntToEnum #}
 
 foreign import ccall unsafe "rdkafka.h &rd_kafka_metadata_destroy"
     rdKafkaMetadataDestroy :: FinalizerPtr RdKafkaMetadataT
 
 rdKafkaMetadata :: RdKafkaTPtr -> Bool -> Maybe RdKafkaTopicTPtr -> IO (Either RdKafkaRespErrT RdKafkaMetadataTPtr)
-rdKafkaMetadata k allTopics mt = alloca $ \mptr -> do
+rdKafkaMetadata k allTopics mt = do
     tptr <- maybe (newForeignPtr_ nullPtr) pure mt
-    err <- rdKafkaMetadata' k allTopics tptr mptr (-1)
+    (err, res) <- rdKafkaMetadata' k allTopics tptr (-1)
     case err of
-        RdKafkaRespErrNoError -> do
-            meta <- peek mptr >>= newForeignPtr rdKafkaMetadataDestroy
-            return (Right meta)
+        RdKafkaRespErrNoError -> Right <$> newForeignPtr rdKafkaMetadataDestroy res
         e -> return (Left e)
+
+-- rdKafkaMetadata :: RdKafkaTPtr -> Bool -> Maybe RdKafkaTopicTPtr -> IO (Either RdKafkaRespErrT RdKafkaMetadataTPtr)
+-- rdKafkaMetadata k allTopics mt = alloca $ \mptr -> do
+--     tptr <- maybe (newForeignPtr_ nullPtr) pure mt
+--     err <- rdKafkaMetadata' k allTopics tptr mptr (-1)
+--     case err of
+--         RdKafkaRespErrNoError -> do
+--             meta <- peek mptr >>= newForeignPtr rdKafkaMetadataDestroy
+--             return (Right meta)
+--         e -> return (Left e)
 
 {#fun rd_kafka_poll as ^
     {`RdKafkaTPtr', `Int'} -> `Int' #}
