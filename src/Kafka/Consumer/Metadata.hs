@@ -16,7 +16,7 @@ import Control.Exception      (bracket)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bifunctor
 import Data.ByteString        (ByteString, pack)
-import Data.Semigroup         ((<>))
+import Data.Monoid            ((<>))
 import Foreign
 import Foreign.C.String
 import Kafka.Consumer.Types
