@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 module Kafka.Consumer.Metadata
 ( KafkaMetadata(..), BrokerMetadata(..), TopicMetadata(..), PartitionMetadata(..)
 , WatermarkOffsets(..)
@@ -16,6 +15,7 @@ import Control.Arrow          (left)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bifunctor
 import Data.ByteString        (ByteString, pack)
+import Data.Semigroup         ((<>))
 import Foreign
 import Foreign.C.String
 import Kafka.Consumer.Types
@@ -67,7 +67,14 @@ data GroupMemberInfo = GroupMemberInfo
 
 newtype GroupProtocolType = GroupProtocolType String deriving (Show, Eq, Read, Ord)
 newtype GroupProtocol = GroupProtocol String  deriving (Show, Eq, Read, Ord)
-newtype GroupState = GroupState String  deriving (Show, Eq, Read, Ord)
+data GroupState
+  = GroupPreparingRebalance       -- ^ Group is preparing to rebalance
+  | GroupEmpty                    -- ^ Group has no more members, but lingers until all offsets have expired
+  | GroupAwaitingSync             -- ^ Group is awaiting state assignment from the leader
+  | GroupStable                   -- ^ Group is stable
+  | GroupDead                     -- ^ Group has no more members and its metadata is being removed
+  deriving (Show, Eq, Read, Ord)
+
 data GroupInfo = GroupInfo
   { giGroup        :: !ConsumerGroupId
   , giError        :: Maybe KafkaError
@@ -150,12 +157,12 @@ fromGroupInfoPtr gi = do
   mbl <- mapM fromGroupMemberInfoPtr mbs
   return GroupInfo
     { --giBroker = bmd
-     giGroup = ConsumerGroupId cid
-    , giError = kafkaErrorToMaybe $ KafkaResponseError (err'RdKafkaGroupInfoT gi)
-    , giState = GroupState stt
-    , giProtocolType = GroupProtocolType prt
-    , giProtocol = GroupProtocol pr
-    , giMembers = mbl
+     giGroup          = ConsumerGroupId cid
+    , giError         = kafkaErrorToMaybe $ KafkaResponseError (err'RdKafkaGroupInfoT gi)
+    , giState         = groupStateFromKafkaString stt
+    , giProtocolType  = GroupProtocolType prt
+    , giProtocol      = GroupProtocol pr
+    , giMembers       = mbl
     }
 
 fromGroupMemberInfoPtr :: RdKafkaGroupMemberInfoT -> IO GroupMemberInfo
@@ -179,9 +186,9 @@ fromTopicMetadataPtr tm = do
   pts <- peekArray (partitionCnt'RdKafkaMetadataTopicT tm) (partitions'RdKafkaMetadataTopicT tm)
   pms <- mapM fromPartitionMetadataPtr pts
   return TopicMetadata
-    { tmTopicName = TopicName tnm
-    , tmPartitions = pms
-    , tmError = kafkaErrorToMaybe $ KafkaResponseError (err'RdKafkaMetadataTopicT tm)
+    { tmTopicName   = TopicName tnm
+    , tmPartitions  = pms
+    , tmError       = kafkaErrorToMaybe $ KafkaResponseError (err'RdKafkaMetadataTopicT tm)
     }
 
 fromPartitionMetadataPtr :: RdKafkaMetadataPartitionT -> IO PartitionMetadata
@@ -189,11 +196,11 @@ fromPartitionMetadataPtr pm = do
   reps <- peekArray (replicaCnt'RdKafkaMetadataPartitionT pm) (replicas'RdKafkaMetadataPartitionT pm)
   isrs <- peekArray (isrCnt'RdKafkaMetadataPartitionT pm) (isrs'RdKafkaMetadataPartitionT pm)
   return PartitionMetadata
-    { pmPartitionId = PartitionId (id'RdKafkaMetadataPartitionT pm)
-    , pmError = kafkaErrorToMaybe $ KafkaResponseError (err'RdKafkaMetadataPartitionT pm)
-    , pmLeader = BrokerId (leader'RdKafkaMetadataPartitionT pm)
-    , pmReplicas = (PartitionId . fromIntegral) <$> reps
-    , pmInSyncReplicas = (PartitionId . fromIntegral) <$> isrs
+    { pmPartitionId     = PartitionId (id'RdKafkaMetadataPartitionT pm)
+    , pmError           = kafkaErrorToMaybe $ KafkaResponseError (err'RdKafkaMetadataPartitionT pm)
+    , pmLeader          = BrokerId (leader'RdKafkaMetadataPartitionT pm)
+    , pmReplicas        = (PartitionId . fromIntegral) <$> reps
+    , pmInSyncReplicas  = (PartitionId . fromIntegral) <$> isrs
     }
 
 
@@ -221,3 +228,11 @@ fromKafkaMetadataPtr ptr =
       , kmOrigBroker = BrokerId $ fromIntegral (origBrokerId'RdKafkaMetadataT km)
       }
 
+groupStateFromKafkaString :: String -> GroupState
+groupStateFromKafkaString s = case s of
+  "PreparingRebalance" -> GroupPreparingRebalance
+  "AwaitingSync"       -> GroupAwaitingSync
+  "Stable"             -> GroupStable
+  "Dead"               -> GroupDead
+  "Empty"              -> GroupEmpty
+  _                    -> error $ "Unknown group state: " <> s

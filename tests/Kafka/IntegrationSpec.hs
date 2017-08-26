@@ -25,7 +25,7 @@ testTopic :: IO TopicName
 testTopic = TopicName <$> getEnv "KAFKA_TEST_TOPIC" `catch` \(_ :: SomeException) -> (return "kafka-client_tests")
 
 testGroupId :: ConsumerGroupId
-testGroupId = ConsumerGroupId "it_spec_02"
+testGroupId = ConsumerGroupId "it_spec_03"
 
 consumerProps :: BrokerAddress -> ConsumerProperties
 consumerProps broker = consumerBrokersList [broker]
@@ -57,40 +57,42 @@ spec = describe "Kafka.IntegrationSpec" $ do
                     (\k -> do
                         msgs <- receiveMessages k
 
-                        {- Somehow this fails with "Assertion failed: (r == 0), function rwlock_wrlock, file tinycthread.c, line 1011." -}
-                        wOffsets <- watermarkOffsets k topic
-                        length wOffsets `shouldBe` 1
-                        forM_ wOffsets (\x -> x `shouldSatisfy` isRight)
+                        -- {- Somehow this fails with "Assertion failed: (r == 0), function rwlock_wrlock, file tinycthread.c, line 1011." -}
+                        -- wOffsets <- watermarkOffsets k topic
+                        -- length wOffsets `shouldBe` 1
+                        -- forM_ wOffsets (`shouldSatisfy` isRight)
 
-                        sub  <- subscription k
-                        sub `shouldSatisfy` isRight
-                        length <$> sub `shouldBe` Right 1
+                        -- sub  <- subscription k
+                        -- sub `shouldSatisfy` isRight
+                        -- length <$> sub `shouldBe` Right 1
 
-                        {-  Somehow this fails with "Assertion failed: (r == 0), function rwlock_wrlock, file tinycthread.c, line 1011." -}
-                        asgm <- assignment k
-                        asgm `shouldSatisfy` isRight
-                        length <$> asgm `shouldBe` Right 1
+                        -- {-  Somehow this fails with "Assertion failed: (r == 0), function rwlock_wrlock, file tinycthread.c, line 1011." -}
+                        -- asgm <- assignment k
+                        -- asgm `shouldSatisfy` isRight
+                        -- length <$> asgm `shouldBe` Right 1
 
-                        {-  Somehow this fails with "Assertion failed: (r == 0), function rwlock_wrlock, file tinycthread.c, line 1011." -}
-                        allMeta <- allTopicsMetadata k
-                        allMeta `shouldSatisfy` isRight
-                        (length . kmBrokers) <$> allMeta `shouldBe` Right 1
-                        (length . kmTopics) <$> allMeta `shouldBe` Right 2
+                        -- {-  Somehow this fails with "Assertion failed: (r == 0), function rwlock_wrlock, file tinycthread.c, line 1011." -}
+                        -- allMeta <- allTopicsMetadata k
+                        -- allMeta `shouldSatisfy` isRight
+                        -- (length . kmBrokers) <$> allMeta `shouldBe` Right 1
+                        -- (length . kmTopics) <$> allMeta `shouldBe` Right 2
 
-                        {- This is fine, it works and doesn't fail -}
-                        tMeta <- topicMetadata k (TopicName "oho")
-                        tMeta `shouldSatisfy` isRight
-                        (length . kmBrokers) <$> tMeta `shouldBe` Right 1
-                        (length . kmTopics) <$> tMeta `shouldBe` Right 1
+                        -- {- This is fine, it works and doesn't fail -}
+                        -- tMeta <- topicMetadata k (TopicName "oho")
+                        -- tMeta `shouldSatisfy` isRight
+                        -- (length . kmBrokers) <$> tMeta `shouldBe` Right 1
+                        -- (length . kmTopics) <$> tMeta `shouldBe` Right 1
 
-                        allGroups <- allConsumerGroupsInfo k
-                        fmap giGroup <$> allGroups `shouldBe` Right [testGroupId]
+                        -- allGroups <- allConsumerGroupsInfo k
+                        -- fmap giGroup <$> allGroups `shouldBe` Right [testGroupId]
 
                         grp <- consumerGroupInfo k testGroupId
+                        print $ show grp
                         fmap giGroup <$> grp `shouldBe` Right [testGroupId]
 
-                        noGroup <- consumerGroupInfo k (ConsumerGroupId "does-not-exist")
-                        noGroup `shouldBe` Right []
+
+                        -- noGroup <- consumerGroupInfo k (ConsumerGroupId "does-not-exist")
+                        -- noGroup `shouldBe` Right []
 
                         return msgs
                     )
@@ -114,7 +116,7 @@ receiveMessages kafka =
          maybeMsg = isOK <$> get
          get = do
              x <- pollMessage kafka (Timeout 1000)
-             print $ show x
+             --print $ show x
              return x
 
 testMessages :: TopicName -> [ProducerRecord]

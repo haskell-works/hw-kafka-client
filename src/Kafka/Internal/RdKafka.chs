@@ -637,7 +637,7 @@ instance Storable RdKafkaGroupListT where
     {`RdKafkaTPtr', `CString', castPtr `Ptr (Ptr RdKafkaGroupListT)', `Int'}
     -> `RdKafkaRespErrT' cIntToEnum #}
 
-foreign import ccall unsafe "rdkafka.h &rd_kafka_list_groups"
+foreign import ccall "rdkafka.h &rd_kafka_list_groups"
     rdKafkaGroupListDestroy :: FinalizerPtr RdKafkaGroupListT
 
 rdKafkaListGroups :: RdKafkaTPtr -> Maybe String -> Int -> IO (Either RdKafkaRespErrT RdKafkaGroupListTPtr)
