@@ -634,10 +634,10 @@ instance Storable RdKafkaGroupListT where
 {#pointer *rd_kafka_group_list as RdKafkaGroupListTPtr foreign -> RdKafkaGroupListT #}
 
 {#fun rd_kafka_list_groups as rdKafkaListGroups'
-    {`RdKafkaTPtr', `CString', castPtr `Ptr (Ptr RdKafkaGroupListT)', `Int'}
+    {`RdKafkaTPtr', `CString', alloca- `Ptr RdKafkaGroupListT' peek*, `Int'}
     -> `RdKafkaRespErrT' cIntToEnum #}
 
-foreign import ccall "rdkafka.h &rd_kafka_list_groups"
+foreign import ccall "rdkafka.h &rd_kafka_group_list_destroy"
     rdKafkaGroupListDestroy :: FinalizerPtr RdKafkaGroupListT
 
 rdKafkaListGroups :: RdKafkaTPtr -> Maybe String -> Int -> IO (Either RdKafkaRespErrT RdKafkaGroupListTPtr)
@@ -645,12 +645,10 @@ rdKafkaListGroups k g t = case g of
     Nothing -> listGroups nullPtr
     Just strGrp -> withCAString strGrp listGroups
     where
-        listGroups grp = alloca $ \lstDblPtr -> do
-            err <- rdKafkaListGroups' k grp lstDblPtr t
+        listGroups grp = do
+            (err, res) <- rdKafkaListGroups' k grp t
             case err of
-                RdKafkaRespErrNoError -> do
-                    lstPtr <- peek lstDblPtr >>= newForeignPtr rdKafkaGroupListDestroy
-                    return $ Right lstPtr
+                RdKafkaRespErrNoError -> Right <$> newForeignPtr rdKafkaGroupListDestroy res
                 e -> return $ Left e
 -------------------------------------------------------------------------------------------------
 
@@ -808,22 +806,12 @@ rdKafkaConsumeStop topicPtr partition = do
 {#fun rd_kafka_produce_batch as ^
     {`RdKafkaTopicTPtr', cIntConv `CInt32T', `Int', `RdKafkaMessageTPtr', `Int'} -> `Int' #}
 
-castMetadata :: Ptr (Ptr RdKafkaMetadataT) -> Ptr (Ptr ())
-castMetadata ptr = castPtr ptr
-
-castPeek :: Ptr a -> IO (Ptr b)
-castPeek = peek . castPtr
 
 -- rd_kafka_metadata
 
--- {#fun rd_kafka_metadata as rdKafkaMetadata'
---    {`RdKafkaTPtr', boolToCInt `Bool', `RdKafkaTopicTPtr',
---     castMetadata `Ptr (Ptr RdKafkaMetadataT)', `Int'}
---    -> `RdKafkaRespErrT' cIntToEnum #}
-
 {#fun rd_kafka_metadata as rdKafkaMetadata'
    {`RdKafkaTPtr', boolToCInt `Bool', `RdKafkaTopicTPtr',
-    alloca- `Ptr RdKafkaMetadataT' castPeek*, `Int'}
+    alloca- `Ptr RdKafkaMetadataT' peekPtr*, `Int'}
    -> `RdKafkaRespErrT' cIntToEnum #}
 
 foreign import ccall unsafe "rdkafka.h &rd_kafka_metadata_destroy"
@@ -837,16 +825,6 @@ rdKafkaMetadata k allTopics mt = do
         RdKafkaRespErrNoError -> Right <$> newForeignPtr rdKafkaMetadataDestroy res
         e -> return (Left e)
 
--- rdKafkaMetadata :: RdKafkaTPtr -> Bool -> Maybe RdKafkaTopicTPtr -> IO (Either RdKafkaRespErrT RdKafkaMetadataTPtr)
--- rdKafkaMetadata k allTopics mt = alloca $ \mptr -> do
---     tptr <- maybe (newForeignPtr_ nullPtr) pure mt
---     err <- rdKafkaMetadata' k allTopics tptr mptr (-1)
---     case err of
---         RdKafkaRespErrNoError -> do
---             meta <- peek mptr >>= newForeignPtr rdKafkaMetadataDestroy
---             return (Right meta)
---         e -> return (Left e)
-
 {#fun rd_kafka_poll as ^
     {`RdKafkaTPtr', `Int'} -> `Int' #}
 
@@ -855,7 +833,6 @@ rdKafkaMetadata k allTopics mt = do
 
 {#fun rd_kafka_dump as ^
     {`CFilePtr', `RdKafkaTPtr'} -> `()' #}
-
 
 -- rd_kafka_topic
 {#fun rd_kafka_topic_name as ^
@@ -913,6 +890,10 @@ boolToCInt False = CInt 0
 peekInt64Conv :: (Storable a, Integral a) =>  Ptr a -> IO Int64
 peekInt64Conv  = liftM cIntConv . peek
 {-# INLINE peekInt64Conv #-}
+
+peekPtr :: Ptr a -> IO (Ptr b)
+peekPtr = peek . castPtr
+{-# INLINE peekPtr #-}
 
 -- Handle -> File descriptor
 

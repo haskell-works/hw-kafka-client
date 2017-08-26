@@ -12,6 +12,7 @@ module Kafka.Consumer.Metadata
 where
 
 import Control.Arrow          (left)
+import Control.Exception      (bracket)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bifunctor
 import Data.ByteString        (ByteString, pack)
@@ -92,16 +93,15 @@ allTopicsMetadata (KafkaConsumer k _) = liftIO $ do
 
 -- | Returns metadata only for specified topic
 topicMetadata :: MonadIO m => KafkaConsumer -> TopicName -> m (Either KafkaError KafkaMetadata)
-topicMetadata (KafkaConsumer k _) (TopicName tn) = liftIO $ do
-  tc <- newRdKafkaTopicConfT
-  mbt <- newRdKafkaTopicT k tn tc
-  res <- case mbt of
+topicMetadata (KafkaConsumer k _) (TopicName tn) = liftIO $
+  bracket mkTopic clTopic $ \mbt -> case mbt of
     Left err -> return (Left $ KafkaError err)
     Right t -> do
       meta <- rdKafkaMetadata k False (Just t)
       traverse fromKafkaMetadataPtr (left KafkaResponseError meta)
-  print $ show (tc, mbt)
-  return res
+  where
+    mkTopic = newRdKafkaTopicConfT >>= newUnmanagedRdKafkaTopicT k tn
+    clTopic = either (return . const ()) destroyUnmanagedRdKafkaTopic
 
 -- | Query broker for low (oldest/beginning) and high (newest/end) offsets for a given topic.
 watermarkOffsets :: MonadIO m => KafkaConsumer -> TopicName -> m [Either KafkaError WatermarkOffsets]

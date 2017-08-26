@@ -57,42 +57,43 @@ spec = describe "Kafka.IntegrationSpec" $ do
                     (\k -> do
                         msgs <- receiveMessages k
 
-                        -- {- Somehow this fails with "Assertion failed: (r == 0), function rwlock_wrlock, file tinycthread.c, line 1011." -}
-                        -- wOffsets <- watermarkOffsets k topic
-                        -- length wOffsets `shouldBe` 1
-                        -- forM_ wOffsets (`shouldSatisfy` isRight)
+                        wOffsets <- watermarkOffsets k topic
+                        length wOffsets `shouldBe` 1
+                        forM_ wOffsets (`shouldSatisfy` isRight)
 
-                        -- sub  <- subscription k
-                        -- sub `shouldSatisfy` isRight
-                        -- length <$> sub `shouldBe` Right 1
-
-                        -- {-  Somehow this fails with "Assertion failed: (r == 0), function rwlock_wrlock, file tinycthread.c, line 1011." -}
-                        -- asgm <- assignment k
-                        -- asgm `shouldSatisfy` isRight
-                        -- length <$> asgm `shouldBe` Right 1
+                        sub  <- subscription k
+                        sub `shouldSatisfy` isRight
+                        length <$> sub `shouldBe` Right 1
 
                         -- {-  Somehow this fails with "Assertion failed: (r == 0), function rwlock_wrlock, file tinycthread.c, line 1011." -}
-                        -- allMeta <- allTopicsMetadata k
-                        -- allMeta `shouldSatisfy` isRight
-                        -- (length . kmBrokers) <$> allMeta `shouldBe` Right 1
-                        -- (length . kmTopics) <$> allMeta `shouldBe` Right 2
+                        asgm <- assignment k
+                        asgm `shouldSatisfy` isRight
+                        length <$> asgm `shouldBe` Right 1
 
-                        -- {- This is fine, it works and doesn't fail -}
-                        -- tMeta <- topicMetadata k (TopicName "oho")
-                        -- tMeta `shouldSatisfy` isRight
-                        -- (length . kmBrokers) <$> tMeta `shouldBe` Right 1
-                        -- (length . kmTopics) <$> tMeta `shouldBe` Right 1
+                        -- {-  Real all topics metadata -}
+                        allMeta <- allTopicsMetadata k
+                        allMeta `shouldSatisfy` isRight
+                        (length . kmBrokers) <$> allMeta `shouldBe` Right 1
+                        (length . kmTopics) <$> allMeta `shouldBe` Right 2
 
-                        -- allGroups <- allConsumerGroupsInfo k
-                        -- fmap giGroup <$> allGroups `shouldBe` Right [testGroupId]
+                        -- {- Read specific topic metadata -}
+                        tMeta <- topicMetadata k (TopicName "oho")
+                        tMeta `shouldSatisfy` isRight
+                        (length . kmBrokers) <$> tMeta `shouldBe` Right 1
+                        (length . kmTopics) <$> tMeta `shouldBe` Right 1
 
+                        -- {- Describe all consumer grops -}
+                        allGroups <- allConsumerGroupsInfo k
+                        fmap giGroup <$> allGroups `shouldBe` Right [testGroupId]
+
+                        -- {- Describe specific consumer grops -}
                         grp <- consumerGroupInfo k testGroupId
-                        print $ show grp
                         fmap giGroup <$> grp `shouldBe` Right [testGroupId]
 
 
-                        -- noGroup <- consumerGroupInfo k (ConsumerGroupId "does-not-exist")
-                        -- noGroup `shouldBe` Right []
+                        noGroup <- consumerGroupInfo k (ConsumerGroupId "does-not-exist")
+                        print $ show noGroup
+                        noGroup `shouldBe` Right []
 
                         return msgs
                     )
@@ -114,10 +115,7 @@ receiveMessages kafka =
          www = whileJust maybeMsg return
          isOK msg = if msg /= Left (KafkaResponseError RdKafkaRespErrPartitionEof) then Just msg else Nothing
          maybeMsg = isOK <$> get
-         get = do
-             x <- pollMessage kafka (Timeout 1000)
-             --print $ show x
-             return x
+         get = pollMessage kafka (Timeout 1000)
 
 testMessages :: TopicName -> [ProducerRecord]
 testMessages t =
