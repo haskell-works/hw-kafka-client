@@ -489,16 +489,15 @@ newRdKafkaQueue k = do
     -> `RdKafkaRespErrT' cIntToEnum #}
 
 {#fun rd_kafka_subscription as rdKafkaSubscription'
-    {`RdKafkaTPtr', castPtr `Ptr (Ptr RdKafkaTopicPartitionListT)'}
+    {`RdKafkaTPtr', alloca- `Ptr RdKafkaTopicPartitionListT' peekPtr*}
     -> `RdKafkaRespErrT' cIntToEnum #}
 
 rdKafkaSubscription :: RdKafkaTPtr -> IO (Either RdKafkaRespErrT RdKafkaTopicPartitionListTPtr)
-rdKafkaSubscription k = alloca $ \psPtr -> do
-    err <- rdKafkaSubscription' k psPtr
+rdKafkaSubscription k = do
+    (err, sub) <- rdKafkaSubscription' k
     case err of
-        RdKafkaRespErrNoError -> do
-            lst <- peek psPtr >>= newForeignPtr rdKafkaTopicPartitionListDestroy
-            return (Right lst)
+        RdKafkaRespErrNoError ->
+            Right <$> newForeignPtr rdKafkaTopicPartitionListDestroy sub
         e -> return (Left e)
 
 {#fun rd_kafka_consumer_poll as ^
@@ -522,16 +521,15 @@ pollRdKafkaConsumer k t = do
     -> `RdKafkaRespErrT' cIntToEnum #}
 
 {#fun rd_kafka_assignment as rdKafkaAssignment'
-    {`RdKafkaTPtr', castPtr `Ptr (Ptr RdKafkaTopicPartitionListT)'}
+    {`RdKafkaTPtr', alloca- `Ptr RdKafkaTopicPartitionListT' peekPtr* }
     -> `RdKafkaRespErrT' cIntToEnum #}
 
 rdKafkaAssignment :: RdKafkaTPtr -> IO (Either RdKafkaRespErrT RdKafkaTopicPartitionListTPtr)
-rdKafkaAssignment k = alloca $ \psPtr -> do
-    err <- rdKafkaAssignment' k psPtr
+rdKafkaAssignment k = do
+    (err, ass) <- rdKafkaAssignment' k
     case err of
-        RdKafkaRespErrNoError -> do
-            lst <- peek psPtr >>= newForeignPtr rdKafkaTopicPartitionListDestroy
-            return (Right lst)
+        RdKafkaRespErrNoError ->
+            Right <$> newForeignPtr rdKafkaTopicPartitionListDestroy ass
         e -> return (Left e)
 
 {#fun rd_kafka_commit as ^
