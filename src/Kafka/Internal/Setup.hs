@@ -1,21 +1,18 @@
 module Kafka.Internal.Setup where
 
-import           Kafka.Internal.RdKafka
-import           Kafka.Types
+import Kafka.Internal.RdKafka
+import Kafka.Types
 
-import           Control.Exception
-import           Control.Monad
-import           Foreign
-import           Foreign.C.String
+import Control.Exception
+import Control.Monad
+import Foreign
+import Foreign.C.String
 
 --
 -- Configuration
 --
 newtype KafkaProps = KafkaProps [(String, String)] deriving (Show, Eq)
 newtype TopicProps = TopicProps [(String, String)] deriving (Show, Eq)
-
-newtype KafkaConf = KafkaConf RdKafkaConfTPtr deriving Show
-newtype TopicConf = TopicConf RdKafkaTopicConfTPtr deriving Show
 
 newTopicConf :: IO TopicConf
 newTopicConf = TopicConf <$> newRdKafkaTopicConfT

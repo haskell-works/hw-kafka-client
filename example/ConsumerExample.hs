@@ -4,16 +4,16 @@ module ConsumerExample
 where
 
 import Control.Arrow  ((&&&))
-import Data.Monoid ((<>))
+import Data.Monoid    ((<>))
 import Kafka.Consumer
 
 -- Global consumer properties
 consumerProps :: ConsumerProperties
-consumerProps = consumerBrokersList [BrokerAddress "localhost:9092"]
+consumerProps = brokersList [BrokerAddress "localhost:9092"]
              <> groupId (ConsumerGroupId "consumer_example_group")
              <> noAutoCommit
-             <> reballanceCallback (ReballanceCallback printingRebalanceCallback)
-             <> offsetsCommitCallback (OffsetsCommitCallback printingOffsetCallback)
+             <> setCallback (rebalanceCallback printingRebalanceCallback)
+             <> setCallback (offsetCommitCallback printingOffsetCallback)
              <> consumerLogLevel KafkaLogInfo
 
 -- Subscription to topics
@@ -21,6 +21,7 @@ consumerSub :: Subscription
 consumerSub = topics [TopicName "kafka-client-example-topic"]
            <> offsetReset Earliest
 
+-- Running an example
 runConsumerExample :: IO ()
 runConsumerExample = do
     print $ cpLogLevel consumerProps
