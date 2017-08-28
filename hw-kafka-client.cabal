@@ -62,18 +62,19 @@ library
                      , transformers
                      , unix
   exposed-modules:
-    Kafka
     Kafka.Types
     Kafka.Consumer.ConsumerProperties
     Kafka.Consumer.Subscription
     Kafka.Consumer.Types
     Kafka.Consumer
-    Kafka.Consumer.Metadata
+    Kafka.Metadata
     Kafka.Producer
     Kafka.Producer.ProducerProperties
     Kafka.Producer.Types
   other-modules:
+    Kafka.Callbacks
     Kafka.Consumer.Convert
+    Kafka.Consumer.Callbacks
     Kafka.Internal.Shared
     Kafka.Internal.Setup
     Kafka.Producer.Convert

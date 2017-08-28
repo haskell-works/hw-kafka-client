@@ -6,14 +6,21 @@ where
 import qualified Data.ByteString as BS
 import           Data.Typeable
 import           Kafka.Types
-import           Kafka.Internal.RdKafka
 
 -- | Main pointer to Kafka object, which contains our brokers
 data KafkaProducer = KafkaProducer
-  { kpKafkaPtr  :: RdKafkaTPtr
-  , kpKafkaConf :: RdKafkaConfTPtr
-  , kpTopicConf :: RdKafkaTopicConfTPtr
+  { kpKafkaPtr  :: !Kafka
+  , kpKafkaConf :: !KafkaConf
+  , kpTopicConf :: !TopicConf
   } deriving (Show)
+
+instance HasKafka KafkaProducer where
+  getKafka = kpKafkaPtr
+  {-# INLINE getKafka #-}
+
+instance HasKafkaConf KafkaProducer where
+  getKafkaConf = kpKafkaConf
+  {-# INLINE getKafkaConf #-}
 
 -- | Represents messages /to be enqueued/ onto a Kafka broker (i.e. used for a producer)
 data ProducerRecord = ProducerRecord

@@ -13,8 +13,9 @@ import           Data.Either
 import           Data.Monoid         ((<>))
 import           System.Environment
 
-import Kafka
-import Kafka.Consumer.Metadata
+import Kafka.Consumer as C
+import Kafka.Metadata as M
+import Kafka.Producer as P
 
 import Test.Hspec
 
@@ -28,12 +29,16 @@ testGroupId :: ConsumerGroupId
 testGroupId = ConsumerGroupId "it_spec_03"
 
 consumerProps :: BrokerAddress -> ConsumerProperties
-consumerProps broker = consumerBrokersList [broker]
+consumerProps broker = C.brokersList [broker]
                     <> groupId testGroupId
+                    <> C.setCallback (logCallback (\l s1 s2 -> print $ show l <> ": " <> s1 <> ", " <> s2))
+                    <> C.setCallback (errorCallback (\e r -> print $ show e <> ": " <> r))
                     <> noAutoCommit
 
 producerProps :: BrokerAddress -> ProducerProperties
-producerProps broker = producerBrokersList [broker]
+producerProps broker = P.brokersList [broker]
+                    <> P.setCallback (logCallback (\l s1 s2 -> print $ show l <> ": " <> s1 <> ", " <> s2))
+                    <> P.setCallback (errorCallback (\e r -> print $ show e <> ": " <> r))
 
 testSubscription :: TopicName -> Subscription
 testSubscription t = topics [t]

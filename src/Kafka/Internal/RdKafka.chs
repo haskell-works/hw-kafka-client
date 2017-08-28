@@ -279,7 +279,7 @@ copyRdKafkaTopicPartitionList pl = do
 
 ---- Rebalance Callback
 type RdRebalanceCallback' = Ptr RdKafkaT -> CInt -> Ptr RdKafkaTopicPartitionListT -> Ptr Word8 -> IO ()
-type RdRebalanceCallback = Ptr RdKafkaT -> RdKafkaRespErrT -> Ptr RdKafkaTopicPartitionListT -> Ptr Word8 -> IO ()
+type RdRebalanceCallback = Ptr RdKafkaT -> RdKafkaRespErrT -> Ptr RdKafkaTopicPartitionListT -> IO ()
 
 foreign import ccall safe "wrapper"
     mkRebalanceCallback :: RdRebalanceCallback' -> IO (FunPtr RdRebalanceCallback')
@@ -292,7 +292,7 @@ foreign import ccall safe "rd_kafka.h rd_kafka_conf_set_rebalance_cb"
 
 rdKafkaConfSetRebalanceCb :: RdKafkaConfTPtr -> RdRebalanceCallback -> IO ()
 rdKafkaConfSetRebalanceCb conf cb = do
-    cb' <- mkRebalanceCallback (\k e p o -> cb k (cIntToEnum e) p o)
+    cb' <- mkRebalanceCallback (\k e p _ -> cb k (cIntToEnum e) p)
     withForeignPtr conf $ \c -> rdKafkaConfSetRebalanceCb' c cb'
     return ()
 
@@ -328,7 +328,7 @@ rdKafkaConfSetConsumeCb conf cb = do
 
 ---- Offset Commit Callback
 type OffsetCommitCallback' = Ptr RdKafkaT -> CInt -> Ptr RdKafkaTopicPartitionListT -> Word8Ptr -> IO ()
-type OffsetCommitCallback  = Ptr RdKafkaT -> RdKafkaRespErrT -> Ptr RdKafkaTopicPartitionListT -> Word8Ptr -> IO ()
+type OffsetCommitCallback  = Ptr RdKafkaT -> RdKafkaRespErrT -> Ptr RdKafkaTopicPartitionListT -> IO ()
 
 foreign import ccall safe "wrapper"
     mkOffsetCommitCallback :: OffsetCommitCallback' -> IO (FunPtr OffsetCommitCallback')
@@ -338,9 +338,25 @@ foreign import ccall safe "rd_kafka.h rd_kafka_conf_set_offset_commit_cb"
 
 rdKafkaConfSetOffsetCommitCb :: RdKafkaConfTPtr -> OffsetCommitCallback -> IO ()
 rdKafkaConfSetOffsetCommitCb conf cb = do
-    cb' <- mkOffsetCommitCallback (\k e p o -> cb k (cIntToEnum e) p o)
+    cb' <- mkOffsetCommitCallback (\k e p _ -> cb k (cIntToEnum e) p)
     withForeignPtr conf $ \c -> rdKafkaConfSetOffsetCommitCb' c cb'
     return ()
+
+
+----- Error Callback
+type ErrorCallback' = Ptr RdKafkaT -> CInt -> CString -> Word8Ptr -> IO ()
+type ErrorCallback  = Ptr RdKafkaT -> RdKafkaRespErrT -> String -> IO ()
+
+foreign import ccall safe "wrapper"
+    mkErrorCallback :: ErrorCallback' -> IO (FunPtr ErrorCallback')
+
+foreign import ccall safe "rd_kafka.h rd_kafka_conf_set_error_cb"
+    rdKafkaConfSetErrorCb' :: Ptr RdKafkaConfT -> FunPtr ErrorCallback' -> IO ()
+
+rdKafkaConfSetErrorCb :: RdKafkaConfTPtr -> ErrorCallback -> IO ()
+rdKafkaConfSetErrorCb conf cb = do
+    cb' <- mkErrorCallback (\k e r _ -> peekCAString r >>= cb k (cIntToEnum e))
+    withForeignPtr conf $ \c -> rdKafkaConfSetErrorCb' c cb'
 
 ---- Throttle Callback
 type ThrottleCallback = Ptr RdKafkaT -> CString -> Int -> Int -> Word8Ptr -> IO ()
@@ -357,18 +373,37 @@ rdKafkaConfSetThrottleCb conf cb = do
     withForeignPtr conf $ \c -> rdKafkaConfSetThrottleCb' c cb'
     return ()
 
----- Stats Callback
-type StatsCallback = Ptr RdKafkaT -> CString -> CSize -> Word8Ptr -> IO ()
+---- Log Callback
+type LogCallback' = Ptr RdKafkaT -> CInt -> CString -> CString -> IO ()
+type LogCallback = Ptr RdKafkaT -> Int -> String -> String -> IO ()
 
 foreign import ccall safe "wrapper"
-    mkStatsCallback :: StatsCallback -> IO (FunPtr StatsCallback)
+    mkLogCallback :: LogCallback' -> IO (FunPtr LogCallback')
+
+foreign import ccall safe "rd_kafka.h rd_kafka_conf_set_log_cb"
+    rdKafkaConfSetLogCb' :: Ptr RdKafkaConfT -> FunPtr LogCallback' -> IO ()
+
+rdKafkaConfSetLogCb :: RdKafkaConfTPtr -> LogCallback -> IO ()
+rdKafkaConfSetLogCb conf cb = do
+    cb' <- mkLogCallback $ \k l f b -> do
+            f' <- peekCAString f
+            b' <- peekCAString b
+            cb k (cIntConv l) f' b'
+    withForeignPtr conf $ \c -> rdKafkaConfSetLogCb' c cb'
+
+---- Stats Callback
+type StatsCallback' = Ptr RdKafkaT -> CString -> CSize -> Word8Ptr -> IO ()
+type StatsCallback = Ptr RdKafkaT -> String -> IO ()
+
+foreign import ccall safe "wrapper"
+    mkStatsCallback :: StatsCallback' -> IO (FunPtr StatsCallback')
 
 foreign import ccall safe "rd_kafka.h rd_kafka_conf_set_stats_cb"
-    rdKafkaConfSetStatsCb' :: Ptr RdKafkaConfT -> FunPtr StatsCallback -> IO ()
+    rdKafkaConfSetStatsCb' :: Ptr RdKafkaConfT -> FunPtr StatsCallback' -> IO ()
 
 rdKafkaConfSetStatsCb :: RdKafkaConfTPtr -> StatsCallback -> IO ()
 rdKafkaConfSetStatsCb conf cb = do
-    cb' <- mkStatsCallback cb
+    cb' <- mkStatsCallback $ \k j jl _ -> peekCAStringLen (j, cIntConv jl) >>= cb k
     withForeignPtr conf $ \c -> rdKafkaConfSetStatsCb' c cb'
     return ()
 

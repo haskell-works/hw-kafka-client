@@ -5,6 +5,7 @@ where
 import           Control.Monad
 import qualified Data.ByteString        as BS
 import           Data.Map.Strict        (Map, fromListWith)
+import qualified Data.Set               as S
 import           Foreign
 import           Foreign.C.Error
 import           Foreign.C.String
@@ -77,6 +78,13 @@ toNativeTopicPartitionList ps = do
             to = offsetToInt64 $ tpOffset p
         _ <- rdKafkaTopicPartitionListAdd pl tn tp
         rdKafkaTopicPartitionListSetOffset pl tn tp to) ps
+    return pl
+
+toNativeTopicPartitionList' :: [(TopicName, PartitionId)] -> IO RdKafkaTopicPartitionListTPtr
+toNativeTopicPartitionList' tps = do
+    let utps = S.toList . S.fromList $ tps
+    pl <- newRdKafkaTopicPartitionListT (length utps)
+    mapM_ (\(TopicName t, PartitionId p) -> rdKafkaTopicPartitionListAdd pl t p) utps
     return pl
 
 topicPartitionFromMessage :: ConsumerRecord k v -> TopicPartition

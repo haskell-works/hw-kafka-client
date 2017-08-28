@@ -3,15 +3,15 @@
 module ProducerExample
 where
 
-import Control.Monad (forM_)
+import Control.Monad   (forM_)
+import Data.ByteString (ByteString)
 import Data.Monoid
 import Kafka.Producer
-import Data.ByteString (ByteString)
 
 -- Global producer properties
 producerProps :: ProducerProperties
-producerProps = producerBrokersList [BrokerAddress "localhost:9092"]
-             <> producerLogLevel KafkaLogDebug
+producerProps = brokersList [BrokerAddress "localhost:9092"]
+             <> logLevel KafkaLogDebug
 
 -- Topic to send messages to
 targetTopic :: TopicName

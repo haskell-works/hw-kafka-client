@@ -9,13 +9,17 @@ import Data.Bifunctor
 import Data.Bitraversable
 import Data.Int
 import Data.Typeable
-import Kafka.Internal.RdKafka
 import Kafka.Types
 
-data KafkaConsumer = KafkaConsumer { kcKafkaPtr :: !RdKafkaTPtr, kcKafkaConf :: !RdKafkaConfTPtr} deriving (Show)
+data KafkaConsumer = KafkaConsumer { kcKafkaPtr :: !Kafka, kcKafkaConf :: !KafkaConf} deriving (Show)
 
-newtype ReballanceCallback    = ReballanceCallback    (KafkaConsumer -> KafkaError -> [TopicPartition] -> IO ())
-newtype OffsetsCommitCallback = OffsetsCommitCallback (KafkaConsumer -> KafkaError -> [TopicPartition] -> IO ())
+instance HasKafka KafkaConsumer where
+  getKafka = kcKafkaPtr
+  {-# INLINE getKafka #-}
+
+instance HasKafkaConf KafkaConsumer where
+  getKafkaConf = kcKafkaConf
+  {-# INLINE getKafkaConf #-}
 
 newtype ConsumerGroupId = ConsumerGroupId String deriving (Show, Eq)
 newtype Offset          = Offset Int64 deriving (Show, Eq, Read)

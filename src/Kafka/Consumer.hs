@@ -1,13 +1,10 @@
-{-# LANGUAGE TupleSections #-}
 module Kafka.Consumer
 ( module X
 , runConsumer
 , newConsumer
 , assign, assignment, subscription
 , pollMessage
-, commitOffsetMessage
-, commitAllOffsets
-, commitPartitionsOffsets
+, commitOffsetMessage, commitAllOffsets, commitPartitionsOffsets
 , closeConsumer
 
 -- ReExport Types
@@ -24,6 +21,7 @@ import           Control.Arrow
 import           Control.Exception
 import           Control.Monad          (forM_)
 import           Control.Monad.IO.Class
+import           Data.Bifunctor
 import qualified Data.ByteString        as BS
 import qualified Data.Map               as M
 import           Foreign                hiding (void)
@@ -64,10 +62,10 @@ newConsumer :: MonadIO m
             -> Subscription
             -> m (Either KafkaError KafkaConsumer)
 newConsumer cp (Subscription ts tp) = liftIO $ do
-  (KafkaConf kc) <- newConsumerConf cp
+  kc@(KafkaConf kc') <- newConsumerConf cp
   tp' <- topicConf (TopicProps $ M.toList tp)
   _   <- setDefaultTopicConf kc tp'
-  rdk <- left KafkaError <$> newRdKafkaT RdKafkaConsumer kc
+  rdk <- bimap KafkaError Kafka <$> newRdKafkaT RdKafkaConsumer kc'
   case flip KafkaConsumer kc <$> rdk of
     Left err -> return $ Left err
     Right kafka -> do
@@ -87,7 +85,7 @@ pollMessage :: MonadIO m
             => KafkaConsumer
             -> Timeout -- ^ the timeout, in milliseconds
             -> m (Either KafkaError (ConsumerRecord (Maybe BS.ByteString) (Maybe BS.ByteString))) -- ^ Left on error or timeout, right for success
-pollMessage (KafkaConsumer k _) (Timeout ms) =
+pollMessage (KafkaConsumer (Kafka k) _) (Timeout ms) =
     liftIO $ rdKafkaConsumerPoll k (fromIntegral ms) >>= fromMessagePtr
 
 -- | Commit message's offset on broker for the message's partition.
@@ -119,7 +117,7 @@ commitPartitionsOffsets o k ps =
 -- | Assigns specified partitions to a current consumer.
 -- Assigning an empty list means unassigning from all partitions that are currently assigned.
 assign :: MonadIO m => KafkaConsumer -> [TopicPartition] -> m KafkaError
-assign (KafkaConsumer k _) ps =
+assign (KafkaConsumer (Kafka k) _) ps =
     let pl = if null ps
                 then newForeignPtr_ nullPtr
                 else toNativeTopicPartitionList ps
@@ -127,7 +125,7 @@ assign (KafkaConsumer k _) ps =
 
 -- | Returns current consumer's assignment
 assignment :: MonadIO m => KafkaConsumer -> m (Either KafkaError (M.Map TopicName [PartitionId]))
-assignment (KafkaConsumer k _) = liftIO $ do
+assignment (KafkaConsumer (Kafka k) _) = liftIO $ do
   tpl <- rdKafkaAssignment k
   tps <- traverse fromNativeTopicPartitionList'' (left KafkaResponseError tpl)
   return $ tpMap <$> tps
@@ -136,7 +134,7 @@ assignment (KafkaConsumer k _) = liftIO $ do
 
 -- | Returns current consumer's subscription
 subscription :: MonadIO m => KafkaConsumer -> m (Either KafkaError [(TopicName, SubscribedPartitions)])
-subscription (KafkaConsumer k _) = liftIO $ do
+subscription (KafkaConsumer (Kafka k) _) = liftIO $ do
   tpl <- rdKafkaSubscription k
   tps <- traverse fromNativeTopicPartitionList'' (left KafkaResponseError tpl)
   return $ toSub <$> tps
@@ -149,60 +147,15 @@ subscription (KafkaConsumer k _) = liftIO $ do
 
 -- | Closes the consumer.
 closeConsumer :: MonadIO m => KafkaConsumer -> m (Maybe KafkaError)
-closeConsumer (KafkaConsumer k _) =
+closeConsumer (KafkaConsumer (Kafka k) _) =
   liftIO $ (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaConsumerClose k
 
 -----------------------------------------------------------------------------
 newConsumerConf :: ConsumerProperties -> IO KafkaConf
-newConsumerConf (ConsumerProperties m rcb ccb _) = do
+newConsumerConf (ConsumerProperties m _ cbs) = do
   conf <- kafkaConf (KafkaProps $ M.toList m)
-  forM_ rcb (\(ReballanceCallback cb) -> setRebalanceCallback conf cb)
-  forM_ ccb (\(OffsetsCommitCallback cb) -> setOffsetCommitCallback conf cb)
+  forM_ cbs (\setCb -> setCb conf)
   return conf
-
--- | Sets a callback that is called when rebalance is needed.
---
--- Callback implementations suppose to watch for 'KafkaResponseError' 'RdKafkaRespErrAssignPartitions' and
--- for 'KafkaResponseError' 'RdKafkaRespErrRevokePartitions'. Other error codes are not expected and would indicate
--- something really bad happening in a system, or bugs in @librdkafka@ itself.
---
--- A callback is expected to call 'assign' according to the error code it receives.
---
---     * When 'RdKafkaRespErrAssignPartitions' happens 'assign' should be called with all the partitions it was called with.
---       It is OK to alter partitions offsets before calling 'assign'.
---
---     * When 'RdKafkaRespErrRevokePartitions' happens 'assign' should be called with an empty list of partitions.
-setRebalanceCallback :: KafkaConf
-                     -> (KafkaConsumer -> KafkaError -> [TopicPartition] -> IO ())
-                     -> IO ()
-setRebalanceCallback (KafkaConf conf) callback = rdKafkaConfSetRebalanceCb conf realCb
-  where
-    realCb :: Ptr RdKafkaT -> RdKafkaRespErrT -> Ptr RdKafkaTopicPartitionListT -> Ptr Word8 -> IO ()
-    realCb rk err pl _ = do
-        rk' <- newForeignPtr_ rk
-        ps  <- fromNativeTopicPartitionList' pl
-        callback (KafkaConsumer rk' conf) (KafkaResponseError err) ps
-
--- | Sets a callback that is called when rebalance is needed.
---
--- The results of automatic or manual offset commits will be scheduled
--- for this callback and is served by `pollMessage`.
---
--- A callback is expected to call 'assign' according to the error code it receives.
---
--- If no partitions had valid offsets to commit this callback will be called
--- with `KafkaError` == `KafkaResponseError` `RdKafkaRespErrNoOffset` which is not to be considered
--- an error.
-setOffsetCommitCallback :: KafkaConf
-                        -> (KafkaConsumer -> KafkaError -> [TopicPartition] -> IO ())
-                        -> IO ()
-setOffsetCommitCallback (KafkaConf conf) callback = rdKafkaConfSetOffsetCommitCb conf realCb
-  where
-    realCb :: Ptr RdKafkaT -> RdKafkaRespErrT -> Ptr RdKafkaTopicPartitionListT -> Ptr Word8 -> IO ()
-    realCb rk err pl _ = do
-        rk' <- newForeignPtr_ rk
-        ps  <- fromNativeTopicPartitionList' pl
-        callback (KafkaConsumer rk' conf) (KafkaResponseError err) ps
 
 -- | Subscribes to a given list of topics.
 --
@@ -211,24 +164,24 @@ setOffsetCommitCallback (KafkaConf conf) callback = rdKafkaConfSetOffsetCommitCb
 -- be regex-matched to the full list of topics in the cluster and matching
 -- topics will be added to the subscription list.
 subscribe :: KafkaConsumer -> [TopicName] -> IO (Maybe KafkaError)
-subscribe (KafkaConsumer k _) ts = do
+subscribe (KafkaConsumer (Kafka k) _) ts = do
     pl <- newRdKafkaTopicPartitionListT (length ts)
     mapM_ (\(TopicName t) -> rdKafkaTopicPartitionListAdd pl t (-1)) ts
     res <- KafkaResponseError <$> rdKafkaSubscribe k pl
     return $ kafkaErrorToMaybe res
 
-setDefaultTopicConf :: RdKafkaConfTPtr -> TopicConf -> IO ()
-setDefaultTopicConf kc (TopicConf tc) =
+setDefaultTopicConf :: KafkaConf -> TopicConf -> IO ()
+setDefaultTopicConf (KafkaConf kc) (TopicConf tc) =
     rdKafkaTopicConfDup tc >>= rdKafkaConfSetDefaultTopicConf kc
 
 commitOffsets :: OffsetCommit -> KafkaConsumer -> RdKafkaTopicPartitionListTPtr -> IO (Maybe KafkaError)
-commitOffsets o (KafkaConsumer k _) pl =
+commitOffsets o (KafkaConsumer (Kafka k) _) pl =
     (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaCommit k pl (offsetCommitToBool o)
 
 setConsumerLogLevel :: KafkaConsumer -> KafkaLogLevel -> IO ()
-setConsumerLogLevel (KafkaConsumer k _) level =
+setConsumerLogLevel (KafkaConsumer (Kafka k) _) level =
   liftIO $ rdKafkaSetLogLevel k (fromEnum level)
 
 redirectCallbacksPoll :: KafkaConsumer -> IO (Maybe KafkaError)
-redirectCallbacksPoll (KafkaConsumer k _) =
+redirectCallbacksPoll (KafkaConsumer (Kafka k) _) =
   (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaPollSetConsumer k

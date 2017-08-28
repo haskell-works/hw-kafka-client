@@ -1,113 +1,92 @@
 module Kafka.Consumer.ConsumerProperties
+( module Kafka.Consumer.ConsumerProperties
+, module Kafka.Consumer.Callbacks
+)
 where
 
 --
-import Control.Monad
-import Data.Map (Map)
-import Kafka.Types
-import Kafka.Consumer.Types
-import qualified Data.Map as M
-import qualified Data.List as L
+import           Control.Monad
+import qualified Data.List                as L
+import           Data.Map                 (Map)
+import qualified Data.Map                 as M
+import           Data.Monoid              ((<>))
+import           Kafka.Consumer.Callbacks
+import           Kafka.Consumer.Types
+import           Kafka.Types
 
 -- | Properties to create 'KafkaConsumer'.
 data ConsumerProperties = ConsumerProperties
-  { cpProps             :: Map String String
-  , cpRebalanceCallback :: Maybe ReballanceCallback
-  , cpOffsetsCallback   :: Maybe OffsetsCommitCallback
-  , cpLogLevel          :: Maybe KafkaLogLevel
+  { cpProps    :: Map String String
+  , cpLogLevel :: Maybe KafkaLogLevel
+  , callbacks  :: [KafkaConf -> IO ()]
   }
 
 instance Monoid ConsumerProperties where
-  mempty = ConsumerProperties M.empty Nothing Nothing Nothing
-  mappend (ConsumerProperties m1 rb1 oc1 ll1) (ConsumerProperties m2 rb2 oc2 ll2) =
-    ConsumerProperties (M.union m1 m2) (rb2 `mplus` rb1) (oc2 `mplus` oc1) (ll2 `mplus` ll1)
+  mempty = ConsumerProperties M.empty Nothing []
+  mappend (ConsumerProperties m1 ll1 cb1) (ConsumerProperties m2 ll2 cb2) =
+    ConsumerProperties (M.union m1 m2) (ll2 `mplus` ll1) (cb2 <> cb1)
 
-consumerBrokersList :: [BrokerAddress] -> ConsumerProperties
-consumerBrokersList bs =
+brokersList :: [BrokerAddress] -> ConsumerProperties
+brokersList bs =
   let bs' = L.intercalate "," ((\(BrokerAddress x) -> x) <$> bs)
-   in extraConsumerProps $ M.fromList [("bootstrap.servers", bs')]
+   in extraProps $ M.fromList [("bootstrap.servers", bs')]
 
 -- | Disables auto commit for the consumer
 noAutoCommit :: ConsumerProperties
 noAutoCommit =
-  extraConsumerProps $ M.fromList [("enable.auto.commit", "false")]
+  extraProps $ M.fromList [("enable.auto.commit", "false")]
 
 -- | Consumer group id
 groupId :: ConsumerGroupId -> ConsumerProperties
 groupId (ConsumerGroupId cid) =
-  extraConsumerProps $ M.fromList [("group.id", cid)]
+  extraProps $ M.fromList [("group.id", cid)]
 
 clientId :: ClientId -> ConsumerProperties
 clientId (ClientId cid) =
-  extraConsumerProps $ M.fromList [("client.id", cid)]
+  extraProps $ M.fromList [("client.id", cid)]
 
--- | Sets a callback that is called when rebalance is needed.
---
--- Callback implementations suppose to watch for 'KafkaResponseError' 'RdKafkaRespErrAssignPartitions' and
--- for 'KafkaResponseError' 'RdKafkaRespErrRevokePartitions'. Other error codes are not expected and would indicate
--- something really bad happening in a system, or bugs in @librdkafka@ itself.
---
--- A callback is expected to call 'assign' according to the error code it receives.
---
---     * When 'RdKafkaRespErrAssignPartitions' happens 'assign' should be called with all the partitions it was called with.
---       It is OK to alter partitions offsets before calling 'assign'.
---
---     * When 'RdKafkaRespErrRevokePartitions' happens 'assign' should be called with an empty list of partitions.
-reballanceCallback :: ReballanceCallback -> ConsumerProperties
-reballanceCallback cb = ConsumerProperties M.empty (Just cb) Nothing Nothing
-
--- | Sets offset commit callback for use with consumer groups.
---
--- The results of automatic or manual offset commits will be scheduled
--- for this callback and is served by `pollMessage`.
---
--- A callback is expected to call 'assign' according to the error code it receives.
---
--- If no partitions had valid offsets to commit this callback will be called
--- with `KafkaError` == `KafkaResponseError` `RdKafkaRespErrNoOffset` which is not to be considered
--- an error.
-offsetsCommitCallback :: OffsetsCommitCallback -> ConsumerProperties
-offsetsCommitCallback cb = ConsumerProperties M.empty Nothing (Just cb) Nothing
+setCallback :: (KafkaConf -> IO ()) -> ConsumerProperties
+setCallback cb = ConsumerProperties M.empty Nothing [cb]
 
 -- | Sets the logging level.
--- Usually is used with 'consumerDebug' to configure which logs are needed.
+-- Usually is used with 'debugOptions' to configure which logs are needed.
 consumerLogLevel :: KafkaLogLevel -> ConsumerProperties
-consumerLogLevel ll = ConsumerProperties M.empty Nothing Nothing (Just ll)
+consumerLogLevel ll = ConsumerProperties M.empty (Just ll) []
 
 -- | Sets the compression codec for the consumer.
-consumerCompression :: KafkaCompressionCodec -> ConsumerProperties
-consumerCompression c =
-  extraConsumerProps $ M.singleton "compression.codec" (kafkaCompressionCodecToString c)
+compression :: KafkaCompressionCodec -> ConsumerProperties
+compression c =
+  extraProps $ M.singleton "compression.codec" (kafkaCompressionCodecToString c)
 
 -- | Suppresses consumer disconnects logs.
 --
 -- It might be useful to turn this off when interacting with brokers
 -- with an aggressive connection.max.idle.ms value.
-consumerSuppressDisconnectLogs :: ConsumerProperties
-consumerSuppressDisconnectLogs =
-  extraConsumerProps $ M.fromList [("log.connection.close", "false")]
+suppressDisconnectLogs :: ConsumerProperties
+suppressDisconnectLogs =
+  extraProps $ M.fromList [("log.connection.close", "false")]
 
 -- | Any configuration options that are supported by /librdkafka/.
 -- The full list can be found <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md here>
-extraConsumerProps :: Map String String -> ConsumerProperties
-extraConsumerProps m = ConsumerProperties m Nothing Nothing Nothing
-{-# INLINE extraConsumerProps #-}
+extraProps :: Map String String -> ConsumerProperties
+extraProps m = ConsumerProperties m Nothing []
+{-# INLINE extraProps #-}
 
 -- | Any configuration options that are supported by /librdkafka/.
 -- The full list can be found <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md here>
-extraConsumerProp :: String -> String -> ConsumerProperties
-extraConsumerProp k v = ConsumerProperties (M.singleton k v) Nothing Nothing Nothing
-{-# INLINE extraConsumerProp #-}
+extraProp :: String -> String -> ConsumerProperties
+extraProp k v = ConsumerProperties (M.singleton k v) Nothing []
+{-# INLINE extraProp #-}
 
 -- | Sets debug features for the consumer.
 -- Usually is used with 'consumerLogLevel'.
-consumerDebug :: [KafkaDebug] -> ConsumerProperties
-consumerDebug [] = extraConsumerProps M.empty
-consumerDebug d =
+debugOptions :: [KafkaDebug] -> ConsumerProperties
+debugOptions [] = extraProps M.empty
+debugOptions d =
   let points = L.intercalate "," (kafkaDebugToString <$> d)
-   in extraConsumerProps $ M.fromList [("debug", points)]
+   in extraProps $ M.fromList [("debug", points)]
 
-consumerQueuedMaxMessagesKBytes :: Int -> ConsumerProperties
-consumerQueuedMaxMessagesKBytes kBytes =
-  extraConsumerProp "queued.max.messages.kbytes" (show kBytes)
-{-# INLINE consumerQueuedMaxMessagesKBytes #-}
+queuedMaxMessagesKBytes :: Int -> ConsumerProperties
+queuedMaxMessagesKBytes kBytes =
+  extraProp "queued.max.messages.kbytes" (show kBytes)
+{-# INLINE queuedMaxMessagesKBytes #-}

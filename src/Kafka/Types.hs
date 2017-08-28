@@ -4,11 +4,29 @@ where
 
 import Control.Exception
 import Data.Typeable
-import Kafka.Internal.RdKafka (RdKafkaRespErrT)
+import Kafka.Internal.RdKafka
+
+class HasKafka a where
+  getKafka :: a -> Kafka
+
+class HasKafkaConf a where
+  getKafkaConf :: a -> KafkaConf
 
 newtype BrokerId =
   BrokerId Int
   deriving (Show, Eq, Ord, Read)
+
+newtype Kafka     = Kafka RdKafkaTPtr deriving Show
+newtype KafkaConf = KafkaConf RdKafkaConfTPtr deriving Show
+newtype TopicConf = TopicConf RdKafkaTopicConfTPtr deriving Show
+
+instance HasKafkaConf KafkaConf where
+  getKafkaConf = id
+  {-# INLINE getKafkaConf #-}
+
+instance HasKafka Kafka where
+  getKafka = id
+  {-# INLINE getKafka #-}
 
 -- | Topic name to be consumed
 --

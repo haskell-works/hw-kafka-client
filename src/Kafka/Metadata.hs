@@ -1,4 +1,4 @@
-module Kafka.Consumer.Metadata
+module Kafka.Metadata
 ( KafkaMetadata(..), BrokerMetadata(..), TopicMetadata(..), PartitionMetadata(..)
 , WatermarkOffsets(..)
 , GroupMemberId(..), GroupMemberInfo(..)
@@ -85,26 +85,30 @@ data GroupInfo = GroupInfo
   , giMembers      :: [GroupMemberInfo]
   } deriving (Show, Eq)
 
+getKafkaPtr :: HasKafka k => k -> RdKafkaTPtr
+getKafkaPtr k = let (Kafka k') = getKafka k in k'
+{-# INLINE getKafkaPtr #-}
+
 -- | Returns metadata for all topics in the cluster
-allTopicsMetadata :: MonadIO m => KafkaConsumer -> m (Either KafkaError KafkaMetadata)
-allTopicsMetadata (KafkaConsumer k _) = liftIO $ do
-  meta <- rdKafkaMetadata k True Nothing
+allTopicsMetadata :: (MonadIO m, HasKafka k) => k -> m (Either KafkaError KafkaMetadata)
+allTopicsMetadata k = liftIO $ do
+  meta <- rdKafkaMetadata (getKafkaPtr k) True Nothing
   traverse fromKafkaMetadataPtr (left KafkaResponseError meta)
 
 -- | Returns metadata only for specified topic
-topicMetadata :: MonadIO m => KafkaConsumer -> TopicName -> m (Either KafkaError KafkaMetadata)
-topicMetadata (KafkaConsumer k _) (TopicName tn) = liftIO $
+topicMetadata :: (MonadIO m, HasKafka k) => k -> TopicName -> m (Either KafkaError KafkaMetadata)
+topicMetadata k (TopicName tn) = liftIO $
   bracket mkTopic clTopic $ \mbt -> case mbt of
     Left err -> return (Left $ KafkaError err)
     Right t -> do
-      meta <- rdKafkaMetadata k False (Just t)
+      meta <- rdKafkaMetadata (getKafkaPtr k) False (Just t)
       traverse fromKafkaMetadataPtr (left KafkaResponseError meta)
   where
-    mkTopic = newRdKafkaTopicConfT >>= newUnmanagedRdKafkaTopicT k tn
+    mkTopic = newRdKafkaTopicConfT >>= newUnmanagedRdKafkaTopicT (getKafkaPtr k) tn
     clTopic = either (return . const ()) destroyUnmanagedRdKafkaTopic
 
 -- | Query broker for low (oldest/beginning) and high (newest/end) offsets for a given topic.
-watermarkOffsets :: MonadIO m => KafkaConsumer -> TopicName -> m [Either KafkaError WatermarkOffsets]
+watermarkOffsets :: (MonadIO m, HasKafka k) => k -> TopicName -> m [Either KafkaError WatermarkOffsets]
 watermarkOffsets k t = do
   meta <- topicMetadata k t
   case meta of
@@ -114,27 +118,27 @@ watermarkOffsets k t = do
                   else watermarkOffsets' k (head $ kmTopics tm)
 
 -- | Query broker for low (oldest/beginning) and high (newest/end) offsets for a given topic.
-watermarkOffsets' :: MonadIO m => KafkaConsumer -> TopicMetadata -> m [Either KafkaError WatermarkOffsets]
+watermarkOffsets' :: (MonadIO m, HasKafka k) => k -> TopicMetadata -> m [Either KafkaError WatermarkOffsets]
 watermarkOffsets' k tm =
   let pids = pmPartitionId <$> tmPartitions tm
   in liftIO $ traverse (partitionWatermarkOffsets k (tmTopicName tm)) pids
 
 -- | Query broker for low (oldest/beginning) and high (newest/end) offsets for a specific partition
-partitionWatermarkOffsets :: MonadIO m => KafkaConsumer -> TopicName -> PartitionId -> m (Either KafkaError WatermarkOffsets)
-partitionWatermarkOffsets (KafkaConsumer k _) (TopicName t) (PartitionId p) = liftIO $ do
-  offs <- rdKafkaQueryWatermarkOffsets k t p 0
+partitionWatermarkOffsets :: (MonadIO m, HasKafka k) => k -> TopicName -> PartitionId -> m (Either KafkaError WatermarkOffsets)
+partitionWatermarkOffsets k (TopicName t) (PartitionId p) = liftIO $ do
+  offs <- rdKafkaQueryWatermarkOffsets (getKafkaPtr k) t p 0
   return $ bimap KafkaResponseError toWatermark offs
   where
     toWatermark (l, h) = WatermarkOffsets (TopicName t) (PartitionId p) (Offset l) (Offset h)
 
-allConsumerGroupsInfo :: MonadIO m => KafkaConsumer -> m (Either KafkaError [GroupInfo])
-allConsumerGroupsInfo (KafkaConsumer k _) = liftIO $ do
-  res <- rdKafkaListGroups k Nothing (-1)
+allConsumerGroupsInfo :: (MonadIO m, HasKafka k) => k -> m (Either KafkaError [GroupInfo])
+allConsumerGroupsInfo k = liftIO $ do
+  res <- rdKafkaListGroups (getKafkaPtr k) Nothing (-1)
   traverse fromGroupInfoListPtr (left KafkaResponseError res)
 
-consumerGroupInfo :: MonadIO m => KafkaConsumer -> ConsumerGroupId -> m (Either KafkaError [GroupInfo])
-consumerGroupInfo (KafkaConsumer k _) (ConsumerGroupId gn) = liftIO $ do
-  res <- rdKafkaListGroups k (Just gn) (-1)
+consumerGroupInfo :: (MonadIO m, HasKafka k) => k -> ConsumerGroupId -> m (Either KafkaError [GroupInfo])
+consumerGroupInfo k (ConsumerGroupId gn) = liftIO $ do
+  res <- rdKafkaListGroups (getKafkaPtr k) (Just gn) (-1)
   traverse fromGroupInfoListPtr (left KafkaResponseError res)
 
 -------------------------------------------------------------------------------

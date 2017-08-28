@@ -1,4 +1,4 @@
-# hw-kafka-client  
+# hw-kafka-client
 [![CircleCI](https://circleci.com/gh/haskell-works/hw-kafka-client.svg?style=svg&circle-token=5f3ada2650dd600bc0fd4787143024867b2afc4e)](https://circleci.com/gh/haskell-works/hw-kafka-client)
 
 Kafka bindings for Haskell backed by the
@@ -12,7 +12,7 @@ which unfortunately doesn't seem to be actively maintained.
 HaskellWorks Kafka ecosystem is described here: https://github.com/haskell-works/hw-kafka
 
 # Consumer
-High level consumers are supported by `librdkafka` starting from version 0.9.  
+High level consumers are supported by `librdkafka` starting from version 0.9.
 High-level consumers provide an abstraction for consuming messages from multiple
 partitions and topics. They are also address scalability (up to a number of partitions)
 by providing automatic rebalancing functionality. When a new consumer joins a consumer
@@ -30,7 +30,7 @@ $ stack build --exec kafka-client-example --flag hw-kafka-client:examples
 ```
 
 A working consumer example can be found here: [ConsumerExample.hs](example/ConsumerExample.hs)</br>
-To run an example please compile with the `examples` flag:
+To run an example please compile with the `examples` flag.
 
 ```Haskell
 import Data.Monoid ((<>))
@@ -39,10 +39,10 @@ import Kafka.Consumer
 
 -- Global consumer properties
 consumerProps :: ConsumerProperties
-consumerProps = consumerBrokersList [BrokerAddress "localhost:9092"]
+consumerProps = brokersList [BrokerAddress "localhost:9092"]
              <> groupId (ConsumerGroupId "consumer_example_group")
              <> noAutoCommit
-             <> consumerDebug [DebugAll]
+             <> consumerLogLevel KafkaLogInfo
 
 -- Subscription to topics
 consumerSub :: Subscription
@@ -82,7 +82,8 @@ import Kafka.Producer
 
 -- Global producer properties
 producerProps :: ProducerProperties
-producerProps = producerBrokersList [BrokerAddress "localhost:9092"]
+producerProps = brokersList [BrokerAddress "localhost:9092"]
+             <> logLevel KafkaLogDebug
 
 -- Topic to send messages to
 targetTopic :: TopicName
@@ -96,23 +97,21 @@ runProducerExample = do
 
 sendMessages :: KafkaProducer -> IO (Either KafkaError ())
 sendMessages prod = do
-  err1 <- produceMessage prod ProducerRecord
-                                { prTopic = targetTopic
-                                , prPartition = UnassignedPartition
-                                , prKey = Nothing
-                                , prValue = Just "test from producer"
-                                }
+  err1 <- produceMessage prod (mkMessage Nothing (Just "test from producer") )
   forM_ err1 print
 
-  err2 <- produceMessage prod ProducerRecord
-                                { prTopic = targetTopic
-                                , prPartition = UnassignedPartition
-                                , prKey = Just "key"
-                                , prValue = Just "test from producer (with key)"
-                                }
+  err2 <- produceMessage prod (mkMessage (Just "key") (Just "test from producer (with key)"))
   forM_ err2 print
 
   return $ Right ()
+
+mkMessage :: Maybe ByteString -> Maybe ByteString -> ProducerRecord
+mkMessage k v = ProducerRecord
+                  { prTopic = targetTopic
+                  , prPartition = UnassignedPartition
+                  , prKey = k
+                  , prValue = v
+                  }
 ```
 
 # Installation

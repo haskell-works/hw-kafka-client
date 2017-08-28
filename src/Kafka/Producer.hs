@@ -49,15 +49,19 @@ runProducer props f =
 -- | Creates a new kafka producer
 -- A newly created producer must be closed with 'closeProducer' function.
 newProducer :: MonadIO m => ProducerProperties -> m (Either KafkaError KafkaProducer)
-newProducer (ProducerProperties kp tp ll) = liftIO $ do
-  (KafkaConf kc) <- kafkaConf (KafkaProps $ M.toList kp)
-  (TopicConf tc) <- topicConf (TopicProps $ M.toList tp)
-  mbKafka        <- newRdKafkaT RdKafkaProducer kc
+newProducer (ProducerProperties kp tp ll cbs) = liftIO $ do
+  kc@(KafkaConf kc') <- kafkaConf (KafkaProps $ M.toList kp)
+  tc <- topicConf (TopicProps $ M.toList tp)
+
+  -- set callbacks
+  forM_ cbs (\setCb -> setCb kc)
+
+  mbKafka <- newRdKafkaT RdKafkaProducer kc'
   case mbKafka of
     Left err    -> return . Left $ KafkaError err
     Right kafka -> do
       forM_ ll (rdKafkaSetLogLevel kafka . fromEnum)
-      return .Right $ KafkaProducer kafka kc tc
+      return .Right $ KafkaProducer (Kafka kafka) kc tc
 
 -- | Sends a single message.
 -- Since librdkafka is backed by a queue, this function can return before messages are sent. See
@@ -66,7 +70,7 @@ produceMessage :: MonadIO m
                => KafkaProducer
                -> ProducerRecord
                -> m (Maybe KafkaError)
-produceMessage (KafkaProducer k _ tc) m = liftIO $
+produceMessage (KafkaProducer (Kafka k) _ (TopicConf tc)) m = liftIO $
   bracket (mkTopic $ prTopic m) clTopic withTopic
     where
       mkTopic (TopicName tn) = newUnmanagedRdKafkaTopicT k tn tc
@@ -93,7 +97,7 @@ produceMessageBatch :: MonadIO m
                     -> m [(ProducerRecord, KafkaError)]
                     -- ^ An empty list when the operation is successful,
                     -- otherwise a list of "failed" messages with corresponsing errors.
-produceMessageBatch (KafkaProducer k _ tc) messages = liftIO $
+produceMessageBatch (KafkaProducer (Kafka k) _ (TopicConf tc)) messages = liftIO $
   concat <$> forM (mkBatches messages) sendBatch
   where
     mkSortKey = prTopic &&& prPartition
@@ -143,7 +147,7 @@ closeProducer = flushProducer
 --  This function is also called automatically when the producer is closed
 -- with 'closeProducer' to ensure that all queued messages make it to Kafka.
 flushProducer :: MonadIO m => KafkaProducer -> m ()
-flushProducer kp@(KafkaProducer k _ _) = liftIO $ do
+flushProducer kp@(KafkaProducer (Kafka k) _ _) = liftIO $ do
     pollEvents k 100
     l <- outboundQueueLength k
     unless (l == 0) $ flushProducer kp
