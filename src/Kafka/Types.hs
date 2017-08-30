@@ -1,8 +1,10 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable         #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Kafka.Types
 where
 
 import Control.Exception
+import Data.Int
 import Data.Typeable
 import Kafka.Internal.RdKafka
 
@@ -19,6 +21,10 @@ newtype BrokerId =
 newtype Kafka     = Kafka RdKafkaTPtr deriving Show
 newtype KafkaConf = KafkaConf RdKafkaConfTPtr deriving Show
 newtype TopicConf = TopicConf RdKafkaTopicConfTPtr deriving Show
+
+newtype PartitionId = PartitionId Int deriving (Show, Eq, Read, Ord)
+newtype Millis      = Millis Int64 deriving (Show, Read, Eq, Ord, Num)
+newtype ClientId    = ClientId String deriving (Show, Eq, Ord)
 
 instance HasKafkaConf KafkaConf where
   getKafkaConf = id
