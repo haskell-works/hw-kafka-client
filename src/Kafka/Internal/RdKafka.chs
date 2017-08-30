@@ -850,10 +850,10 @@ rdKafkaConsumeStop topicPtr partition = do
 foreign import ccall unsafe "rdkafka.h &rd_kafka_metadata_destroy"
     rdKafkaMetadataDestroy :: FinalizerPtr RdKafkaMetadataT
 
-rdKafkaMetadata :: RdKafkaTPtr -> Bool -> Maybe RdKafkaTopicTPtr -> IO (Either RdKafkaRespErrT RdKafkaMetadataTPtr)
-rdKafkaMetadata k allTopics mt = do
+rdKafkaMetadata :: RdKafkaTPtr -> Bool -> Maybe RdKafkaTopicTPtr -> Int -> IO (Either RdKafkaRespErrT RdKafkaMetadataTPtr)
+rdKafkaMetadata k allTopics mt timeout = do
     tptr <- maybe (newForeignPtr_ nullPtr) pure mt
-    (err, res) <- rdKafkaMetadata' k allTopics tptr (-1)
+    (err, res) <- rdKafkaMetadata' k allTopics tptr timeout
     case err of
         RdKafkaRespErrNoError -> Right <$> newForeignPtr rdKafkaMetadataDestroy res
         e -> return (Left e)

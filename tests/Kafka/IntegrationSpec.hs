@@ -62,7 +62,7 @@ spec = describe "Kafka.IntegrationSpec" $ do
                     (\k -> do
                         msgs <- receiveMessages k
 
-                        wOffsets <- watermarkOffsets k topic
+                        wOffsets <- watermarkOffsets k (Timeout 1000) topic
                         length wOffsets `shouldBe` 1
                         forM_ wOffsets (`shouldSatisfy` isRight)
 
@@ -70,35 +70,37 @@ spec = describe "Kafka.IntegrationSpec" $ do
                         sub `shouldSatisfy` isRight
                         length <$> sub `shouldBe` Right 1
 
-                        -- {-  Somehow this fails with "Assertion failed: (r == 0), function rwlock_wrlock, file tinycthread.c, line 1011." -}
+                        {-  Somehow this fails with "Assertion failed: (r == 0), function rwlock_wrlock, file tinycthread.c, line 1011." -}
                         asgm <- assignment k
                         asgm `shouldSatisfy` isRight
                         length <$> asgm `shouldBe` Right 1
 
                         -- {-  Real all topics metadata -}
-                        allMeta <- allTopicsMetadata k
+                        allMeta <- allTopicsMetadata k (Timeout 1000)
                         allMeta `shouldSatisfy` isRight
                         (length . kmBrokers) <$> allMeta `shouldBe` Right 1
                         (length . kmTopics) <$> allMeta `shouldBe` Right 2
 
                         -- {- Read specific topic metadata -}
-                        tMeta <- topicMetadata k (TopicName "oho")
+                        tMeta <- topicMetadata k (Timeout 1000) topic
                         tMeta `shouldSatisfy` isRight
                         (length . kmBrokers) <$> tMeta `shouldBe` Right 1
                         (length . kmTopics) <$> tMeta `shouldBe` Right 1
 
                         -- {- Describe all consumer grops -}
-                        allGroups <- allConsumerGroupsInfo k
+                        allGroups <- allConsumerGroupsInfo k (Timeout 1000)
                         fmap giGroup <$> allGroups `shouldBe` Right [testGroupId]
 
                         -- {- Describe specific consumer grops -}
-                        grp <- consumerGroupInfo k testGroupId
+                        grp <- consumerGroupInfo k (Timeout 1000) testGroupId
                         fmap giGroup <$> grp `shouldBe` Right [testGroupId]
 
-
-                        noGroup <- consumerGroupInfo k (ConsumerGroupId "does-not-exist")
-                        print $ show noGroup
+                        noGroup <- consumerGroupInfo k (Timeout 1000) (ConsumerGroupId "does-not-exist")
                         noGroup `shouldBe` Right []
+
+                        ots <- topicOffsetsForTime k (Timeout 1000) (Millis 1904057189508) topic
+                        ots `shouldSatisfy` isRight
+                        fmap tpOffset <$> ots `shouldBe` Right [PartitionOffsetEnd]
 
                         return msgs
                     )

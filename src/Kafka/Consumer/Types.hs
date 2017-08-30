@@ -23,9 +23,6 @@ instance HasKafkaConf KafkaConsumer where
 
 newtype ConsumerGroupId = ConsumerGroupId String deriving (Show, Eq)
 newtype Offset          = Offset Int64 deriving (Show, Eq, Read)
-newtype PartitionId     = PartitionId Int deriving (Show, Eq, Read, Ord)
-newtype Millis          = Millis Int deriving (Show, Read, Eq, Ord, Num)
-newtype ClientId        = ClientId String deriving (Show, Eq, Ord)
 data OffsetReset        = Earliest | Latest deriving (Show, Eq)
 
 data SubscribedPartitions

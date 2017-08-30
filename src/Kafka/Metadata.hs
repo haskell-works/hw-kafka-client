@@ -7,22 +7,25 @@ module Kafka.Metadata
 , allTopicsMetadata, topicMetadata
 , watermarkOffsets, watermarkOffsets'
 , partitionWatermarkOffsets
+, offsetsForTime, offsetsForTime', topicOffsetsForTime
 , allConsumerGroupsInfo, consumerGroupInfo
 )
 where
 
-import Control.Arrow          (left)
-import Control.Exception      (bracket)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Data.Bifunctor
-import Data.ByteString        (ByteString, pack)
-import Data.Monoid            ((<>))
-import Foreign
-import Foreign.C.String
-import Kafka.Consumer.Types
-import Kafka.Internal.RdKafka
-import Kafka.Internal.Shared
-import Kafka.Types
+import           Control.Arrow          (left)
+import           Control.Exception      (bracket)
+import           Control.Monad.IO.Class (MonadIO, liftIO)
+import           Data.Bifunctor
+import           Data.ByteString        (ByteString, pack)
+import           Data.Monoid            ((<>))
+import qualified Data.Set               as S
+import           Foreign
+import           Foreign.C.String
+import           Kafka.Consumer.Convert
+import           Kafka.Consumer.Types
+import           Kafka.Internal.RdKafka
+import           Kafka.Internal.Shared
+import           Kafka.Types
 
 data KafkaMetadata = KafkaMetadata
   { kmBrokers    :: [BrokerMetadata]
@@ -85,63 +88,107 @@ data GroupInfo = GroupInfo
   , giMembers      :: [GroupMemberInfo]
   } deriving (Show, Eq)
 
-getKafkaPtr :: HasKafka k => k -> RdKafkaTPtr
-getKafkaPtr k = let (Kafka k') = getKafka k in k'
-{-# INLINE getKafkaPtr #-}
-
 -- | Returns metadata for all topics in the cluster
-allTopicsMetadata :: (MonadIO m, HasKafka k) => k -> m (Either KafkaError KafkaMetadata)
-allTopicsMetadata k = liftIO $ do
-  meta <- rdKafkaMetadata (getKafkaPtr k) True Nothing
+allTopicsMetadata :: (MonadIO m, HasKafka k) => k -> Timeout -> m (Either KafkaError KafkaMetadata)
+allTopicsMetadata k (Timeout timeout) = liftIO $ do
+  meta <- rdKafkaMetadata (getKafkaPtr k) True Nothing timeout
   traverse fromKafkaMetadataPtr (left KafkaResponseError meta)
 
 -- | Returns metadata only for specified topic
-topicMetadata :: (MonadIO m, HasKafka k) => k -> TopicName -> m (Either KafkaError KafkaMetadata)
-topicMetadata k (TopicName tn) = liftIO $
+topicMetadata :: (MonadIO m, HasKafka k) => k -> Timeout -> TopicName -> m (Either KafkaError KafkaMetadata)
+topicMetadata k (Timeout timeout) (TopicName tn) = liftIO $
   bracket mkTopic clTopic $ \mbt -> case mbt of
     Left err -> return (Left $ KafkaError err)
     Right t -> do
-      meta <- rdKafkaMetadata (getKafkaPtr k) False (Just t)
+      meta <- rdKafkaMetadata (getKafkaPtr k) False (Just t) timeout
       traverse fromKafkaMetadataPtr (left KafkaResponseError meta)
   where
     mkTopic = newRdKafkaTopicConfT >>= newUnmanagedRdKafkaTopicT (getKafkaPtr k) tn
     clTopic = either (return . const ()) destroyUnmanagedRdKafkaTopic
 
 -- | Query broker for low (oldest/beginning) and high (newest/end) offsets for a given topic.
-watermarkOffsets :: (MonadIO m, HasKafka k) => k -> TopicName -> m [Either KafkaError WatermarkOffsets]
-watermarkOffsets k t = do
-  meta <- topicMetadata k t
+watermarkOffsets :: (MonadIO m, HasKafka k) => k -> Timeout -> TopicName -> m [Either KafkaError WatermarkOffsets]
+watermarkOffsets k timeout t = do
+  meta <- topicMetadata k timeout t
   case meta of
     Left err -> return [Left err]
     Right tm -> if null (kmTopics tm)
                   then return []
-                  else watermarkOffsets' k (head $ kmTopics tm)
+                  else watermarkOffsets' k timeout (head $ kmTopics tm)
 
 -- | Query broker for low (oldest/beginning) and high (newest/end) offsets for a given topic.
-watermarkOffsets' :: (MonadIO m, HasKafka k) => k -> TopicMetadata -> m [Either KafkaError WatermarkOffsets]
-watermarkOffsets' k tm =
+watermarkOffsets' :: (MonadIO m, HasKafka k) => k -> Timeout -> TopicMetadata -> m [Either KafkaError WatermarkOffsets]
+watermarkOffsets' k timeout tm =
   let pids = pmPartitionId <$> tmPartitions tm
-  in liftIO $ traverse (partitionWatermarkOffsets k (tmTopicName tm)) pids
+  in liftIO $ traverse (partitionWatermarkOffsets k timeout (tmTopicName tm)) pids
 
 -- | Query broker for low (oldest/beginning) and high (newest/end) offsets for a specific partition
-partitionWatermarkOffsets :: (MonadIO m, HasKafka k) => k -> TopicName -> PartitionId -> m (Either KafkaError WatermarkOffsets)
-partitionWatermarkOffsets k (TopicName t) (PartitionId p) = liftIO $ do
-  offs <- rdKafkaQueryWatermarkOffsets (getKafkaPtr k) t p 0
+partitionWatermarkOffsets :: (MonadIO m, HasKafka k) => k -> Timeout -> TopicName -> PartitionId -> m (Either KafkaError WatermarkOffsets)
+partitionWatermarkOffsets k (Timeout timeout) (TopicName t) (PartitionId p) = liftIO $ do
+  offs <- rdKafkaQueryWatermarkOffsets (getKafkaPtr k) t p timeout
   return $ bimap KafkaResponseError toWatermark offs
   where
     toWatermark (l, h) = WatermarkOffsets (TopicName t) (PartitionId p) (Offset l) (Offset h)
 
-allConsumerGroupsInfo :: (MonadIO m, HasKafka k) => k -> m (Either KafkaError [GroupInfo])
-allConsumerGroupsInfo k = liftIO $ do
-  res <- rdKafkaListGroups (getKafkaPtr k) Nothing (-1)
+-- | Look up the offsets for the given topic by timestamp.
+--
+-- The returned offset for each partition is the earliest offset whose
+-- timestamp is greater than or equal to the given timestamp in the
+-- corresponding partition.
+topicOffsetsForTime :: (MonadIO m, HasKafka k) => k -> Timeout -> Millis -> TopicName -> m (Either KafkaError [TopicPartition])
+topicOffsetsForTime k timeout timestamp topic  = do
+  meta <- topicMetadata k timeout topic
+  case meta of
+    Left err -> return $ Left err
+    Right meta' ->
+      let tps = [(tmTopicName t, pmPartitionId p)| t <- kmTopics meta', p <- tmPartitions t]
+      in offsetsForTime k timeout timestamp tps
+
+-- | Look up the offsets for the given metadata by timestamp.
+--
+-- The returned offset for each partition is the earliest offset whose
+-- timestamp is greater than or equal to the given timestamp in the
+-- corresponding partition.
+offsetsForTime' :: (MonadIO m, HasKafka k) => k -> Timeout -> Millis -> TopicMetadata -> m (Either KafkaError [TopicPartition])
+offsetsForTime' k timeout timestamp t =
+    let tps = [(tmTopicName t, pmPartitionId p) | p <- tmPartitions t]
+    in offsetsForTime k timeout timestamp tps
+
+-- | Look up the offsets for the given partitions by timestamp.
+--
+-- The returned offset for each partition is the earliest offset whose
+-- timestamp is greater than or equal to the given timestamp in the
+-- corresponding partition.
+offsetsForTime :: (MonadIO m, HasKafka k) => k -> Timeout -> Millis -> [(TopicName, PartitionId)] -> m (Either KafkaError [TopicPartition])
+offsetsForTime k (Timeout timeout) (Millis t) tps = liftIO $ do
+  ntps <- toNativeTopicPartitionList $ mkTopicPartition <$> uniqueTps
+  res <- rdKafkaOffsetsForTimes (getKafkaPtr k) ntps timeout
+  case res of
+    RdKafkaRespErrNoError -> Right <$> fromNativeTopicPartitionList'' ntps
+    err                   -> return $ Left (KafkaResponseError err)
+  where
+    uniqueTps = S.toList . S.fromList $ tps
+    -- rd_kafka_offsets_for_times reuses `offset` to specify timestamp :(
+    mkTopicPartition (tn, p) = TopicPartition tn p (PartitionOffset t)
+
+-- | List and describe all consumer groups in cluster.
+allConsumerGroupsInfo :: (MonadIO m, HasKafka k) => k -> Timeout -> m (Either KafkaError [GroupInfo])
+allConsumerGroupsInfo k (Timeout t) = liftIO $ do
+  res <- rdKafkaListGroups (getKafkaPtr k) Nothing t
   traverse fromGroupInfoListPtr (left KafkaResponseError res)
 
-consumerGroupInfo :: (MonadIO m, HasKafka k) => k -> ConsumerGroupId -> m (Either KafkaError [GroupInfo])
-consumerGroupInfo k (ConsumerGroupId gn) = liftIO $ do
-  res <- rdKafkaListGroups (getKafkaPtr k) (Just gn) (-1)
+-- | Describe a given consumer group.
+consumerGroupInfo :: (MonadIO m, HasKafka k) => k -> Timeout -> ConsumerGroupId -> m (Either KafkaError [GroupInfo])
+consumerGroupInfo k (Timeout timeout) (ConsumerGroupId gn) = liftIO $ do
+  res <- rdKafkaListGroups (getKafkaPtr k) (Just gn) timeout
   traverse fromGroupInfoListPtr (left KafkaResponseError res)
 
 -------------------------------------------------------------------------------
+getKafkaPtr :: HasKafka k => k -> RdKafkaTPtr
+getKafkaPtr k = let (Kafka k') = getKafka k in k'
+{-# INLINE getKafkaPtr #-}
+
+
 fromGroupInfoListPtr :: RdKafkaGroupListTPtr -> IO [GroupInfo]
 fromGroupInfoListPtr ptr =
   withForeignPtr ptr $ \realPtr -> do
