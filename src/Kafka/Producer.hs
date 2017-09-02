@@ -73,7 +73,7 @@ produceMessage :: MonadIO m
 produceMessage (KafkaProducer (Kafka k) _ (TopicConf tc)) m = liftIO $
   bracket (mkTopic $ prTopic m) clTopic withTopic
     where
-      mkTopic (TopicName tn) = newUnmanagedRdKafkaTopicT k tn tc
+      mkTopic (TopicName tn) = newUnmanagedRdKafkaTopicT k tn (Just tc)
 
       clTopic = either (return . const ()) destroyUnmanagedRdKafkaTopic
 
@@ -103,7 +103,7 @@ produceMessageBatch (KafkaProducer (Kafka k) _ (TopicConf tc)) messages = liftIO
     mkSortKey = prTopic &&& prPartition
     mkBatches = groupBy ((==) `on` mkSortKey) . sortBy (comparing mkSortKey)
 
-    mkTopic (TopicName tn) = newUnmanagedRdKafkaTopicT k tn tc
+    mkTopic (TopicName tn) = newUnmanagedRdKafkaTopicT k tn (Just tc)
 
     clTopic = either (return . const ()) destroyUnmanagedRdKafkaTopic
 

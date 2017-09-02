@@ -811,6 +811,9 @@ rdKafkaConsumeStart topicPtr partition offset = do
 {#fun rd_kafka_consume_stop as rdKafkaConsumeStopInternal
     {`RdKafkaTopicTPtr', cIntConv `CInt32T'} -> `Int' #}
 
+{#fun rd_kafka_seek as rdKafkaSeek
+    {`RdKafkaTopicTPtr', `Int32', `Int64', `Int'} -> `RdKafkaRespErrT' cIntToEnum #}
+
 {#fun rd_kafka_consume as ^
   {`RdKafkaTopicTPtr', cIntConv `CInt32T', `Int'} -> `RdKafkaMessageTPtr' #}
 
@@ -884,23 +887,19 @@ destroyUnmanagedRdKafkaTopic ptr =
 foreign import ccall unsafe "rdkafka.h &rd_kafka_topic_destroy"
     rdKafkaTopicDestroy' :: FinalizerPtr RdKafkaTopicT
 
-newUnmanagedRdKafkaTopicT :: RdKafkaTPtr -> String -> RdKafkaTopicConfTPtr -> IO (Either String RdKafkaTopicTPtr)
+newUnmanagedRdKafkaTopicT :: RdKafkaTPtr -> String -> Maybe RdKafkaTopicConfTPtr -> IO (Either String RdKafkaTopicTPtr)
 newUnmanagedRdKafkaTopicT kafkaPtr topic topicConfPtr = do
-    duper <- rdKafkaTopicConfDup topicConfPtr
+    duper <- maybe (newForeignPtr_ nullPtr) rdKafkaTopicConfDup topicConfPtr
     ret <- rdKafkaTopicNew kafkaPtr topic duper
     withForeignPtr ret $ \realPtr ->
         if realPtr == nullPtr then kafkaErrnoString >>= return . Left
         else return $ Right ret
 
-newRdKafkaTopicT :: RdKafkaTPtr -> String -> RdKafkaTopicConfTPtr -> IO (Either String RdKafkaTopicTPtr)
+newRdKafkaTopicT :: RdKafkaTPtr -> String -> Maybe RdKafkaTopicConfTPtr -> IO (Either String RdKafkaTopicTPtr)
 newRdKafkaTopicT kafkaPtr topic topicConfPtr = do
-    duper <- rdKafkaTopicConfDup topicConfPtr
-    ret <- rdKafkaTopicNew kafkaPtr topic duper
-    withForeignPtr ret $ \realPtr ->
-        if realPtr == nullPtr then kafkaErrnoString >>= return . Left
-        else do
-            addForeignPtrFinalizer rdKafkaTopicDestroy' ret
-            return $ Right ret
+    res <- newUnmanagedRdKafkaTopicT kafkaPtr topic topicConfPtr
+    _ <- traverse (addForeignPtrFinalizer rdKafkaTopicDestroy') res
+    return res
 
 -- Marshall / Unmarshall
 enumToCInt :: Enum a => a -> CInt

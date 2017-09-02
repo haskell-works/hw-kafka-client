@@ -103,7 +103,7 @@ topicMetadata k (Timeout timeout) (TopicName tn) = liftIO $
       meta <- rdKafkaMetadata (getKafkaPtr k) False (Just t) timeout
       traverse fromKafkaMetadataPtr (left KafkaResponseError meta)
   where
-    mkTopic = newRdKafkaTopicConfT >>= newUnmanagedRdKafkaTopicT (getKafkaPtr k) tn
+    mkTopic = newUnmanagedRdKafkaTopicT (getKafkaPtr k) tn Nothing
     clTopic = either (return . const ()) destroyUnmanagedRdKafkaTopic
 
 -- | Query broker for low (oldest/beginning) and high (newest/end) offsets for a given topic.
