@@ -17,6 +17,8 @@ import Kafka.Producer as P
 import Kafka.TestEnv
 import Test.Hspec
 
+{-# ANN module ("HLint: ignore Redundant do"  :: String) #-}
+
 spec :: Spec
 spec = do
     describe "Kafka.IntegrationSpec" $ do
@@ -77,6 +79,37 @@ spec = do
                 res <- topicOffsetsForTime k (Timeout 1000) (Millis 1904057189508) testTopic
                 res `shouldSatisfy` isRight
                 fmap tpOffset <$> res `shouldBe` Right [PartitionOffsetEnd]
+
+            it "should seek and return no error" $ \k -> do
+                res <- seek k (Timeout 1000) [TopicPartition testTopic (PartitionId 0) (PartitionOffset 1)]
+                res `shouldBe` Nothing
+                msg <- pollMessage k (Timeout 1000)
+                crOffset <$> msg `shouldBe` Right (Offset 1)
+
+            it "should seek to the beginning" $ \k -> do
+                res <- seek k (Timeout 1000) [TopicPartition testTopic (PartitionId 0) PartitionOffsetBeginning]
+                res `shouldBe` Nothing
+                msg <- pollMessage k (Timeout 1000)
+                crOffset <$> msg `shouldBe` Right (Offset 0)
+
+            it "should seek to the end" $ \k -> do
+                res <- seek k (Timeout 1000) [TopicPartition testTopic (PartitionId 0) PartitionOffsetEnd]
+                res `shouldBe` Nothing
+                msg <- pollMessage k (Timeout 1000)
+                crOffset <$> msg `shouldBe` Left (KafkaResponseError RdKafkaRespErrPartitionEof)
+
+            it "should respect out-of-bound offsets (invalid offset)" $ \k -> do
+                res <- seek k (Timeout 1000) [TopicPartition testTopic (PartitionId 0) PartitionOffsetInvalid]
+                res `shouldBe` Nothing
+                msg <- pollMessage k (Timeout 1000)
+                crOffset <$> msg `shouldBe` Right (Offset 0)
+
+            it "should respect out-of-bound offsets (huge offset)" $ \k -> do
+                res <- seek k (Timeout 1000) [TopicPartition testTopic (PartitionId 0) (PartitionOffset 123456)]
+                res `shouldBe` Nothing
+                msg <- pollMessage k (Timeout 1000)
+                crOffset <$> msg `shouldBe` Right (Offset 0)
+
 
 ----------------------------------------------------------------------------------------------------------------
 

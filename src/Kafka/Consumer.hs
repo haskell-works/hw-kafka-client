@@ -1,8 +1,10 @@
+{-# LANGUAGE TupleSections #-}
 module Kafka.Consumer
 ( module X
 , runConsumer
 , newConsumer
 , assign, assignment, subscription
+, seek
 , pollMessage
 , commitOffsetMessage, commitAllOffsets, commitPartitionsOffsets
 , closeConsumer
@@ -19,12 +21,13 @@ where
 
 import           Control.Arrow
 import           Control.Exception
-import           Control.Monad          (forM_)
+import           Control.Monad              (forM_)
 import           Control.Monad.IO.Class
+import           Control.Monad.Trans.Except
 import           Data.Bifunctor
-import qualified Data.ByteString        as BS
-import qualified Data.Map               as M
-import           Foreign                hiding (void)
+import qualified Data.ByteString            as BS
+import qualified Data.Map                   as M
+import           Foreign                    hiding (void)
 import           Kafka.Consumer.Convert
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.Setup
@@ -144,6 +147,23 @@ subscription (KafkaConsumer (Kafka k) _) = liftIO $ do
     subParts [PartitionId (-1)] = SubscribedPartitionsAll
     subParts ps                 = SubscribedPartitions ps
 
+seek :: MonadIO m => KafkaConsumer -> Timeout -> [TopicPartition] -> m (Maybe KafkaError)
+seek (KafkaConsumer (Kafka k) _) (Timeout timeout) tps = liftIO $
+  either Just (const Nothing) <$> seekAll
+  where
+    seekAll = runExceptT $ do
+      tr <- traverse (ExceptT . topicPair) tps
+      _  <- traverse (\(kt, p, o) -> ExceptT (rdSeek kt p o)) tr
+      return ()
+
+    rdSeek kt (PartitionId p) o = do
+      res <- rdKafkaSeek kt (fromIntegral p) (offsetToInt64 o) timeout
+      return $ rdKafkaErrorToEither res
+
+    topicPair tp = do
+      let (TopicName tn) = tpTopicName tp
+      nt <- newRdKafkaTopicT k tn Nothing
+      return $ bimap KafkaError (,tpPartition tp, tpOffset tp) nt
 
 -- | Closes the consumer.
 closeConsumer :: MonadIO m => KafkaConsumer -> m (Maybe KafkaError)

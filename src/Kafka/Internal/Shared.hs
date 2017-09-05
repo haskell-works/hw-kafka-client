@@ -29,6 +29,12 @@ hasError err = case err of
     _                                        -> True
 {-# INLINE hasError #-}
 
+rdKafkaErrorToEither :: RdKafkaRespErrT -> Either KafkaError ()
+rdKafkaErrorToEither err = case err of
+    RdKafkaRespErrNoError -> Right ()
+    _                     -> Left (KafkaResponseError err)
+{-# INLINE rdKafkaErrorToEither #-}
+
 kafkaErrorToEither :: KafkaError -> Either KafkaError ()
 kafkaErrorToEither err = case err of
     KafkaResponseError RdKafkaRespErrNoError -> Right ()
