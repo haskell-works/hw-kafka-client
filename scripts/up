@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+
+if [ "$_system_type" == "Darwin" ]; then
+  sed () {
+    gsed "$@"
+  }
+fi
+
+_repo_name=$(basename `git rev-parse --show-toplevel`)
+
+_version=$(
+  cat $_repo_name.cabal | grep '^version:' | head | cut -d ':' -f 2 | xargs
+)
+
+_major=$(
+  echo $_version | sed 's|^\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)|\1|g'
+)
+
+_minor=$(
+  echo $_version | sed 's|^\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)|\2|g'
+)
+
+_point=$(
+  echo $_version | sed 's|^\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)|\3|g'
+)
+
+_patch=$(
+  echo $_version | sed 's|^\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)|\4|g'
+)
+
+
+case $1 in
+major)
+  _new_version="$(($_major + 1)).0.0.0"
+  _new_branch="$(($_major + 1))"
+  ;;
+minor)
+  _new_version="$_major.$(($_minor + 1)).0.0"
+  ;;
+point)
+  _new_version="$_major.$_minor.$(($_point + 1)).0"
+  ;;
+patch)
+  _new_version="$_major.$_minor.$_point.$(($_patch + 1))"
+  ;;
+*)
+  echo "./scripts/up (major|minor|point|patch)"
+  exit 1
+esac
+
+sed "s|^\(version:\s*\)\([0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+\)$|\1$_new_version|g" -i $_repo_name.cabal
+
+echo "Cabal project version upgrade to $_new_version"
+echo ""
+echo "Please review and run the following commands:"
+echo ""
+
+if [ "$_new_branch" != "" ]; then
+  echo "  git checkout -b ${_new_branch}-branch"
+fi
+
+echo "  git add $_repo_name.cabal"
+echo "  git commit -m 'New version $_new_version'"
+
+if [ "$_new_branch" != "" ]; then
+  echo "  git push --set-upstream origin ${_new_branch}-branch"
+else
+  echo "  git push origin"
+fi
+
+echo ""

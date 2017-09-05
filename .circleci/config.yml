@@ -20,6 +20,13 @@ jobs:
 
     steps:
       - checkout
+
+      - run:
+          name: Copying scripts
+          command: |
+            mkdir -p ~/.local/bin
+            cp ./scripts/* ~/.local/bin
+
       - restore_cache:
           keys:
             - dot-stack-{{ checksum "stack.yaml" }}-{{ checksum "hw-kafka-client.cabal" }}
@@ -27,20 +34,18 @@ jobs:
       - restore_cache:
           key: stack-work-{{ checksum "stack.yaml" }}
       - restore_cache:
-          key: librdkafka-{{ checksum "scripts/build-librdkafka.sh" }}
+          key: librdkafka-{{ checksum "build-librdkafka" }}
 
       - run:
           name: Build librdkafka
-          command: ./scripts/build-librdkafka.sh
-
-      - run:
-          name: Build librdkafka
-          command: ./scripts/build-librdkafka.sh
+          command: build-librdkafka
 
       - run: stack setup
       - run: stack build --test --no-run-tests --haddock --no-haddock-deps
 
-      - run: ./scripts/copy-docs.sh
+      - run:
+          name: Copying documentation
+          command: copy-docs
 
       - run:
           name: Running unit tests
@@ -61,8 +66,18 @@ jobs:
           paths: ~/hw-kafka-client/.stack-work
 
       - save_cache:
-          key: librdkafka-{{ checksum "scripts/build-librdkafka.sh" }}
+          key: librdkafka-{{ checksum "build-librdkafka" }}
           paths: ~/hw-kafka-client/.librdkafka
 
       - store_artifacts:
           path: /tmp/doc
+
+      - deploy:
+          command: |
+            if [ "$CIRCLE_PROJECT_USERNAME" == "haskell-works" ]; then
+              if [[ "$CIRCLE_BRANCH" == master ]]; then
+                when tag autotag
+              elif [[ "$CIRCLE_TAG" =~ v.* ]]; then
+                publish && publish-docs
+              fi
+            fi

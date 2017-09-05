@@ -172,7 +172,7 @@ before_install:
   fi
 
 install:
-- ./scripts/build-librdkafka.sh
+- ./scripts/build-librdkafka
 - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
 - if [ -f configure.ac ]; then autoreconf -i; fi
 - |
