@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+cred=~/.stack/upload/credentials.json  
+if [ ! -f "${cred}" ]; then  
+    if [ ! -e ~/.stack/upload ]; then
+    mkdir -p ~/.stack/upload
+    fi
+    echo "{\"username\":\"${HACKAGE_USER}\",\"password\":\"${HACKAGE_PASS}\"}" > ${cred}
+fi
