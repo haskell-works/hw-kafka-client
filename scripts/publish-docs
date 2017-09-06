@@ -3,12 +3,10 @@ set -e
 
 # This if stack-enabled fork of https://github.com/ekmett/lens/blob/master/scripts/hackage-docs.sh
 
-if [ "$#" -ne 1 ]; then
-  echo "Usage: scripts/hackage-docs.sh HACKAGE_USER"
+if [ "$HACKAGE_USER" == "" ] || [ "$HACKAGE_PASS" == "" ]; then
+  echo "Must supply credentials"
   exit 1
 fi
-
-user=$1
 
 cabal_file=$(find . -maxdepth 1 -name "*.cabal" -print -quit)
 if [ ! -f "$cabal_file" ]; then
@@ -73,6 +71,6 @@ tar cvz -C $dir --format=ustar -f $dir/$pkg-$ver-docs.tar.gz $pkg-$ver-docs
 curl -X PUT \
      -H 'Content-Type: application/x-tar' \
      -H 'Content-Encoding: gzip' \
-     -u "$user" \
+     -u "$HACKAGE_USER:$HACKAGE_PASS" \
      --data-binary "@$dir/$pkg-$ver-docs.tar.gz" \
      "https://hackage.haskell.org/package/$pkg-$ver/docs"

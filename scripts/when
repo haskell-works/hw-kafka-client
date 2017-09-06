@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+set -e
+
+_expected_stage="$1"
+
+if [ "$BUILD_STAGES" == "" ]; then
+  BUILD_STAGES=all
+fi
+
+for stage in $BUILD_STAGES; do
+  if [ "$stage" == "$_expected_stage" ] || [ "$stage" == "all" ]; then
+    shift 1
+    "$@"
+
+    break
+  fi
+done
