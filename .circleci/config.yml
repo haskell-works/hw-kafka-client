@@ -78,7 +78,7 @@ jobs:
               if [[ "$CIRCLE_BRANCH" == master ]]; then
                 when tag autotag
               elif [[ "$CIRCLE_TAG" =~ v.* ]]; then
-                publish && publish-docs
+                setup-cred && publish && publish-docs
               fi
             fi
 

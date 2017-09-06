@@ -22,13 +22,6 @@ if [ "v$_version" != "$CIRCLE_TAG" ]; then
   exit 1
 fi
 
-cabal configure
-
-cabal sdist
-
 if [ "$ALLOW_UPLOAD" != "" ]; then
-  cabal upload \
-    --username=$HACKAGE_USER \
-    --password=$HACKAGE_PASS \
-    "dist/${_repo_name}-${_version}.tar.gz"
+  stack upload .
 fi

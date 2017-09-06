@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 
-cred=~/.stack/upload/credentials.json  
-if [ ! -f "${cred}" ]; then  
+if [ "$HACKAGE_USER" == "" ] || [ "$HACKAGE_PASS" == "" ]; then
+  echo "Must supply credentials"
+  exit 1
+fi
+
+cred=~/.stack/upload/credentials.json
+if [ ! -f "${cred}" ]; then
     if [ ! -e ~/.stack/upload ]; then
     mkdir -p ~/.stack/upload
     fi
