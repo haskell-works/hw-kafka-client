@@ -1,8 +1,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Kafka.TestEnv
-where
+module Kafka.TestEnv where
 
 import Control.Exception
 import Control.Monad      (void)
@@ -11,7 +10,6 @@ import System.Environment
 import System.IO.Unsafe
 
 import Kafka.Consumer as C
-import Kafka.Metadata as M
 import Kafka.Producer as P
 
 import Test.Hspec
