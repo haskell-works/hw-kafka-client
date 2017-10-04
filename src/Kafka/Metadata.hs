@@ -43,8 +43,8 @@ data PartitionMetadata = PartitionMetadata
   { pmPartitionId    :: !PartitionId
   , pmError          :: Maybe KafkaError
   , pmLeader         :: !BrokerId
-  , pmReplicas       :: [PartitionId]
-  , pmInSyncReplicas :: [PartitionId]
+  , pmReplicas       :: [BrokerId]
+  , pmInSyncReplicas :: [BrokerId]
   } deriving (Show, Eq)
 
 data TopicMetadata = TopicMetadata
@@ -250,8 +250,8 @@ fromPartitionMetadataPtr pm = do
     { pmPartitionId     = PartitionId (id'RdKafkaMetadataPartitionT pm)
     , pmError           = kafkaErrorToMaybe $ KafkaResponseError (err'RdKafkaMetadataPartitionT pm)
     , pmLeader          = BrokerId (leader'RdKafkaMetadataPartitionT pm)
-    , pmReplicas        = (PartitionId . fromIntegral) <$> reps
-    , pmInSyncReplicas  = (PartitionId . fromIntegral) <$> isrs
+    , pmReplicas        = (BrokerId . fromIntegral) <$> reps
+    , pmInSyncReplicas  = (BrokerId . fromIntegral) <$> isrs
     }
 
 
