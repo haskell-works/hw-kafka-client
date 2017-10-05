@@ -9,7 +9,7 @@ import           Control.Monad
 import qualified Data.List                as L
 import           Data.Map                 (Map)
 import qualified Data.Map                 as M
-import           Data.Monoid              ((<>))
+import           Data.Semigroup
 import           Kafka.Consumer.Callbacks
 import           Kafka.Consumer.Types
 import           Kafka.Types
@@ -21,11 +21,15 @@ data ConsumerProperties = ConsumerProperties
   , callbacks  :: [KafkaConf -> IO ()]
   }
 
+-- | /Right biased/ so we prefer newer properties over older ones.
+instance Semigroup ConsumerProperties where
+  (<>) (ConsumerProperties m1 ll1 cb1) (ConsumerProperties m2 ll2 cb2) =
+    ConsumerProperties (M.union m2 m1) (ll2 `mplus` ll1) (cb2 <> cb1)
+    
 instance Monoid ConsumerProperties where
   mempty = ConsumerProperties M.empty Nothing []
-  mappend (ConsumerProperties m1 ll1 cb1) (ConsumerProperties m2 ll2 cb2) =
-    ConsumerProperties (M.union m1 m2) (ll2 `mplus` ll1) (cb2 <> cb1)
-
+  mappend = (<>)
+  
 brokersList :: [BrokerAddress] -> ConsumerProperties
 brokersList bs =
   let bs' = L.intercalate "," ((\(BrokerAddress x) -> x) <$> bs)
