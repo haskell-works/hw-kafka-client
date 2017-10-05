@@ -61,6 +61,9 @@ library
                      , temporary
                      , transformers
                      , unix
+  if impl(ghc < 8.0)
+    build-depends: semigroups
+
   exposed-modules:
     Kafka.Types
     Kafka.Consumer.ConsumerProperties
