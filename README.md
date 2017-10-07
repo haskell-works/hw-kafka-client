@@ -42,7 +42,7 @@ consumerProps :: ConsumerProperties
 consumerProps = brokersList [BrokerAddress "localhost:9092"]
              <> groupId (ConsumerGroupId "consumer_example_group")
              <> noAutoCommit
-             <> consumerLogLevel KafkaLogInfo
+             <> logLevel KafkaLogInfo
 
 -- Subscription to topics
 consumerSub :: Subscription

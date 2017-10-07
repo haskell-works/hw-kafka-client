@@ -25,11 +25,11 @@ data ConsumerProperties = ConsumerProperties
 instance Semigroup ConsumerProperties where
   (<>) (ConsumerProperties m1 ll1 cb1) (ConsumerProperties m2 ll2 cb2) =
     ConsumerProperties (M.union m2 m1) (ll2 `mplus` ll1) (cb2 <> cb1)
-    
+
 instance Monoid ConsumerProperties where
   mempty = ConsumerProperties M.empty Nothing []
   mappend = (<>)
-  
+
 brokersList :: [BrokerAddress] -> ConsumerProperties
 brokersList bs =
   let bs' = L.intercalate "," ((\(BrokerAddress x) -> x) <$> bs)
@@ -54,8 +54,8 @@ setCallback cb = ConsumerProperties M.empty Nothing [cb]
 
 -- | Sets the logging level.
 -- Usually is used with 'debugOptions' to configure which logs are needed.
-consumerLogLevel :: KafkaLogLevel -> ConsumerProperties
-consumerLogLevel ll = ConsumerProperties M.empty (Just ll) []
+logLevel :: KafkaLogLevel -> ConsumerProperties
+logLevel ll = ConsumerProperties M.empty (Just ll) []
 
 -- | Sets the compression codec for the consumer.
 compression :: KafkaCompressionCodec -> ConsumerProperties

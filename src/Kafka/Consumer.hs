@@ -4,7 +4,7 @@ module Kafka.Consumer
 , runConsumer
 , newConsumer
 , assign, assignment, subscription
-, seek
+, committed, position, seek
 , pollMessage
 , commitOffsetMessage, commitAllOffsets, commitPartitionsOffsets
 , closeConsumer
@@ -164,6 +164,26 @@ seek (KafkaConsumer (Kafka k) _) (Timeout timeout) tps = liftIO $
       let (TopicName tn) = tpTopicName tp
       nt <- newRdKafkaTopicT k tn Nothing
       return $ bimap KafkaError (,tpPartition tp, tpOffset tp) nt
+
+-- | Retrieve committed offsets for topics+partitions.
+committed :: MonadIO m => KafkaConsumer -> Timeout -> [(TopicName, PartitionId)] -> m (Either KafkaError [TopicPartition])
+committed (KafkaConsumer (Kafka k) _) (Timeout timeout) tps = liftIO $ do
+  ntps <- toNativeTopicPartitionList' tps
+  res <- rdKafkaCommitted k ntps timeout
+  case res of
+    RdKafkaRespErrNoError -> Right <$> fromNativeTopicPartitionList'' ntps
+    err                   -> return $ Left (KafkaResponseError err)
+
+-- | Retrieve current positions (last consumed message offset+1) for the current running instance of the consumer.
+-- If the current consumer hasn't received any messages for a given partition, 'PartitionOffsetInvalid' is returned.
+position :: MonadIO m => KafkaConsumer -> [(TopicName, PartitionId)] -> m (Either KafkaError [TopicPartition])
+position (KafkaConsumer (Kafka k) _) tps = liftIO $ do
+  ntps <- toNativeTopicPartitionList' tps
+  res <- rdKafkaPosition k ntps
+  case res of
+    RdKafkaRespErrNoError -> Right <$> fromNativeTopicPartitionList'' ntps
+    err                   -> return $ Left (KafkaResponseError err)
+
 
 -- | Closes the consumer.
 closeConsumer :: MonadIO m => KafkaConsumer -> m (Maybe KafkaError)
