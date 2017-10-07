@@ -14,7 +14,7 @@ consumerProps = brokersList [BrokerAddress "localhost:9092"]
              <> noAutoCommit
              <> setCallback (rebalanceCallback printingRebalanceCallback)
              <> setCallback (offsetCommitCallback printingOffsetCallback)
-             <> consumerLogLevel KafkaLogInfo
+             <> logLevel KafkaLogInfo
 
 -- Subscription to topics
 consumerSub :: Subscription

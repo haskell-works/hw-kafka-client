@@ -28,6 +28,14 @@ spec = do
                 res `shouldBe` Right ()
 
         specWithConsumer "Run consumer" $ do
+            it "should get committed" $ \k -> do
+                res <- committed k (Timeout 10000) [(testTopic, PartitionId 0)]
+                res `shouldSatisfy` isRight
+
+            it "should get position" $ \k -> do
+                res <- position k [(testTopic, PartitionId 0)]
+                res `shouldSatisfy` isRight
+
             it "should receive messages" $ \k -> do
                 res <- receiveMessages k
                 length <$> res `shouldBe` Right 2
@@ -35,6 +43,9 @@ spec = do
                 let timestamps = crTimestamp <$> either (const []) id res
                 forM_ timestamps $ \ts ->
                     ts `shouldNotBe` NoTimestamp
+
+                comRes <- commitAllOffsets OffsetCommit k
+                comRes `shouldBe` Nothing
 
             it "should get watermark offsets" $ \k -> do
                 res <- sequence <$> watermarkOffsets k (Timeout 1000) testTopic
