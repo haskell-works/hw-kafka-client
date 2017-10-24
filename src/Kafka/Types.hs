@@ -22,7 +22,7 @@ newtype Kafka     = Kafka RdKafkaTPtr deriving Show
 newtype KafkaConf = KafkaConf RdKafkaConfTPtr deriving Show
 newtype TopicConf = TopicConf RdKafkaTopicConfTPtr deriving Show
 
-newtype PartitionId = PartitionId Int deriving (Show, Eq, Read, Ord)
+newtype PartitionId = PartitionId Int deriving (Show, Eq, Read, Ord, Enum)
 newtype Millis      = Millis Int64 deriving (Show, Read, Eq, Ord, Num)
 newtype ClientId    = ClientId String deriving (Show, Eq, Ord)
 
