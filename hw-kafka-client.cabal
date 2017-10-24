@@ -1,5 +1,5 @@
 name:                hw-kafka-client
-version:             2.0.3
+version:             2.0.4
 homepage:            https://github.com/haskell-works/hw-kafka-client
 bug-reports:         https://github.com/haskell-works/hw-kafka-client/issues
 license:             MIT
