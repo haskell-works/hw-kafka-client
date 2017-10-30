@@ -4,6 +4,7 @@ module Kafka.Consumer
 , runConsumer
 , newConsumer
 , assign, assignment, subscription
+, pausePartitions
 , committed, position, seek
 , pollMessage
 , commitOffsetMessage, commitAllOffsets, commitPartitionsOffsets
@@ -146,6 +147,13 @@ subscription (KafkaConsumer (Kafka k) _) = liftIO $ do
     tpMap ts = toMap $ (tpTopicName &&& tpPartition) <$> ts
     subParts [PartitionId (-1)] = SubscribedPartitionsAll
     subParts ps                 = SubscribedPartitions ps
+
+-- | Pauses specified partitions on the current consumer.
+pausePartitions :: MonadIO m => KafkaConsumer -> [(TopicName, PartitionId)] -> m KafkaError
+pausePartitions (KafkaConsumer (Kafka k) _) ps = liftIO $ do
+  pl <- newRdKafkaTopicPartitionListT (length ps)
+  mapM_ (\(TopicName topicName, PartitionId partitionId) -> rdKafkaTopicPartitionListAdd pl topicName partitionId) ps
+  KafkaResponseError <$> rdKafkaPausePartitions k pl
 
 seek :: MonadIO m => KafkaConsumer -> Timeout -> [TopicPartition] -> m (Maybe KafkaError)
 seek (KafkaConsumer (Kafka k) _) (Timeout timeout) tps = liftIO $
