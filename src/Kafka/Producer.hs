@@ -10,19 +10,21 @@ module Kafka.Producer
 )
 where
 
-import           Control.Arrow            ((&&&))
+import           Control.Arrow                    ((&&&))
 import           Control.Exception
 import           Control.Monad
 import           Control.Monad.IO.Class
-import qualified Data.ByteString          as BS
-import qualified Data.ByteString.Internal as BSI
-import           Data.Function            (on)
-import           Data.List                (groupBy, sortBy)
-import qualified Data.Map                 as M
-import           Data.Ord                 (comparing)
-import           Foreign                  hiding (void)
+import qualified Data.ByteString                  as BS
+import qualified Data.ByteString.Internal         as BSI
+import           Data.Function                    (on)
+import           Data.List                        (groupBy, sortBy)
+import qualified Data.Map                         as M
+import           Data.Ord                         (comparing)
+import           Foreign                          hiding (void)
+import           Kafka.Internal.CancellationToken as CToken
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.Setup
+import           Kafka.Internal.Shared
 import           Kafka.Producer.Convert
 
 import Kafka.Producer.ProducerProperties as X
@@ -32,6 +34,7 @@ import Kafka.Types                       as X
 -- | Runs Kafka Producer.
 -- The callback provided is expected to call 'produceMessage'
 -- or/and 'produceMessageBatch' to send messages to Kafka.
+{-# DEPRECATED runProducer "Use 'newProducer'/'closeProducer' instead" #-}
 runProducer :: ProducerProperties
             -> (KafkaProducer -> IO (Either KafkaError a))
             -> IO (Either KafkaError a)
@@ -50,7 +53,7 @@ runProducer props f =
 -- A newly created producer must be closed with 'closeProducer' function.
 newProducer :: MonadIO m => ProducerProperties -> m (Either KafkaError KafkaProducer)
 newProducer (ProducerProperties kp tp ll cbs) = liftIO $ do
-  kc@(KafkaConf kc') <- kafkaConf (KafkaProps $ M.toList kp)
+  kc@(KafkaConf kc' ct) <- kafkaConf (KafkaProps $ M.toList kp)
   tc <- topicConf (TopicProps $ M.toList tp)
 
   -- set callbacks
@@ -61,7 +64,8 @@ newProducer (ProducerProperties kp tp ll cbs) = liftIO $ do
     Left err    -> return . Left $ KafkaError err
     Right kafka -> do
       forM_ ll (rdKafkaSetLogLevel kafka . fromEnum)
-      return .Right $ KafkaProducer (Kafka kafka) kc tc
+      let prod = KafkaProducer (Kafka kafka) kc tc
+      runEventLoop prod ct (Just $ Timeout 100) >> return (Right prod)
 
 -- | Sends a single message.
 -- Since librdkafka is backed by a queue, this function can return before messages are sent. See
@@ -141,15 +145,17 @@ produceMessageBatch (KafkaProducer (Kafka k) _ (TopicConf tc)) messages = liftIO
 -- | Closes the producer.
 -- Will wait until the outbound queue is drained before returning the control.
 closeProducer :: MonadIO m => KafkaProducer -> m ()
-closeProducer = flushProducer
+closeProducer p =
+  let (KafkaConf _ ct) = kpKafkaConf p
+  in liftIO (CToken.cancel ct) >> flushProducer p
 
 -- | Drains the outbound queue for a producer.
 --  This function is also called automatically when the producer is closed
 -- with 'closeProducer' to ensure that all queued messages make it to Kafka.
 flushProducer :: MonadIO m => KafkaProducer -> m ()
-flushProducer kp@(KafkaProducer (Kafka k) _ _) = liftIO $ do
-    pollEvents k 100
-    l <- outboundQueueLength k
+flushProducer kp = liftIO $ do
+    pollEvents kp (Just $ Timeout 100)
+    l <- outboundQueueLength (kpKafkaPtr kp)
     unless (l == 0) $ flushProducer kp
 
 ------------------------------------------------------------------------------------
@@ -160,8 +166,5 @@ withBS (Just bs) f =
     let (d, o, l) = BSI.toForeignPtr bs
     in  withForeignPtr d $ \p -> f (p `plusPtr` o) l
 
-pollEvents :: RdKafkaTPtr -> Int -> IO ()
-pollEvents kPtr timeout = void (rdKafkaPoll kPtr timeout)
-
-outboundQueueLength :: RdKafkaTPtr -> IO Int
-outboundQueueLength = rdKafkaOutqLen
+outboundQueueLength :: Kafka -> IO Int
+outboundQueueLength (Kafka k) = rdKafkaOutqLen k

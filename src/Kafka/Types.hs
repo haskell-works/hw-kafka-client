@@ -6,6 +6,7 @@ where
 import Control.Exception
 import Data.Int
 import Data.Typeable
+import Kafka.Internal.CancellationToken
 import Kafka.Internal.RdKafka
 
 class HasKafka a where
@@ -19,7 +20,7 @@ newtype BrokerId =
   deriving (Show, Eq, Ord, Read)
 
 newtype Kafka     = Kafka RdKafkaTPtr deriving Show
-newtype KafkaConf = KafkaConf RdKafkaConfTPtr deriving Show
+data KafkaConf    = KafkaConf RdKafkaConfTPtr CancellationToken
 newtype TopicConf = TopicConf RdKafkaTopicConfTPtr deriving Show
 
 newtype PartitionId = PartitionId Int deriving (Show, Eq, Read, Ord, Enum)

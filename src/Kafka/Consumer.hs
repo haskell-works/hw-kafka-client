@@ -4,7 +4,7 @@ module Kafka.Consumer
 , runConsumer
 , newConsumer
 , assign, assignment, subscription
-, pausePartitions
+, pausePartitions, resumePartitions
 , committed, position, seek
 , pollMessage
 , commitOffsetMessage, commitAllOffsets, commitPartitionsOffsets
@@ -22,14 +22,15 @@ where
 
 import           Control.Arrow
 import           Control.Exception
-import           Control.Monad              (forM_)
+import           Control.Monad                    (forM_)
 import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Except
 import           Data.Bifunctor
-import qualified Data.ByteString            as BS
-import qualified Data.Map                   as M
-import           Foreign                    hiding (void)
+import qualified Data.ByteString                  as BS
+import qualified Data.Map                         as M
+import           Foreign                          hiding (void)
 import           Kafka.Consumer.Convert
+import           Kafka.Internal.CancellationToken as CToken
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.Setup
 import           Kafka.Internal.Shared
@@ -42,8 +43,8 @@ import Kafka.Consumer.Types              as X
 import Kafka.Types                       as X
 
 -- | Runs high-level kafka consumer.
---
 -- A callback provided is expected to call 'pollMessage' when convenient.
+{-# DEPRECATED runConsumer "Use 'newConsumer'/'closeConsumer' instead" #-}
 runConsumer :: ConsumerProperties
             -> Subscription
             -> (KafkaConsumer -> IO (Either KafkaError a))  -- ^ A callback function to poll and handle messages
@@ -59,38 +60,32 @@ runConsumer cp sub f =
     runHandler (Left err) = return (Left err)
     runHandler (Right kc) = f kc
 
--- | Creates a kafka consumer.
--- A new consumer MUST be closed with 'closeConsumer' function.
 newConsumer :: MonadIO m
             => ConsumerProperties
             -> Subscription
             -> m (Either KafkaError KafkaConsumer)
 newConsumer cp (Subscription ts tp) = liftIO $ do
-  kc@(KafkaConf kc') <- newConsumerConf cp
+  kc@(KafkaConf kc' ct) <- newConsumerConf cp
   tp' <- topicConf (TopicProps $ M.toList tp)
   _   <- setDefaultTopicConf kc tp'
   rdk <- bimap KafkaError Kafka <$> newRdKafkaT RdKafkaConsumer kc'
   case flip KafkaConsumer kc <$> rdk of
     Left err -> return $ Left err
     Right kafka -> do
-      redErr <- redirectCallbacksPoll kafka
-      case redErr of
+      forM_ (cpLogLevel cp) (setConsumerLogLevel kafka)
+      sub <- subscribe kafka ts
+      case sub of
+        Nothing  -> runEventLoop kafka ct (Just $ Timeout 100) >> return (Right kafka)
         Just err -> closeConsumer kafka >> return (Left err)
-        Nothing -> do
-          forM_ (cpLogLevel cp) (setConsumerLogLevel kafka)
-          sub <- subscribe kafka ts
-          case sub of
-            Nothing  -> return $ Right kafka
-            Just err -> closeConsumer kafka >> return (Left err)
-
 
 -- | Polls the next message from a subscription
 pollMessage :: MonadIO m
             => KafkaConsumer
             -> Timeout -- ^ the timeout, in milliseconds
             -> m (Either KafkaError (ConsumerRecord (Maybe BS.ByteString) (Maybe BS.ByteString))) -- ^ Left on error or timeout, right for success
-pollMessage (KafkaConsumer (Kafka k) _) (Timeout ms) =
-    liftIO $ rdKafkaConsumerPoll k (fromIntegral ms) >>= fromMessagePtr
+pollMessage c@(KafkaConsumer (Kafka k) _) (Timeout ms) =
+    liftIO $ pollEvents c Nothing >> rdKafkaConsumerPoll k (fromIntegral ms) >>= fromMessagePtr
+
 
 -- | Commit message's offset on broker for the message's partition.
 commitOffsetMessage :: MonadIO m
@@ -155,6 +150,13 @@ pausePartitions (KafkaConsumer (Kafka k) _) ps = liftIO $ do
   mapM_ (\(TopicName topicName, PartitionId partitionId) -> rdKafkaTopicPartitionListAdd pl topicName partitionId) ps
   KafkaResponseError <$> rdKafkaPausePartitions k pl
 
+-- | Resumes specified partitions on the current consumer.
+resumePartitions :: MonadIO m => KafkaConsumer -> [(TopicName, PartitionId)] -> m KafkaError
+resumePartitions (KafkaConsumer (Kafka k) _) ps = liftIO $ do
+  pl <- newRdKafkaTopicPartitionListT (length ps)
+  mapM_ (\(TopicName topicName, PartitionId partitionId) -> rdKafkaTopicPartitionListAdd pl topicName partitionId) ps
+  KafkaResponseError <$> rdKafkaResumePartitions k pl
+
 seek :: MonadIO m => KafkaConsumer -> Timeout -> [TopicPartition] -> m (Maybe KafkaError)
 seek (KafkaConsumer (Kafka k) _) (Timeout timeout) tps = liftIO $
   either Just (const Nothing) <$> seekAll
@@ -195,8 +197,8 @@ position (KafkaConsumer (Kafka k) _) tps = liftIO $ do
 
 -- | Closes the consumer.
 closeConsumer :: MonadIO m => KafkaConsumer -> m (Maybe KafkaError)
-closeConsumer (KafkaConsumer (Kafka k) _) =
-  liftIO $ (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaConsumerClose k
+closeConsumer (KafkaConsumer (Kafka k) (KafkaConf _ ct)) =
+  liftIO $ CToken.cancel ct >> (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaConsumerClose k
 
 -----------------------------------------------------------------------------
 newConsumerConf :: ConsumerProperties -> IO KafkaConf
@@ -219,7 +221,7 @@ subscribe (KafkaConsumer (Kafka k) _) ts = do
     return $ kafkaErrorToMaybe res
 
 setDefaultTopicConf :: KafkaConf -> TopicConf -> IO ()
-setDefaultTopicConf (KafkaConf kc) (TopicConf tc) =
+setDefaultTopicConf (KafkaConf kc _) (TopicConf tc) =
     rdKafkaTopicConfDup tc >>= rdKafkaConfSetDefaultTopicConf kc
 
 commitOffsets :: OffsetCommit -> KafkaConsumer -> RdKafkaTopicPartitionListTPtr -> IO (Maybe KafkaError)
@@ -229,7 +231,3 @@ commitOffsets o (KafkaConsumer (Kafka k) _) pl =
 setConsumerLogLevel :: KafkaConsumer -> KafkaLogLevel -> IO ()
 setConsumerLogLevel (KafkaConsumer (Kafka k) _) level =
   liftIO $ rdKafkaSetLogLevel k (fromEnum level)
-
-redirectCallbacksPoll :: KafkaConsumer -> IO (Maybe KafkaError)
-redirectCallbacksPoll (KafkaConsumer (Kafka k) _) =
-  (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaPollSetConsumer k

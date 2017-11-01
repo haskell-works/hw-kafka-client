@@ -12,7 +12,7 @@ data KafkaProducer = KafkaProducer
   { kpKafkaPtr  :: !Kafka
   , kpKafkaConf :: !KafkaConf
   , kpTopicConf :: !TopicConf
-  } deriving (Show)
+  }
 
 instance HasKafka KafkaProducer where
   getKafka = kpKafkaPtr
