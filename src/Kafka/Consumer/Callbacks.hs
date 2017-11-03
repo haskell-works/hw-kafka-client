@@ -25,12 +25,12 @@ import Kafka.Types
 --
 --     * When 'RdKafkaRespErrRevokePartitions' happens 'assign' should be called with an empty list of partitions.
 rebalanceCallback :: (KafkaConsumer -> KafkaError -> [TopicPartition] -> IO ()) -> KafkaConf -> IO ()
-rebalanceCallback callback (KafkaConf conf) = rdKafkaConfSetRebalanceCb conf realCb
+rebalanceCallback callback (KafkaConf conf ct) = rdKafkaConfSetRebalanceCb conf realCb
   where
     realCb k err pl = do
       k' <- newForeignPtr_ k
       pls <- fromNativeTopicPartitionList' pl
-      callback (KafkaConsumer (Kafka k') (KafkaConf conf)) (KafkaResponseError err) pls
+      callback (KafkaConsumer (Kafka k') (KafkaConf conf ct)) (KafkaResponseError err) pls
 
 -- | Sets a callback that is called when rebalance is needed.
 --
@@ -43,10 +43,10 @@ rebalanceCallback callback (KafkaConf conf) = rdKafkaConfSetRebalanceCb conf rea
 -- with `KafkaError` == `KafkaResponseError` `RdKafkaRespErrNoOffset` which is not to be considered
 -- an error.
 offsetCommitCallback :: (KafkaConsumer -> KafkaError -> [TopicPartition] -> IO ()) -> KafkaConf -> IO ()
-offsetCommitCallback callback (KafkaConf conf) = rdKafkaConfSetOffsetCommitCb conf realCb
+offsetCommitCallback callback (KafkaConf conf ct) = rdKafkaConfSetOffsetCommitCb conf realCb
   where
     realCb k err pl = do
       k' <- newForeignPtr_ k
       pls <- fromNativeTopicPartitionList' pl
-      callback (KafkaConsumer (Kafka k') (KafkaConf conf)) (KafkaResponseError err) pls
+      callback (KafkaConsumer (Kafka k') (KafkaConf conf ct)) (KafkaResponseError err) pls
 

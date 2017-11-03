@@ -1,5 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable         #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 module Kafka.Consumer.Types
 
 where
@@ -11,7 +10,10 @@ import Data.Int
 import Data.Typeable
 import Kafka.Types
 
-data KafkaConsumer = KafkaConsumer { kcKafkaPtr :: !Kafka, kcKafkaConf :: !KafkaConf} deriving (Show)
+data KafkaConsumer = KafkaConsumer
+  { kcKafkaPtr  :: !Kafka
+  , kcKafkaConf :: !KafkaConf
+  }
 
 instance HasKafka KafkaConsumer where
   getKafka = kcKafkaPtr

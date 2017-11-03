@@ -1,5 +1,5 @@
 name:                hw-kafka-client
-version:             2.0.4
+version:             2.1.0
 homepage:            https://github.com/haskell-works/hw-kafka-client
 bug-reports:         https://github.com/haskell-works/hw-kafka-client/issues
 license:             MIT
@@ -78,6 +78,7 @@ library
     Kafka.Callbacks
     Kafka.Consumer.Convert
     Kafka.Consumer.Callbacks
+    Kafka.Internal.CancellationToken
     Kafka.Internal.Shared
     Kafka.Internal.Setup
     Kafka.Producer.Convert

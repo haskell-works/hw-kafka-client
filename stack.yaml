@@ -3,7 +3,7 @@ packages:
 - '.'
 extra-deps:
 
-resolver: lts-9.1
+resolver: lts-9.11
 
 docker:
   enable: false

@@ -7,6 +7,7 @@ import Control.Exception
 import Control.Monad
 import Foreign
 import Foreign.C.String
+import Kafka.Internal.CancellationToken
 
 --
 -- Configuration
@@ -18,7 +19,7 @@ newTopicConf :: IO TopicConf
 newTopicConf = TopicConf <$> newRdKafkaTopicConfT
 
 newKafkaConf :: IO KafkaConf
-newKafkaConf = KafkaConf <$> newRdKafkaConfT
+newKafkaConf = KafkaConf <$> newRdKafkaConfT <*> newCancellationToken
 
 kafkaConf :: KafkaProps -> IO KafkaConf
 kafkaConf overrides = do
@@ -43,7 +44,7 @@ checkConfSetValue err charPtr = case err of
       throw $ KafkaUnknownConfigurationKey str
 
 setKafkaConfValue :: KafkaConf -> String -> String -> IO ()
-setKafkaConfValue (KafkaConf confPtr) key value =
+setKafkaConfValue (KafkaConf confPtr _) key value =
   allocaBytes nErrorBytes $ \charPtr -> do
     err <- rdKafkaConfSet confPtr key value charPtr (fromIntegral nErrorBytes)
     checkConfSetValue err charPtr

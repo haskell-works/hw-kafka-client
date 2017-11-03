@@ -1,12 +1,30 @@
 module Kafka.Internal.Shared
 where
 
+import           Control.Concurrent               (forkIO)
 import           Control.Exception
-import qualified Data.ByteString          as BS
-import qualified Data.ByteString.Internal as BSI
+import           Control.Monad                    (void)
+import qualified Data.ByteString                  as BS
+import qualified Data.ByteString.Internal         as BSI
 import           Foreign.C.Error
+import           Kafka.Internal.CancellationToken as CToken
 import           Kafka.Internal.RdKafka
 import           Kafka.Types
+
+runEventLoop :: HasKafka a => a -> CancellationToken -> Maybe Timeout -> IO ()
+runEventLoop k ct timeout = void $ forkIO go
+  where
+    go = do
+      token <- CToken.status ct
+      case token of
+        Running   -> pollEvents k timeout >> go
+        Cancelled -> return ()
+
+pollEvents :: HasKafka a => a -> Maybe Timeout -> IO ()
+pollEvents a tm =
+  let timeout = maybe 0 (\(Timeout ms) -> ms) tm
+      (Kafka k) = getKafka a
+  in void (rdKafkaPoll k timeout)
 
 word8PtrToBS :: Int -> Word8Ptr -> IO BS.ByteString
 word8PtrToBS len ptr = BSI.create len $ \bsptr ->
