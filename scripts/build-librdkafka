@@ -1,10 +1,19 @@
 #!/bin/bash
 
-RDKAFKA_VER="2df048ba8118cba73d0551564b7a15eeb65cd5b8"
+RDKAFKA_VER="261371dc0edef4cea9e58a076c8e8aa7dc50d452"
 
 PRJ=$PWD
 DST="$PRJ/.librdkafka"
 VERSION_FILE="$DST/version.txt"
+
+OS=`echo $(uname) | tr '[:upper:]' '[:lower:]'`
+if [ "$OS" = "linux" ]; then
+    GUESS_INSTALL_DIR=/usr
+else
+    GUESS_INSTALL_DIR=/usr/local
+fi;
+
+INSTALL_DIR=${INSTALL_DIR:-$GUESS_INSTALL_DIR}
 
 if [ -f $VERSION_FILE ]; then
     echo "Found librdkafka: $(cat $VERSION_FILE), expected: $RDKAFKA_VER"
@@ -14,7 +23,7 @@ fi
 
 if [ -f $VERSION_FILE ] && [ "$(cat $VERSION_FILE)" == $RDKAFKA_VER ]; then
     echo "Required version found, using it"
-    sudo cp -r $DST/* /usr/local/
+    sudo cp -r $DST/* $INSTALL_DIR/
     exit 0
 fi
 
@@ -27,7 +36,9 @@ git reset $RDKAFKA_VER --hard
 ./configure --prefix $DST
 cd src
 make && make install
-sudo cp -r $DST/* /usr/local/
+find $DST/lib -type f -executable | xargs strip
+
+sudo cp -r $DST/* $INSTALL_DIR/
 
 echo "Writing version file to $VERSION_FILE"
 echo $RDKAFKA_VER > $VERSION_FILE
