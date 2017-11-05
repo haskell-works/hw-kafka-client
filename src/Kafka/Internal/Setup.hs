@@ -14,6 +14,42 @@ import Kafka.Internal.CancellationToken
 --
 newtype KafkaProps = KafkaProps [(String, String)] deriving (Show, Eq)
 newtype TopicProps = TopicProps [(String, String)] deriving (Show, Eq)
+newtype Kafka      = Kafka RdKafkaTPtr deriving Show
+data KafkaConf     = KafkaConf RdKafkaConfTPtr CancellationToken
+newtype TopicConf  = TopicConf RdKafkaTopicConfTPtr deriving Show
+
+class HasKafka a where
+  getKafka :: a -> Kafka
+
+class HasKafkaConf a where
+  getKafkaConf :: a -> KafkaConf
+
+class HasTopicConf a where
+  getTopicConf :: a -> TopicConf
+
+instance HasKafkaConf KafkaConf where
+  getKafkaConf = id
+  {-# INLINE getKafkaConf #-}
+
+instance HasKafka Kafka where
+  getKafka = id
+  {-# INLINE getKafka #-}
+
+instance HasTopicConf TopicConf where
+  getTopicConf = id
+  {-# INLINE getTopicConf #-}
+
+getRdKafka :: HasKafka k => k -> RdKafkaTPtr
+getRdKafka k = let (Kafka k') = getKafka k in k'
+{-# INLINE getRdKafka #-}
+
+getRdKafkaConf :: HasKafkaConf k => k -> RdKafkaConfTPtr
+getRdKafkaConf k = let (KafkaConf k' _) = getKafkaConf k in k'
+{-# INLINE getRdKafkaConf #-}
+
+getRdTopicConf :: HasTopicConf t => t -> RdKafkaTopicConfTPtr
+getRdTopicConf t = let (TopicConf t') = getTopicConf t in t'
+{-# INLINE getRdTopicConf #-}
 
 newTopicConf :: IO TopicConf
 newTopicConf = TopicConf <$> newRdKafkaTopicConfT

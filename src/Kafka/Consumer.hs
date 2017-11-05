@@ -11,11 +11,7 @@ module Kafka.Consumer
 , closeConsumer
 
 -- ReExport Types
-, TopicName (..)
-, CIT.OffsetCommit (..)
-, CIT.PartitionOffset (..)
-, CIT.TopicPartition (..)
-, CIT.ConsumerRecord (..)
+, KafkaConsumer
 , RdKafkaRespErrT (..)
 )
 where
@@ -30,16 +26,18 @@ import qualified Data.ByteString                  as BS
 import qualified Data.Map                         as M
 import           Foreign                          hiding (void)
 import           Kafka.Consumer.Convert
+import           Kafka.Consumer.Types
 import           Kafka.Internal.CancellationToken as CToken
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.Setup
 import           Kafka.Internal.Shared
 
+
 import qualified Kafka.Consumer.Types as CIT
 
 import Kafka.Consumer.ConsumerProperties as X
 import Kafka.Consumer.Subscription       as X
-import Kafka.Consumer.Types              as X
+import Kafka.Consumer.Types              as X hiding (KafkaConsumer)
 import Kafka.Types                       as X
 
 -- | Runs high-level kafka consumer.

@@ -9,6 +9,7 @@ import qualified Data.ByteString.Internal         as BSI
 import           Foreign.C.Error
 import           Kafka.Internal.CancellationToken as CToken
 import           Kafka.Internal.RdKafka
+import           Kafka.Internal.Setup
 import           Kafka.Types
 
 runEventLoop :: HasKafka a => a -> CancellationToken -> Maybe Timeout -> IO ()

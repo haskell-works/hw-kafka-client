@@ -8,6 +8,7 @@ import Data.Bifunctor
 import Data.Bitraversable
 import Data.Int
 import Data.Typeable
+import Kafka.Internal.Setup
 import Kafka.Types
 
 data KafkaConsumer = KafkaConsumer
@@ -26,6 +27,14 @@ instance HasKafkaConf KafkaConsumer where
 newtype ConsumerGroupId = ConsumerGroupId String deriving (Show, Eq)
 newtype Offset          = Offset Int64 deriving (Show, Eq, Read)
 data OffsetReset        = Earliest | Latest deriving (Show, Eq)
+
+data PartitionOffset =
+    PartitionOffsetBeginning
+  | PartitionOffsetEnd
+  | PartitionOffset Int64
+  | PartitionOffsetStored
+  | PartitionOffsetInvalid
+  deriving (Eq, Show)
 
 data SubscribedPartitions
   = SubscribedPartitions [PartitionId]
@@ -142,16 +151,3 @@ bitraverseM :: (Bitraversable t, Applicative f, Monad m)
 bitraverseM f g r = bisequenceA <$> bimapM f g r
 {-# INLINE bitraverseM #-}
 
-data PartitionOffset =
-    PartitionOffsetBeginning
-  | PartitionOffsetEnd
-  | PartitionOffset Int64
-  | PartitionOffsetStored
-  | PartitionOffsetInvalid
-  deriving (Eq, Show)
-
-data CommitPartitionOffset = CommitPartitionOffset
-  { cpoTopicName   :: !TopicName
-  , cpoPartitionId :: !PartitionId
-  , cpoOffset      :: !Offset
-  } deriving (Eq, Show)

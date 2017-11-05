@@ -5,11 +5,12 @@ module Kafka.Producer.ProducerProperties
 where
 
 import           Control.Monad
-import qualified Data.List       as L
-import           Data.Map        (Map)
-import qualified Data.Map        as M
+import qualified Data.List            as L
+import           Data.Map             (Map)
+import qualified Data.Map             as M
 import           Data.Semigroup
 import           Kafka.Callbacks
+import           Kafka.Internal.Setup
 import           Kafka.Types
 
 -- | Properties to create 'KafkaProducer'.
@@ -19,12 +20,12 @@ data ProducerProperties = ProducerProperties
   , ppLogLevel   :: Maybe KafkaLogLevel
   , callbacks    :: [KafkaConf -> IO ()]
   }
-  
+
 -- | /Right biased/ so we prefer newer properties over older ones.
 instance Semigroup ProducerProperties where
   (<>) (ProducerProperties k1 t1 ll1 cb1) (ProducerProperties k2 t2 ll2 cb2) =
     ProducerProperties (M.union k2 k1) (M.union t2 t1) (ll2 `mplus` ll1) (cb2 `mplus` cb1)
-    
+
 instance Monoid ProducerProperties where
   mempty = ProducerProperties M.empty M.empty Nothing []
   mappend = (<>)
