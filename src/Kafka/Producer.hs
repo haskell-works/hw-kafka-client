@@ -6,6 +6,7 @@ module Kafka.Producer
 , produceMessage, produceMessageBatch
 , flushProducer
 , closeProducer
+, KafkaProducer
 , RdKafkaRespErrT (..)
 )
 where
@@ -26,9 +27,10 @@ import           Kafka.Internal.RdKafka
 import           Kafka.Internal.Setup
 import           Kafka.Internal.Shared
 import           Kafka.Producer.Convert
+import           Kafka.Producer.Types
 
 import Kafka.Producer.ProducerProperties as X
-import Kafka.Producer.Types              as X
+import Kafka.Producer.Types              as X hiding (KafkaProducer)
 import Kafka.Types                       as X
 
 -- | Runs Kafka Producer.

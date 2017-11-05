@@ -3,8 +3,9 @@ module Kafka.Producer.Types
 
 where
 
-import qualified Data.ByteString as BS
+import qualified Data.ByteString      as BS
 import           Data.Typeable
+import           Kafka.Internal.Setup
 import           Kafka.Types
 
 -- | Main pointer to Kafka object, which contains our brokers
@@ -21,6 +22,10 @@ instance HasKafka KafkaProducer where
 instance HasKafkaConf KafkaProducer where
   getKafkaConf = kpKafkaConf
   {-# INLINE getKafkaConf #-}
+
+instance HasTopicConf KafkaProducer where
+  getTopicConf = kpTopicConf
+  {-# INLINE getTopicConf #-}
 
 -- | Represents messages /to be enqueued/ onto a Kafka broker (i.e. used for a producer)
 data ProducerRecord = ProducerRecord

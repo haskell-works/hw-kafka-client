@@ -9,31 +9,14 @@ import Data.Typeable
 import Kafka.Internal.CancellationToken
 import Kafka.Internal.RdKafka
 
-class HasKafka a where
-  getKafka :: a -> Kafka
-
-class HasKafkaConf a where
-  getKafkaConf :: a -> KafkaConf
-
 newtype BrokerId =
   BrokerId Int
   deriving (Show, Eq, Ord, Read)
 
-newtype Kafka     = Kafka RdKafkaTPtr deriving Show
-data KafkaConf    = KafkaConf RdKafkaConfTPtr CancellationToken
-newtype TopicConf = TopicConf RdKafkaTopicConfTPtr deriving Show
 
 newtype PartitionId = PartitionId Int deriving (Show, Eq, Read, Ord, Enum)
 newtype Millis      = Millis Int64 deriving (Show, Read, Eq, Ord, Num)
 newtype ClientId    = ClientId String deriving (Show, Eq, Ord)
-
-instance HasKafkaConf KafkaConf where
-  getKafkaConf = id
-  {-# INLINE getKafkaConf #-}
-
-instance HasKafka Kafka where
-  getKafka = id
-  {-# INLINE getKafka #-}
 
 -- | Topic name to be consumed
 --

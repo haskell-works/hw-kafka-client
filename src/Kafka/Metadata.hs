@@ -24,6 +24,7 @@ import           Foreign.C.String
 import           Kafka.Consumer.Convert
 import           Kafka.Consumer.Types
 import           Kafka.Internal.RdKafka
+import           Kafka.Internal.Setup
 import           Kafka.Internal.Shared
 import           Kafka.Types
 

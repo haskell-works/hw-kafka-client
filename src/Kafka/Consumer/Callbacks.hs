@@ -10,6 +10,7 @@ import Kafka.Callbacks        as X
 import Kafka.Consumer.Convert
 import Kafka.Consumer.Types
 import Kafka.Internal.RdKafka
+import Kafka.Internal.Setup
 import Kafka.Types
 
 -- | Sets a callback that is called when rebalance is needed.

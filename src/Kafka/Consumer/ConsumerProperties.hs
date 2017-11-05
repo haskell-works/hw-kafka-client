@@ -12,6 +12,7 @@ import qualified Data.Map                 as M
 import           Data.Semigroup
 import           Kafka.Consumer.Callbacks
 import           Kafka.Consumer.Types
+import           Kafka.Internal.Setup
 import           Kafka.Types
 
 -- | Properties to create 'KafkaConsumer'.
