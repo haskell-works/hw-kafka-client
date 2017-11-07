@@ -38,6 +38,7 @@ executable kafka-client-example
                      , ProducerExample
   hs-source-dirs:      example
   default-language:    Haskell2010
+  ghc-options:         -Wall -threaded
   build-depends:       base >=4.6 && < 5
                      , bifunctors
                      , bytestring
