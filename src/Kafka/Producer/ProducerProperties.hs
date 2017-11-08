@@ -8,7 +8,6 @@ import           Control.Monad
 import qualified Data.List            as L
 import           Data.Map             (Map)
 import qualified Data.Map             as M
-import           Data.Semigroup
 import           Kafka.Callbacks
 import           Kafka.Internal.Setup
 import           Kafka.Types
@@ -18,17 +17,21 @@ data ProducerProperties = ProducerProperties
   { ppKafkaProps :: Map String String
   , ppTopicProps :: Map String String
   , ppLogLevel   :: Maybe KafkaLogLevel
-  , callbacks    :: [KafkaConf -> IO ()]
+  , ppCallbacks  :: [KafkaConf -> IO ()]
   }
 
 -- | /Right biased/ so we prefer newer properties over older ones.
-instance Semigroup ProducerProperties where
-  (<>) (ProducerProperties k1 t1 ll1 cb1) (ProducerProperties k2 t2 ll2 cb2) =
-    ProducerProperties (M.union k2 k1) (M.union t2 t1) (ll2 `mplus` ll1) (cb2 `mplus` cb1)
-
 instance Monoid ProducerProperties where
-  mempty = ProducerProperties M.empty M.empty Nothing []
-  mappend = (<>)
+  mempty = ProducerProperties
+    { ppKafkaProps     = M.empty
+    , ppTopicProps     = M.empty
+    , ppLogLevel       = Nothing
+    , ppCallbacks      = []
+    }
+  {-# INLINE mempty #-}
+  mappend (ProducerProperties k1 t1 ll1 cb1) (ProducerProperties k2 t2 ll2 cb2) =
+    ProducerProperties (M.union k2 k1) (M.union t2 t1) (ll2 `mplus` ll1) (cb2 `mplus` cb1)
+  {-# INLINE mappend #-}
 
 brokersList :: [BrokerAddress] -> ProducerProperties
 brokersList bs =
@@ -36,12 +39,12 @@ brokersList bs =
    in extraProps $ M.fromList [("bootstrap.servers", bs')]
 
 setCallback :: (KafkaConf -> IO ()) -> ProducerProperties
-setCallback cb = ProducerProperties M.empty M.empty Nothing [cb]
+setCallback cb = mempty { ppCallbacks = [cb] }
 
 -- | Sets the logging level.
 -- Usually is used with 'debugOptions' to configure which logs are needed.
 logLevel :: KafkaLogLevel -> ProducerProperties
-logLevel ll = ProducerProperties M.empty M.empty (Just ll) []
+logLevel ll = mempty { ppLogLevel = Just ll }
 
 compression :: KafkaCompressionCodec -> ProducerProperties
 compression c =
@@ -54,7 +57,7 @@ topicCompression c =
 -- | Any configuration options that are supported by /librdkafka/.
 -- The full list can be found <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md here>
 extraProps :: Map String String -> ProducerProperties
-extraProps m = ProducerProperties m M.empty Nothing []
+extraProps m = mempty { ppKafkaProps = m }
 
 -- | Suppresses producer disconnects logs.
 --
@@ -67,7 +70,7 @@ suppressDisconnectLogs =
 -- | Any configuration options that are supported by /librdkafka/.
 -- The full list can be found <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md here>
 extraTopicProps :: Map String String -> ProducerProperties
-extraTopicProps m = ProducerProperties M.empty m Nothing []
+extraTopicProps m = mempty { ppTopicProps = m }
 
 -- | Sets debug features for the producer
 -- Usually is used with 'logLevel'.

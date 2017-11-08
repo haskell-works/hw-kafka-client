@@ -9,7 +9,6 @@ import           Control.Monad
 import qualified Data.List                as L
 import           Data.Map                 (Map)
 import qualified Data.Map                 as M
-import           Data.Semigroup
 import           Kafka.Consumer.Callbacks
 import           Kafka.Consumer.Types
 import           Kafka.Internal.Setup
@@ -17,19 +16,22 @@ import           Kafka.Types
 
 -- | Properties to create 'KafkaConsumer'.
 data ConsumerProperties = ConsumerProperties
-  { cpProps    :: Map String String
-  , cpLogLevel :: Maybe KafkaLogLevel
-  , callbacks  :: [KafkaConf -> IO ()]
+  { cpProps     :: Map String String
+  , cpLogLevel  :: Maybe KafkaLogLevel
+  , cpCallbacks :: [KafkaConf -> IO ()]
   }
 
 -- | /Right biased/ so we prefer newer properties over older ones.
-instance Semigroup ConsumerProperties where
-  (<>) (ConsumerProperties m1 ll1 cb1) (ConsumerProperties m2 ll2 cb2) =
-    ConsumerProperties (M.union m2 m1) (ll2 `mplus` ll1) (cb2 <> cb1)
-
 instance Monoid ConsumerProperties where
-  mempty = ConsumerProperties M.empty Nothing []
-  mappend = (<>)
+  mempty = ConsumerProperties
+    { cpProps          = M.empty
+    , cpLogLevel       = Nothing
+    , cpCallbacks      = []
+    }
+  {-# INLINE mempty #-}
+  mappend (ConsumerProperties m1 ll1 cb1) (ConsumerProperties m2 ll2 cb2) =
+    ConsumerProperties (M.union m2 m1) (ll2 `mplus` ll1) (cb2 `mplus` cb1)
+  {-# INLINE mappend #-}
 
 brokersList :: [BrokerAddress] -> ConsumerProperties
 brokersList bs =
@@ -51,12 +53,12 @@ clientId (ClientId cid) =
   extraProps $ M.fromList [("client.id", cid)]
 
 setCallback :: (KafkaConf -> IO ()) -> ConsumerProperties
-setCallback cb = ConsumerProperties M.empty Nothing [cb]
+setCallback cb = mempty { cpCallbacks = [cb] }
 
 -- | Sets the logging level.
 -- Usually is used with 'debugOptions' to configure which logs are needed.
 logLevel :: KafkaLogLevel -> ConsumerProperties
-logLevel ll = ConsumerProperties M.empty (Just ll) []
+logLevel ll = mempty { cpLogLevel = Just ll }
 
 -- | Sets the compression codec for the consumer.
 compression :: KafkaCompressionCodec -> ConsumerProperties
@@ -74,13 +76,13 @@ suppressDisconnectLogs =
 -- | Any configuration options that are supported by /librdkafka/.
 -- The full list can be found <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md here>
 extraProps :: Map String String -> ConsumerProperties
-extraProps m = ConsumerProperties m Nothing []
+extraProps m = mempty { cpProps = m }
 {-# INLINE extraProps #-}
 
 -- | Any configuration options that are supported by /librdkafka/.
 -- The full list can be found <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md here>
 extraProp :: String -> String -> ConsumerProperties
-extraProp k v = ConsumerProperties (M.singleton k v) Nothing []
+extraProp k v = mempty { cpProps = M.singleton k v }
 {-# INLINE extraProp #-}
 
 -- | Sets debug features for the consumer.

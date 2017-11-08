@@ -200,7 +200,7 @@ closeConsumer (KafkaConsumer (Kafka k) (KafkaConf _ ct)) =
 
 -----------------------------------------------------------------------------
 newConsumerConf :: ConsumerProperties -> IO KafkaConf
-newConsumerConf (ConsumerProperties m _ cbs) = do
+newConsumerConf ConsumerProperties {cpProps = m, cpCallbacks = cbs} = do
   conf <- kafkaConf (KafkaProps $ M.toList m)
   forM_ cbs (\setCb -> setCb conf)
   return conf
