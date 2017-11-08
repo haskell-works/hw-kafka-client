@@ -1,9 +1,9 @@
 module Kafka.Internal.Shared
 where
 
-import           Control.Concurrent               (forkIO)
+import           Control.Concurrent               (forkIO, rtsSupportsBoundThreads)
 import           Control.Exception
-import           Control.Monad                    (void)
+import           Control.Monad                    (void, when)
 import qualified Data.ByteString                  as BS
 import qualified Data.ByteString.Internal         as BSI
 import           Foreign.C.Error
@@ -13,13 +13,14 @@ import           Kafka.Internal.Setup
 import           Kafka.Types
 
 runEventLoop :: HasKafka a => a -> CancellationToken -> Maybe Timeout -> IO ()
-runEventLoop k ct timeout = void $ forkIO go
-  where
-    go = do
-      token <- CToken.status ct
-      case token of
-        Running   -> pollEvents k timeout >> go
-        Cancelled -> return ()
+runEventLoop k ct timeout =
+    when rtsSupportsBoundThreads $ void $ forkIO go
+    where
+        go = do
+            token <- CToken.status ct
+            case token of
+                Running   -> pollEvents k timeout >> go
+                Cancelled -> return ()
 
 pollEvents :: HasKafka a => a -> Maybe Timeout -> IO ()
 pollEvents a tm =

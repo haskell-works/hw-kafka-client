@@ -6,13 +6,11 @@ where
 import Control.Exception
 import Data.Int
 import Data.Typeable
-import Kafka.Internal.CancellationToken
 import Kafka.Internal.RdKafka
 
 newtype BrokerId =
   BrokerId Int
   deriving (Show, Eq, Ord, Read)
-
 
 newtype PartitionId = PartitionId Int deriving (Show, Eq, Read, Ord, Enum)
 newtype Millis      = Millis Int64 deriving (Show, Read, Eq, Ord, Num)

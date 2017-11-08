@@ -36,7 +36,7 @@ import Kafka.Types                       as X
 -- | Runs Kafka Producer.
 -- The callback provided is expected to call 'produceMessage'
 -- or/and 'produceMessageBatch' to send messages to Kafka.
-{-# DEPRECATED runProducer "Use 'newProducer'/'closeProducer' instead" #-}
+{-# DEPRECATED runProducer "Use @newProducer@/@closeProducer@ instead" #-}
 runProducer :: ProducerProperties
             -> (KafkaProducer -> IO (Either KafkaError a))
             -> IO (Either KafkaError a)
@@ -54,18 +54,18 @@ runProducer props f =
 -- | Creates a new kafka producer
 -- A newly created producer must be closed with 'closeProducer' function.
 newProducer :: MonadIO m => ProducerProperties -> m (Either KafkaError KafkaProducer)
-newProducer (ProducerProperties kp tp ll cbs) = liftIO $ do
-  kc@(KafkaConf kc' ct) <- kafkaConf (KafkaProps $ M.toList kp)
-  tc <- topicConf (TopicProps $ M.toList tp)
+newProducer pps = liftIO $ do
+  kc@(KafkaConf kc' ct) <- kafkaConf (KafkaProps $ M.toList (ppKafkaProps pps))
+  tc <- topicConf (TopicProps $ M.toList (ppTopicProps pps))
 
   -- set callbacks
-  forM_ cbs (\setCb -> setCb kc)
+  forM_ (ppCallbacks pps) (\setCb -> setCb kc)
 
   mbKafka <- newRdKafkaT RdKafkaProducer kc'
   case mbKafka of
     Left err    -> return . Left $ KafkaError err
     Right kafka -> do
-      forM_ ll (rdKafkaSetLogLevel kafka . fromEnum)
+      forM_ (ppLogLevel pps) (rdKafkaSetLogLevel kafka . fromEnum)
       let prod = KafkaProducer (Kafka kafka) kc tc
       runEventLoop prod ct (Just $ Timeout 100) >> return (Right prod)
 
