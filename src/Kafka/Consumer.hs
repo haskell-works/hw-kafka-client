@@ -42,7 +42,7 @@ import Kafka.Types                       as X
 
 -- | Runs high-level kafka consumer.
 -- A callback provided is expected to call 'pollMessage' when convenient.
-{-# DEPRECATED runConsumer "Use 'newConsumer'/'closeConsumer' instead" #-}
+{-# DEPRECATED runConsumer "Use @newConsumer@/@closeConsumer@ instead" #-}
 runConsumer :: ConsumerProperties
             -> Subscription
             -> (KafkaConsumer -> IO (Either KafkaError a))  -- ^ A callback function to poll and handle messages
