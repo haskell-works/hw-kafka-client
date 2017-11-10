@@ -36,7 +36,7 @@ import Kafka.Types                       as X
 -- | Runs Kafka Producer.
 -- The callback provided is expected to call 'produceMessage'
 -- or/and 'produceMessageBatch' to send messages to Kafka.
-{-# DEPRECATED runProducer "Use @newProducer@/@closeProducer@ instead" #-}
+{-# DEPRECATED runProducer "Use newProducer/closeProducer instead" #-}
 runProducer :: ProducerProperties
             -> (KafkaProducer -> IO (Either KafkaError a))
             -> IO (Either KafkaError a)
