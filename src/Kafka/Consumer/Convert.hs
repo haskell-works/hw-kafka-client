@@ -52,7 +52,10 @@ fromNativeTopicPartitionList'' ptr =
     withForeignPtr ptr $ \fptr -> fromNativeTopicPartitionList' fptr
 
 fromNativeTopicPartitionList' :: Ptr RdKafkaTopicPartitionListT -> IO [TopicPartition]
-fromNativeTopicPartitionList' ppl = peek ppl >>= fromNativeTopicPartitionList
+fromNativeTopicPartitionList' ppl =
+    if ppl == nullPtr
+        then return []
+        else peek ppl >>= fromNativeTopicPartitionList
 
 fromNativeTopicPartitionList :: RdKafkaTopicPartitionListT -> IO [TopicPartition]
 fromNativeTopicPartitionList pl =
