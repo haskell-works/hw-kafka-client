@@ -26,6 +26,7 @@ import           Kafka.Internal.CancellationToken as CToken
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.Setup
 import           Kafka.Internal.Shared
+import           Kafka.Producer.Callbacks
 import           Kafka.Producer.Convert
 import           Kafka.Producer.Types
 
@@ -55,7 +56,7 @@ runProducer props f =
 -- A newly created producer must be closed with 'closeProducer' function.
 newProducer :: MonadIO m => ProducerProperties -> m (Either KafkaError KafkaProducer)
 newProducer pps = liftIO $ do
-  kc@(KafkaConf kc' ct) <- kafkaConf (KafkaProps $ M.toList (ppKafkaProps pps))
+  kc@(KafkaConf kc' _) <- kafkaConf (KafkaProps $ M.toList (ppKafkaProps pps))
   tc <- topicConf (TopicProps $ M.toList (ppTopicProps pps))
 
   -- set callbacks
@@ -67,7 +68,7 @@ newProducer pps = liftIO $ do
     Right kafka -> do
       forM_ (ppLogLevel pps) (rdKafkaSetLogLevel kafka . fromEnum)
       let prod = KafkaProducer (Kafka kafka) kc tc
-      runEventLoop prod ct (Just $ Timeout 100) >> return (Right prod)
+      return (Right prod)
 
 -- | Sends a single message.
 -- Since librdkafka is backed by a queue, this function can return before messages are sent. See
@@ -76,7 +77,8 @@ produceMessage :: MonadIO m
                => KafkaProducer
                -> ProducerRecord
                -> m (Maybe KafkaError)
-produceMessage (KafkaProducer (Kafka k) _ (TopicConf tc)) m = liftIO $
+produceMessage kp@(KafkaProducer (Kafka k) _ (TopicConf tc)) m = liftIO $ do
+  pollEvents kp (Just $ Timeout 0) -- fire callbacks if any exist (handle delivery reports)
   bracket (mkTopic $ prTopic m) clTopic withTopic
     where
       mkTopic (TopicName tn) = newUnmanagedRdKafkaTopicT k tn (Just tc)
@@ -103,7 +105,8 @@ produceMessageBatch :: MonadIO m
                     -> m [(ProducerRecord, KafkaError)]
                     -- ^ An empty list when the operation is successful,
                     -- otherwise a list of "failed" messages with corresponsing errors.
-produceMessageBatch (KafkaProducer (Kafka k) _ (TopicConf tc)) messages = liftIO $
+produceMessageBatch kp@(KafkaProducer (Kafka k) _ (TopicConf tc)) messages = liftIO $ do
+  pollEvents kp (Just $ Timeout 0) -- fire callbacks if any exist (handle delivery reports)
   concat <$> forM (mkBatches messages) sendBatch
   where
     mkSortKey = prTopic &&& prPartition
@@ -158,7 +161,9 @@ flushProducer :: MonadIO m => KafkaProducer -> m ()
 flushProducer kp = liftIO $ do
     pollEvents kp (Just $ Timeout 100)
     l <- outboundQueueLength (kpKafkaPtr kp)
-    unless (l == 0) $ flushProducer kp
+    if (l == 0)
+      then pollEvents kp (Just $ Timeout 0) -- to be sure that all the delivery reports are fired
+      else flushProducer kp
 
 ------------------------------------------------------------------------------------
 

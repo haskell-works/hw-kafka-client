@@ -296,17 +296,18 @@ rdKafkaConfSetRebalanceCb conf cb = do
     return ()
 
 ---- Delivery Callback
-type DeliveryCallback = Ptr RdKafkaT -> Ptr RdKafkaMessageT -> Word8Ptr -> IO ()
+type DeliveryCallback' = Ptr RdKafkaT -> Ptr RdKafkaMessageT -> Word8Ptr -> IO ()
+type DeliveryCallback = Ptr RdKafkaT -> Ptr RdKafkaMessageT -> IO ()
 
 foreign import ccall safe "wrapper"
-    mkDeliveryCallback :: DeliveryCallback -> IO (FunPtr DeliveryCallback)
+    mkDeliveryCallback :: DeliveryCallback' -> IO (FunPtr DeliveryCallback')
 
 foreign import ccall safe "rd_kafka.h rd_kafka_conf_set_dr_msg_cb"
-    rdKafkaConfSetDrMsgCb' :: Ptr RdKafkaConfT -> FunPtr DeliveryCallback -> IO ()
+    rdKafkaConfSetDrMsgCb' :: Ptr RdKafkaConfT -> FunPtr DeliveryCallback' -> IO ()
 
 rdKafkaConfSetDrMsgCb :: RdKafkaConfTPtr -> DeliveryCallback -> IO ()
 rdKafkaConfSetDrMsgCb conf cb = do
-    cb' <- mkDeliveryCallback cb
+    cb' <- mkDeliveryCallback (\k m _ -> cb k m)
     withForeignPtr conf $ \c -> rdKafkaConfSetDrMsgCb' c cb'
     return ()
 
