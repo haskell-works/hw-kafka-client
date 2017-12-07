@@ -3,14 +3,17 @@
 module ProducerExample
 where
 
-import Control.Monad   (forM_)
-import Data.ByteString (ByteString)
+import Control.Monad         (forM_)
+import Data.ByteString       (ByteString)
+import Data.ByteString.Char8 (pack)
 import Data.Monoid
 import Kafka.Producer
 
 -- Global producer properties
 producerProps :: ProducerProperties
 producerProps = brokersList [BrokerAddress "localhost:9092"]
+             <> sendTimeout (Timeout 10000)
+             <> setCallback (deliveryErrorsCallback print)
              <> logLevel KafkaLogDebug
 
 -- Topic to send messages to
@@ -33,17 +36,29 @@ runProducerExample = do
 
 sendMessages :: KafkaProducer -> IO (Either KafkaError ())
 sendMessages prod = do
-  err1 <- produceMessage prod (mkMessage Nothing (Just "test from producer") )
+  putStrLn "Producer is ready, send your messages!"
+  msg1 <- getLine
+
+  err1 <- produceMessage prod (mkMessage Nothing (Just $ pack msg1))
   forM_ err1 print
 
-  err2 <- produceMessage prod (mkMessage (Just "key") (Just "test from producer (with key)"))
+  putStrLn "One more time!"
+  msg2 <- getLine
+
+  err2 <- produceMessage prod (mkMessage (Just "key") (Just $ pack msg2))
   forM_ err2 print
 
-  errs <- produceMessageBatch prod
-            [ mkMessage (Just "b-1") (Just "batch-1")
-            , mkMessage (Just "b-2") (Just "batch-2")
-            , mkMessage Nothing      (Just "batch-3")
-            ]
+  putStrLn "And the last one..."
+  msg3 <- getLine
+  err3 <- produceMessage prod (mkMessage (Just "key3") (Just $ pack msg3))
 
-  forM_ errs (print . snd)
+  -- errs <- produceMessageBatch prod
+  --           [ mkMessage (Just "b-1") (Just "batch-1")
+  --           , mkMessage (Just "b-2") (Just "batch-2")
+  --           , mkMessage Nothing      (Just "batch-3")
+  --           ]
+
+  -- forM_ errs (print . snd)
+
+  putStrLn "Thank you."
   return $ Right ()

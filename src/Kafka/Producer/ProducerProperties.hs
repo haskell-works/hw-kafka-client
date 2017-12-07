@@ -1,15 +1,15 @@
 module Kafka.Producer.ProducerProperties
 ( module Kafka.Producer.ProducerProperties
-, module Kafka.Callbacks
+, module Kafka.Producer.Callbacks
 )
 where
 
 import           Control.Monad
-import qualified Data.List            as L
-import           Data.Map             (Map)
-import qualified Data.Map             as M
-import           Kafka.Callbacks
+import qualified Data.List                as L
+import           Data.Map                 (Map)
+import qualified Data.Map                 as M
 import           Kafka.Internal.Setup
+import           Kafka.Producer.Callbacks
 import           Kafka.Types
 
 -- | Properties to create 'KafkaProducer'.
@@ -53,6 +53,10 @@ compression c =
 topicCompression :: KafkaCompressionCodec -> ProducerProperties
 topicCompression c =
   extraTopicProps $ M.singleton "compression.codec" (kafkaCompressionCodecToString c)
+
+sendTimeout :: Timeout -> ProducerProperties
+sendTimeout (Timeout t) =
+  extraTopicProps $ M.singleton "message.timeout.ms" (show t)
 
 -- | Any configuration options that are supported by /librdkafka/.
 -- The full list can be found <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md here>
