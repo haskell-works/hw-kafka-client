@@ -73,6 +73,41 @@ Target topic name is a part of each message that is to be sent by `produceMessag
 
 A working producer example can be found here: [ProducerExample.hs](example/ProducerExample.hs)
 
+### Delivery reports
+Kafka Producer maintains its own internal queue for outgoing messages. Calling `produceMessage`
+does not mean that the message is actually written to Kafka, it only means that the message is put
+to that outgoing queue and that the producer will (eventually) push it to Kafka.
+
+However, it is not always possible for the producer to send messages to Kafka. Network problems
+or Kafka cluster being offline can prevent the producer from doing it.
+
+When a message cannot be sent to Kafka for some time (see `message.timeout.ms` [configuration](https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md) option),
+the message is *dropped from the outgoing queue* and the *delivery report* indicating an error is raised.
+
+It is possible to configure `hw-kafka-client` to set an infinite message timeout so the message is
+never dropped from the queue:
+
+```
+producerProps :: ProducerProperties
+producerProps = brokersList [BrokerAddress "localhost:9092"]
+             <> sendTimeout (Timeout 0)           -- for librdkafka "0" means "infinite".
+```
+
+*Delivery reports* provide the way to detect when producer experiences problems sending messages
+to Kafka.
+
+Currently `hw-kafka-client` only supports delivery error callbacks:
+```
+producerProps :: ProducerProperties
+producerProps = brokersList [BrokerAddress "localhost:9092"]
+             <> setCallback (deliveryErrorsCallback print)
+```
+In the example above when the producer cannot deliver the message to Kafka,
+the error will be printed (and the message will be dropped).
+
+When `sendTimeout` is not configured to `Timeout 0` (infinite), no error callbacks will be delivered.
+This is because no message will ever be timing out for sending.
+
 ### Example
 
 ```Haskell
