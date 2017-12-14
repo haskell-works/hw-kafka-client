@@ -30,7 +30,7 @@ instance Monoid ProducerProperties where
     }
   {-# INLINE mempty #-}
   mappend (ProducerProperties k1 t1 ll1 cb1) (ProducerProperties k2 t2 ll2 cb2) =
-    ProducerProperties (M.union k2 k1) (M.union t2 t1) (ll2 `mplus` ll1) (cb2 `mplus` cb1)
+    ProducerProperties (M.union k2 k1) (M.union t2 t1) (ll2 `mplus` ll1) (cb1 `mplus` cb2)
   {-# INLINE mappend #-}
 
 brokersList :: [BrokerAddress] -> ProducerProperties

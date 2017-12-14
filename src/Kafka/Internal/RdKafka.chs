@@ -505,13 +505,36 @@ data RdKafkaQueueT
     {`RdKafkaTPtr'} -> `RdKafkaQueueTPtr' #}
 
 foreign import ccall unsafe "rdkafka.h &rd_kafka_queue_destroy"
-    rdKafkaQueueDestroy :: FinalizerPtr RdKafkaQueueT
+    rdKafkaQueueDestroyF :: FinalizerPtr RdKafkaQueueT
+
+{#fun rd_kafka_queue_destroy as ^
+    {`RdKafkaQueueTPtr'} -> `()'#}
 
 newRdKafkaQueue :: RdKafkaTPtr -> IO RdKafkaQueueTPtr
 newRdKafkaQueue k = do
     q <- rdKafkaQueueNew k
-    addForeignPtrFinalizer rdKafkaQueueDestroy q
+    addForeignPtrFinalizer rdKafkaQueueDestroyF q
     return q
+
+{#fun rd_kafka_consume_queue as ^
+    {`RdKafkaQueueTPtr', `Int'} -> `RdKafkaMessageTPtr' #}
+
+{#fun rd_kafka_queue_forward as ^
+    {`RdKafkaQueueTPtr', `RdKafkaQueueTPtr'} -> `()' #}
+
+{#fun rd_kafka_queue_get_partition as rdKafkaQueueGetPartition'
+    {`RdKafkaTPtr', `String', `Int'} -> `RdKafkaQueueTPtr' #}
+
+rdKafkaQueueGetPartition :: RdKafkaTPtr -> String -> Int -> IO (Maybe RdKafkaQueueTPtr)
+rdKafkaQueueGetPartition k t p = do
+    ret <- rdKafkaQueueGetPartition' k t p
+    withForeignPtr ret $ \realPtr ->
+        if realPtr == nullPtr then return Nothing
+        else do
+            addForeignPtrFinalizer rdKafkaQueueDestroyF ret
+            return $ Just ret
+
+
 -------------------------------------------------------------------------------------------------
 ---- High-level KafkaConsumer
 

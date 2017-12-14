@@ -56,7 +56,7 @@ runProducer props f =
 -- A newly created producer must be closed with 'closeProducer' function.
 newProducer :: MonadIO m => ProducerProperties -> m (Either KafkaError KafkaProducer)
 newProducer pps = liftIO $ do
-  kc@(KafkaConf kc' _) <- kafkaConf (KafkaProps $ M.toList (ppKafkaProps pps))
+  kc@(KafkaConf kc' _ _) <- kafkaConf (KafkaProps $ M.toList (ppKafkaProps pps))
   tc <- topicConf (TopicProps $ M.toList (ppTopicProps pps))
 
   -- set callbacks
@@ -151,7 +151,7 @@ produceMessageBatch kp@(KafkaProducer (Kafka k) _ (TopicConf tc)) messages = lif
 -- Will wait until the outbound queue is drained before returning the control.
 closeProducer :: MonadIO m => KafkaProducer -> m ()
 closeProducer p =
-  let (KafkaConf _ ct) = kpKafkaConf p
+  let (KafkaConf _ _ ct) = kpKafkaConf p
   in liftIO (CToken.cancel ct) >> flushProducer p
 
 -- | Drains the outbound queue for a producer.

@@ -3,13 +3,12 @@ module Kafka.Consumer
 ( module X
 , runConsumer
 , newConsumer
-, assign, assignment, subscription
+, assignment, subscription
 , pausePartitions, resumePartitions
 , committed, position, seek
 , pollMessage
 , commitOffsetMessage, commitAllOffsets, commitPartitionsOffsets
 , closeConsumer
-
 -- ReExport Types
 , KafkaConsumer
 , RdKafkaRespErrT (..)
@@ -17,13 +16,16 @@ module Kafka.Consumer
 where
 
 import           Control.Arrow
+import           Control.Concurrent               (forkIO, rtsSupportsBoundThreads)
 import           Control.Exception
-import           Control.Monad                    (forM_)
+import           Control.Monad                    (forM_, void, when)
 import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Except
 import           Data.Bifunctor
 import qualified Data.ByteString                  as BS
+import           Data.IORef
 import qualified Data.Map                         as M
+import           Data.Maybe                       (fromMaybe)
 import           Foreign                          hiding (void)
 import           Kafka.Consumer.Convert
 import           Kafka.Consumer.Types
@@ -31,9 +33,6 @@ import           Kafka.Internal.CancellationToken as CToken
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.Setup
 import           Kafka.Internal.Shared
-
-
-import qualified Kafka.Consumer.Types as CIT
 
 import Kafka.Consumer.ConsumerProperties as X
 import Kafka.Consumer.Subscription       as X
@@ -63,27 +62,36 @@ newConsumer :: MonadIO m
             -> Subscription
             -> m (Either KafkaError KafkaConsumer)
 newConsumer cp (Subscription ts tp) = liftIO $ do
-  kc@(KafkaConf kc' ct) <- newConsumerConf cp
+  kc@(KafkaConf kc' qref ct) <- newConsumerConf cp
   tp' <- topicConf (TopicProps $ M.toList tp)
   _   <- setDefaultTopicConf kc tp'
-  rdk <- bimap KafkaError Kafka <$> newRdKafkaT RdKafkaConsumer kc'
-  case flip KafkaConsumer kc <$> rdk of
-    Left err -> return $ Left err
-    Right kafka -> do
-      forM_ (cpLogLevel cp) (setConsumerLogLevel kafka)
-      sub <- subscribe kafka ts
-      case sub of
-        Nothing  -> runEventLoop kafka ct (Just $ Timeout 100) >> return (Right kafka)
+  rdk <- newRdKafkaT RdKafkaConsumer kc'
+  case rdk of
+    Left err   -> return . Left $ KafkaError err
+    Right rdk' -> do
+      msgq <- newRdKafkaQueue rdk'
+      writeIORef qref (Just msgq)
+      let kafka = KafkaConsumer (Kafka rdk') kc
+      redErr <- redirectCallbacksPoll kafka
+      case redErr of
         Just err -> closeConsumer kafka >> return (Left err)
+        Nothing  -> do
+          forM_ (cpLogLevel cp) (setConsumerLogLevel kafka)
+          sub <- subscribe kafka ts
+          case sub of
+            Nothing  -> runConsumerLoop kafka ct (Just $ Timeout 100) >> return (Right kafka)
+            Just err -> closeConsumer kafka >> return (Left err)
 
--- | Polls the next message from a subscription
 pollMessage :: MonadIO m
             => KafkaConsumer
             -> Timeout -- ^ the timeout, in milliseconds
             -> m (Either KafkaError (ConsumerRecord (Maybe BS.ByteString) (Maybe BS.ByteString))) -- ^ Left on error or timeout, right for success
-pollMessage c@(KafkaConsumer (Kafka k) _) (Timeout ms) =
-    liftIO $ pollEvents c Nothing >> rdKafkaConsumerPoll k (fromIntegral ms) >>= fromMessagePtr
-
+pollMessage c@(KafkaConsumer _ (KafkaConf _ qr _)) (Timeout ms) = liftIO $ do
+    pollConsumerEvents c Nothing
+    mbq <- readIORef qr
+    case mbq of
+      Nothing -> return . Left $ KafkaBadSpecification "Messages queue is not configured, internal error, fatal."
+      Just q  -> rdKafkaConsumeQueue q (fromIntegral ms) >>= fromMessagePtr
 
 -- | Commit message's offset on broker for the message's partition.
 commitOffsetMessage :: MonadIO m
@@ -110,15 +118,6 @@ commitPartitionsOffsets :: MonadIO m
                  -> m (Maybe KafkaError)
 commitPartitionsOffsets o k ps =
   liftIO $ toNativeTopicPartitionList ps >>= commitOffsets o k
-
--- | Assigns specified partitions to a current consumer.
--- Assigning an empty list means unassigning from all partitions that are currently assigned.
-assign :: MonadIO m => KafkaConsumer -> [TopicPartition] -> m KafkaError
-assign (KafkaConsumer (Kafka k) _) ps =
-    let pl = if null ps
-                then newForeignPtr_ nullPtr
-                else toNativeTopicPartitionList ps
-    in  liftIO $ KafkaResponseError <$> (pl >>= rdKafkaAssign k)
 
 -- | Returns current consumer's assignment
 assignment :: MonadIO m => KafkaConsumer -> m (Either KafkaError (M.Map TopicName [PartitionId]))
@@ -195,7 +194,7 @@ position (KafkaConsumer (Kafka k) _) tps = liftIO $ do
 
 -- | Closes the consumer.
 closeConsumer :: MonadIO m => KafkaConsumer -> m (Maybe KafkaError)
-closeConsumer (KafkaConsumer (Kafka k) (KafkaConf _ ct)) =
+closeConsumer (KafkaConsumer (Kafka k) (KafkaConf _ _ ct)) =
   liftIO $ CToken.cancel ct >> (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaConsumerClose k
 
 -----------------------------------------------------------------------------
@@ -219,7 +218,7 @@ subscribe (KafkaConsumer (Kafka k) _) ts = do
     return $ kafkaErrorToMaybe res
 
 setDefaultTopicConf :: KafkaConf -> TopicConf -> IO ()
-setDefaultTopicConf (KafkaConf kc _) (TopicConf tc) =
+setDefaultTopicConf (KafkaConf kc _ _) (TopicConf tc) =
     rdKafkaTopicConfDup tc >>= rdKafkaConfSetDefaultTopicConf kc
 
 commitOffsets :: OffsetCommit -> KafkaConsumer -> RdKafkaTopicPartitionListTPtr -> IO (Maybe KafkaError)
@@ -229,3 +228,22 @@ commitOffsets o (KafkaConsumer (Kafka k) _) pl =
 setConsumerLogLevel :: KafkaConsumer -> KafkaLogLevel -> IO ()
 setConsumerLogLevel (KafkaConsumer (Kafka k) _) level =
   liftIO $ rdKafkaSetLogLevel k (fromEnum level)
+
+redirectCallbacksPoll :: KafkaConsumer -> IO (Maybe KafkaError)
+redirectCallbacksPoll (KafkaConsumer (Kafka k) _) =
+  (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaPollSetConsumer k
+
+runConsumerLoop :: KafkaConsumer -> CancellationToken -> Maybe Timeout -> IO ()
+runConsumerLoop k ct timeout =
+    when rtsSupportsBoundThreads $ void $ forkIO go
+    where
+        go = do
+            token <- CToken.status ct
+            case token of
+                Running   -> pollConsumerEvents k timeout >> go
+                Cancelled -> return ()
+
+pollConsumerEvents :: KafkaConsumer -> Maybe Timeout -> IO ()
+pollConsumerEvents k timeout =
+  let (Timeout tm) = fromMaybe (Timeout 0) timeout
+  in void $ rdKafkaConsumerPoll (getRdKafka k) tm

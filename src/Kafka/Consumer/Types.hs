@@ -28,6 +28,11 @@ newtype ConsumerGroupId = ConsumerGroupId String deriving (Show, Eq)
 newtype Offset          = Offset Int64 deriving (Show, Eq, Read)
 data OffsetReset        = Earliest | Latest deriving (Show, Eq)
 
+data RebalanceEvent =
+    RebalanceAssign [(TopicName, PartitionId)]
+  | RebalanceRevoke [(TopicName, PartitionId)]
+  deriving (Eq, Show)
+
 data PartitionOffset =
     PartitionOffsetBeginning
   | PartitionOffsetEnd

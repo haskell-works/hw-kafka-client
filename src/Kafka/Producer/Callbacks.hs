@@ -15,7 +15,7 @@ import Kafka.Types
 -- | Sets the callback for delivery errors.
 -- The callback is only called in case of errors.
 deliveryErrorsCallback :: (KafkaError -> IO ()) -> KafkaConf -> IO ()
-deliveryErrorsCallback callback (KafkaConf conf _) = rdKafkaConfSetDrMsgCb conf realCb
+deliveryErrorsCallback callback kc = rdKafkaConfSetDrMsgCb (getRdKafkaConf kc) realCb
   where
     realCb :: t -> Ptr RdKafkaMessageT -> IO ()
     realCb _ mptr =

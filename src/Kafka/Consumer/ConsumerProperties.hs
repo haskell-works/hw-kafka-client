@@ -1,18 +1,19 @@
 module Kafka.Consumer.ConsumerProperties
 ( module Kafka.Consumer.ConsumerProperties
-, module Kafka.Consumer.Callbacks
+, module X
 )
 where
 
 --
 import           Control.Monad
-import qualified Data.List                as L
-import           Data.Map                 (Map)
-import qualified Data.Map                 as M
-import           Kafka.Consumer.Callbacks
+import qualified Data.List            as L
+import           Data.Map             (Map)
+import qualified Data.Map             as M
 import           Kafka.Consumer.Types
 import           Kafka.Internal.Setup
 import           Kafka.Types
+
+import Kafka.Consumer.Callbacks as X
 
 -- | Properties to create 'KafkaConsumer'.
 data ConsumerProperties = ConsumerProperties
@@ -30,7 +31,7 @@ instance Monoid ConsumerProperties where
     }
   {-# INLINE mempty #-}
   mappend (ConsumerProperties m1 ll1 cb1) (ConsumerProperties m2 ll2 cb2) =
-    ConsumerProperties (M.union m2 m1) (ll2 `mplus` ll1) (cb2 `mplus` cb1)
+    ConsumerProperties (M.union m2 m1) (ll2 `mplus` ll1) (cb1 `mplus` cb2)
   {-# INLINE mappend #-}
 
 brokersList :: [BrokerAddress] -> ConsumerProperties
