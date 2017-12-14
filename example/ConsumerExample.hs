@@ -12,7 +12,7 @@ consumerProps :: ConsumerProperties
 consumerProps = brokersList [BrokerAddress "localhost:9092"]
              <> groupId (ConsumerGroupId "consumer_example_group")
              <> noAutoCommit
-             <> setCallback (rebalanceCallback (printingRebalanceCallback "ONE!"))
+             <> setCallback (rebalanceCallback printingRebalanceCallback)
              <> setCallback (offsetCommitCallback printingOffsetCallback)
              <> logLevel KafkaLogInfo
 
@@ -39,12 +39,12 @@ processMessages kafka = do
           ) [0 :: Integer .. 10]
     return $ Right ()
 
-printingRebalanceCallback :: String -> KafkaConsumer -> RebalanceEvent -> IO ()
-printingRebalanceCallback s _ e = case e of
+printingRebalanceCallback :: KafkaConsumer -> RebalanceEvent -> IO ()
+printingRebalanceCallback _ e = case e of
     RebalanceAssign ps ->
-        putStrLn $ s <> "[Rebalance] Assign partitions: " <> show ps
+        putStrLn $ "[Rebalance] Assign partitions: " <> show ps
     RebalanceRevoke ps ->
-        putStrLn $ s <> "[Rebalance] Revoke partitions: " <> show ps
+        putStrLn $ "[Rebalance] Revoke partitions: " <> show ps
 
 printingOffsetCallback :: KafkaConsumer -> KafkaError -> [TopicPartition] -> IO ()
 printingOffsetCallback _ e ps = do

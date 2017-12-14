@@ -6,7 +6,7 @@ module Kafka.Consumer
 , assignment, subscription
 , pausePartitions, resumePartitions
 , committed, position, seek
-, pollMessage
+, pollMessage, pollConsumerEvents
 , commitOffsetMessage, commitAllOffsets, commitPartitionsOffsets
 , closeConsumer
 -- ReExport Types
@@ -26,6 +26,7 @@ import qualified Data.ByteString                  as BS
 import           Data.IORef
 import qualified Data.Map                         as M
 import           Data.Maybe                       (fromMaybe)
+import           Data.Monoid                      ((<>))
 import           Foreign                          hiding (void)
 import           Kafka.Consumer.Convert
 import           Kafka.Consumer.Types
@@ -61,7 +62,8 @@ newConsumer :: MonadIO m
             => ConsumerProperties
             -> Subscription
             -> m (Either KafkaError KafkaConsumer)
-newConsumer cp (Subscription ts tp) = liftIO $ do
+newConsumer props (Subscription ts tp) = liftIO $ do
+  let cp = setCallback (rebalanceCallback (\_ _ -> return ())) <> props
   kc@(KafkaConf kc' qref ct) <- newConsumerConf cp
   tp' <- topicConf (TopicProps $ M.toList tp)
   _   <- setDefaultTopicConf kc tp'
@@ -69,7 +71,7 @@ newConsumer cp (Subscription ts tp) = liftIO $ do
   case rdk of
     Left err   -> return . Left $ KafkaError err
     Right rdk' -> do
-      msgq <- newRdKafkaQueue rdk'
+      msgq <- rdKafkaQueueNew rdk'
       writeIORef qref (Just msgq)
       let kafka = KafkaConsumer (Kafka rdk') kc
       redErr <- redirectCallbacksPoll kafka
@@ -191,11 +193,33 @@ position (KafkaConsumer (Kafka k) _) tps = liftIO $ do
     RdKafkaRespErrNoError -> Right <$> fromNativeTopicPartitionList'' ntps
     err                   -> return $ Left (KafkaResponseError err)
 
+-- | Polls the provided kafka consumer for events.
+--
+-- Events will cause application provided callbacks to be called.
+--
+-- The \p timeout_ms argument specifies the maximum amount of time
+-- (in milliseconds) that the call will block waiting for events.
+--
+-- This function is called on each 'pollMessage' and, if runtime allows
+-- multi threading, it is called periodically in a separate thread
+-- to ensure the callbacks are handled ASAP.
+--
+-- There is no particular need to call this function manually
+-- unless some special cases in a single-threaded environment
+-- when polling for events on each 'pollMessage' is not
+-- frequent enough.
+pollConsumerEvents :: KafkaConsumer -> Maybe Timeout -> IO ()
+pollConsumerEvents k timeout =
+  let (Timeout tm) = fromMaybe (Timeout 0) timeout
+  in void $ rdKafkaConsumerPoll (getRdKafka k) tm
 
 -- | Closes the consumer.
 closeConsumer :: MonadIO m => KafkaConsumer -> m (Maybe KafkaError)
-closeConsumer (KafkaConsumer (Kafka k) (KafkaConf _ _ ct)) =
-  liftIO $ CToken.cancel ct >> (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaConsumerClose k
+closeConsumer (KafkaConsumer (Kafka k) (KafkaConf _ qr ct)) = liftIO $ do
+  CToken.cancel ct
+  mbq <- readIORef qr
+  void $ traverse rdKafkaQueueDestroy mbq
+  (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaConsumerClose k
 
 -----------------------------------------------------------------------------
 newConsumerConf :: ConsumerProperties -> IO KafkaConf
@@ -243,7 +267,3 @@ runConsumerLoop k ct timeout =
                 Running   -> pollConsumerEvents k timeout >> go
                 Cancelled -> return ()
 
-pollConsumerEvents :: KafkaConsumer -> Maybe Timeout -> IO ()
-pollConsumerEvents k timeout =
-  let (Timeout tm) = fromMaybe (Timeout 0) timeout
-  in void $ rdKafkaConsumerPoll (getRdKafka k) tm
