@@ -39,19 +39,12 @@ processMessages kafka = do
           ) [0 :: Integer .. 10]
     return $ Right ()
 
-printingRebalanceCallback :: KafkaConsumer -> KafkaError -> [TopicPartition] -> IO ()
-printingRebalanceCallback k e ps =
-    case e of
-        KafkaResponseError RdKafkaRespErrAssignPartitions -> do
-            putStr "[Rebalance] Assign partitions: "
-            mapM_ (print . (tpTopicName &&& tpPartition &&& tpOffset)) ps
-            assign k ps >>= print
-        KafkaResponseError RdKafkaRespErrRevokePartitions -> do
-            putStr "[Rebalance] Revoke partitions: "
-            mapM_ (print . (tpTopicName &&& tpPartition &&& tpOffset)) ps
-            assign k [] >>= print
-        x -> print "Rebalance: UNKNOWN (and unlikely!)" >> print x
-
+printingRebalanceCallback :: KafkaConsumer -> RebalanceEvent -> IO ()
+printingRebalanceCallback _ e = case e of
+    RebalanceAssign ps ->
+        putStrLn $ "[Rebalance] Assign partitions: " <> show ps
+    RebalanceRevoke ps ->
+        putStrLn $ "[Rebalance] Revoke partitions: " <> show ps
 
 printingOffsetCallback :: KafkaConsumer -> KafkaError -> [TopicPartition] -> IO ()
 printingOffsetCallback _ e ps = do

@@ -5,6 +5,7 @@ import Kafka.Types
 
 import Control.Exception
 import Control.Monad
+import Data.IORef
 import Foreign
 import Foreign.C.String
 import Kafka.Internal.CancellationToken
@@ -15,7 +16,7 @@ import Kafka.Internal.CancellationToken
 newtype KafkaProps = KafkaProps [(String, String)] deriving (Show, Eq)
 newtype TopicProps = TopicProps [(String, String)] deriving (Show, Eq)
 newtype Kafka      = Kafka RdKafkaTPtr deriving Show
-data KafkaConf     = KafkaConf RdKafkaConfTPtr CancellationToken
+data KafkaConf     = KafkaConf RdKafkaConfTPtr (IORef (Maybe RdKafkaQueueTPtr)) CancellationToken
 newtype TopicConf  = TopicConf RdKafkaTopicConfTPtr deriving Show
 
 class HasKafka a where
@@ -44,8 +45,13 @@ getRdKafka k = let (Kafka k') = getKafka k in k'
 {-# INLINE getRdKafka #-}
 
 getRdKafkaConf :: HasKafkaConf k => k -> RdKafkaConfTPtr
-getRdKafkaConf k = let (KafkaConf k' _) = getKafkaConf k in k'
+getRdKafkaConf k = let (KafkaConf k' _ _) = getKafkaConf k in k'
 {-# INLINE getRdKafkaConf #-}
+
+getRdMsgQueue :: HasKafkaConf k => k -> IO (Maybe RdKafkaQueueTPtr)
+getRdMsgQueue k =
+  let (KafkaConf _ rq _) = getKafkaConf k
+  in readIORef rq
 
 getRdTopicConf :: HasTopicConf t => t -> RdKafkaTopicConfTPtr
 getRdTopicConf t = let (TopicConf t') = getTopicConf t in t'
@@ -55,7 +61,7 @@ newTopicConf :: IO TopicConf
 newTopicConf = TopicConf <$> newRdKafkaTopicConfT
 
 newKafkaConf :: IO KafkaConf
-newKafkaConf = KafkaConf <$> newRdKafkaConfT <*> newCancellationToken
+newKafkaConf = KafkaConf <$> newRdKafkaConfT <*> newIORef Nothing <*> newCancellationToken
 
 kafkaConf :: KafkaProps -> IO KafkaConf
 kafkaConf overrides = do
@@ -80,7 +86,7 @@ checkConfSetValue err charPtr = case err of
       throw $ KafkaUnknownConfigurationKey str
 
 setKafkaConfValue :: KafkaConf -> String -> String -> IO ()
-setKafkaConfValue (KafkaConf confPtr _) key value =
+setKafkaConfValue (KafkaConf confPtr _ _) key value =
   allocaBytes nErrorBytes $ \charPtr -> do
     err <- rdKafkaConfSet confPtr key value charPtr (fromIntegral nErrorBytes)
     checkConfSetValue err charPtr

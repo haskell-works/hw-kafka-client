@@ -107,7 +107,9 @@ spec = do
                 res <- seek k (Timeout 1000) [TopicPartition testTopic (PartitionId 0) PartitionOffsetEnd]
                 res `shouldBe` Nothing
                 msg <- pollMessage k (Timeout 1000)
-                crOffset <$> msg `shouldBe` Left (KafkaResponseError RdKafkaRespErrPartitionEof)
+                crOffset <$> msg `shouldSatisfy` (\x ->
+                        x == Left (KafkaResponseError RdKafkaRespErrPartitionEof)
+                    ||  x == Left (KafkaResponseError RdKafkaRespErrTimedOut))
 
             it "should respect out-of-bound offsets (invalid offset)" $ \k -> do
                 res <- seek k (Timeout 1000) [TopicPartition testTopic (PartitionId 0) PartitionOffsetInvalid]
