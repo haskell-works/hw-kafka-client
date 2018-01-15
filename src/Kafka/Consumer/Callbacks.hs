@@ -69,18 +69,21 @@ setRebalanceCallback :: (KafkaConsumer -> RebalanceEvent -> IO ())
                           -> KafkaError
                           -> [TopicPartition] -> IO ()
 setRebalanceCallback f k e ps =
-    case e of
-        KafkaResponseError RdKafkaRespErrAssignPartitions -> do
-            mbq <- getRdMsgQueue $ getKafkaConf k
-            case mbq of
-              Nothing -> pure ()
-              Just mq -> forM_ ps (\tp -> redirectPartitionQueue (getKafka k) (tpTopicName tp) (tpPartition tp) mq)
-            void $ assign k ps
-            f k (RebalanceAssign ((tpTopicName &&& tpPartition) <$> ps))
-        KafkaResponseError RdKafkaRespErrRevokePartitions -> do
-            void $ assign k []
-            f k (RebalanceRevoke ((tpTopicName &&& tpPartition) <$> ps))
-        x -> error $ "Rebalance: UNKNOWN response: " <> show x
+  let assignment = (tpTopicName &&& tpPartition) <$> ps
+  in case e of
+    KafkaResponseError RdKafkaRespErrAssignPartitions -> do
+        mbq <- getRdMsgQueue $ getKafkaConf k
+        case mbq of
+          Nothing -> pure ()
+          Just mq -> forM_ ps (\tp -> redirectPartitionQueue (getKafka k) (tpTopicName tp) (tpPartition tp) mq)
+        f k (RebalanceBeforeAssign assignment)
+        void $ assign k ps
+        f k (RebalanceAssign assignment)
+    KafkaResponseError RdKafkaRespErrRevokePartitions -> do
+        f k (RebalanceBeforeRevoke assignment)
+        void $ assign k []
+        f k (RebalanceRevoke assignment)
+    x -> error $ "Rebalance: UNKNOWN response: " <> show x
 
 -- | Assigns specified partitions to a current consumer.
 -- Assigning an empty list means unassigning from all partitions that are currently assigned.

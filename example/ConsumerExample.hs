@@ -41,8 +41,12 @@ processMessages kafka = do
 
 printingRebalanceCallback :: KafkaConsumer -> RebalanceEvent -> IO ()
 printingRebalanceCallback _ e = case e of
+    RebalanceBeforeAssign ps ->
+        putStrLn $ "[Rebalance] About to assign partitions: " <> show ps
     RebalanceAssign ps ->
         putStrLn $ "[Rebalance] Assign partitions: " <> show ps
+    RebalanceBeforeRevoke ps ->
+        putStrLn $ "[Rebalance] About to revoke partitions: " <> show ps
     RebalanceRevoke ps ->
         putStrLn $ "[Rebalance] Revoke partitions: " <> show ps
 

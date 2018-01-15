@@ -28,8 +28,15 @@ newtype ConsumerGroupId = ConsumerGroupId String deriving (Show, Eq)
 newtype Offset          = Offset Int64 deriving (Show, Eq, Read)
 data OffsetReset        = Earliest | Latest deriving (Show, Eq)
 
+-- | A set of events which happen during the rebalancing process
 data RebalanceEvent =
-    RebalanceAssign [(TopicName, PartitionId)]
+    -- | Happens before Kafka Client confirms new assignment
+    RebalanceBeforeAssign [(TopicName, PartitionId)]
+    -- | Happens after the new assignment is confirmed
+  | RebalanceAssign [(TopicName, PartitionId)]
+    -- | Happens before Kafka Client confirms partitions rejection
+  | RebalanceBeforeRevoke [(TopicName, PartitionId)]
+    -- | Happens after the rejection is confirmed
   | RebalanceRevoke [(TopicName, PartitionId)]
   deriving (Eq, Show)
 
