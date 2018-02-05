@@ -95,6 +95,14 @@ topicPartitionFromMessage m =
   let (Offset moff) = crOffset m
    in TopicPartition (crTopic m) (crPartition m) (PartitionOffset moff)
 
+-- | Creates a topic partition message for use with the offset commit message.
+-- We increment the offset by 1 here because when we commit, the offset is the position
+-- the consumer reads from to process the next message.
+topicPartitionFromMessageForCommit :: ConsumerRecord k v -> TopicPartition
+topicPartitionFromMessageForCommit m =
+  let (TopicPartition t p (PartitionOffset moff)) = topicPartitionFromMessage m
+   in TopicPartition t p (PartitionOffset $ moff + 1)
+
 toMap :: Ord k => [(k, v)] -> Map k [v]
 toMap kvs = fromListWith (++) [(k, [v]) | (k, v) <- kvs]
 
