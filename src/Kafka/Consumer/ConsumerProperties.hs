@@ -44,6 +44,11 @@ noAutoCommit :: ConsumerProperties
 noAutoCommit =
   extraProps $ M.fromList [("enable.auto.commit", "false")]
 
+-- | Disables auto offset store for the consumer
+noAutoStore :: ConsumerProperties
+noAutoStore =
+  extraProps $ M.fromList [("enable.auto.offset.store", "false")]
+
 -- | Consumer group id
 groupId :: ConsumerGroupId -> ConsumerProperties
 groupId (ConsumerGroupId cid) =

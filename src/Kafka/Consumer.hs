@@ -8,6 +8,7 @@ module Kafka.Consumer
 , committed, position, seek
 , pollMessage, pollConsumerEvents
 , commitOffsetMessage, commitAllOffsets, commitPartitionsOffsets
+, storeOffsetMessage
 , closeConsumer
 -- ReExport Types
 , KafkaConsumer
@@ -103,6 +104,14 @@ commitOffsetMessage :: MonadIO m
                     -> m (Maybe KafkaError)
 commitOffsetMessage o k m =
   liftIO $ toNativeTopicPartitionList [topicPartitionFromMessageForCommit m] >>= commitOffsets o k
+
+-- | Stores message's offset locally for the message's partition.
+storeOffsetMessage :: MonadIO m
+                    => KafkaConsumer
+                    -> ConsumerRecord k v
+                    -> m (Maybe KafkaError)
+storeOffsetMessage k m =
+  liftIO $ toNativeTopicPartitionList [topicPartitionFromMessageForCommit m] >>= commitOffsetsStore k
 
 -- | Commit offsets for all currently assigned partitions.
 commitAllOffsets :: MonadIO m
@@ -248,6 +257,10 @@ setDefaultTopicConf (KafkaConf kc _ _) (TopicConf tc) =
 commitOffsets :: OffsetCommit -> KafkaConsumer -> RdKafkaTopicPartitionListTPtr -> IO (Maybe KafkaError)
 commitOffsets o (KafkaConsumer (Kafka k) _) pl =
     (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaCommit k pl (offsetCommitToBool o)
+
+commitOffsetsStore :: KafkaConsumer -> RdKafkaTopicPartitionListTPtr -> IO (Maybe KafkaError)
+commitOffsetsStore (KafkaConsumer (Kafka k) _) pl = do
+    (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaOffsetsStore k pl
 
 setConsumerLogLevel :: KafkaConsumer -> KafkaLogLevel -> IO ()
 setConsumerLogLevel (KafkaConsumer (Kafka k) _) level =
