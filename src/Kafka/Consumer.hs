@@ -102,7 +102,7 @@ commitOffsetMessage :: MonadIO m
                     -> ConsumerRecord k v
                     -> m (Maybe KafkaError)
 commitOffsetMessage o k m =
-  liftIO $ toNativeTopicPartitionList [topicPartitionFromMessage m] >>= commitOffsets o k
+  liftIO $ toNativeTopicPartitionList [topicPartitionFromMessageForCommit m] >>= commitOffsets o k
 
 -- | Commit offsets for all currently assigned partitions.
 commitAllOffsets :: MonadIO m

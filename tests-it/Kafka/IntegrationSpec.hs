@@ -4,7 +4,7 @@
 module Kafka.IntegrationSpec
 where
 
-import           Control.Monad       (forM_)
+import           Control.Monad       (forM_, forM)
 import           Control.Monad.Loops
 import qualified Data.ByteString     as BS
 import           Data.Either
@@ -22,6 +22,32 @@ import Test.Hspec
 spec :: Spec
 spec = do
     describe "Kafka.IntegrationSpec" $ do
+        specWithProducer "Run producer" $ do
+            it "sends messages to test topic" $ \prod -> do
+                res    <- sendMessages (testMessages testTopic) prod
+                res `shouldBe` Right ()
+
+        specWithConsumer "Consumer with per-message commit" $ do
+            it "should receive 2 messages" $ \k -> do
+                res <- receiveMessages k
+                length <$> res `shouldBe` Right 2
+
+                comRes <- forM res . mapM $ commitOffsetMessage OffsetCommit k
+                comRes `shouldBe` Right [Nothing, Nothing]
+
+        specWithProducer "Run producer again" $ do
+            it "sends messages to test topic" $ \prod -> do
+                res    <- sendMessages (testMessages testTopic) prod
+                res `shouldBe` Right ()
+
+        specWithConsumer "Consumer after per-message commit" $ do
+            it "should receive 2 messages again" $ \k -> do
+                res <- receiveMessages k
+                comRes <- commitAllOffsets OffsetCommit k
+
+                length <$> res `shouldBe` Right 2
+                comRes `shouldBe` Nothing
+
         specWithProducer "Run producer" $ do
             it "sends messages to test topic" $ \prod -> do
                 res    <- sendMessages (testMessages testTopic) prod
