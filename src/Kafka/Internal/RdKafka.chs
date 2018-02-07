@@ -855,6 +855,10 @@ rdKafkaConsumeStop topicPtr partition = do
   {`RdKafkaTopicTPtr', cIntConv `CInt32T', cIntConv `CInt64T'}
   -> `RdKafkaRespErrT' cIntToEnum #}
 
+{#fun rd_kafka_offsets_store as rdKafkaOffsetsStore
+  {`RdKafkaTPtr', `RdKafkaTopicPartitionListTPtr'}
+  -> `RdKafkaRespErrT' cIntToEnum #}
+
 -- rd_kafka produce
 
 {#fun rd_kafka_produce as ^

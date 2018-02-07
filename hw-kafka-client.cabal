@@ -108,7 +108,6 @@ test-suite tests
                      , hw-kafka-client
                      , monad-loops
                      , hspec
-                     , regex-posix
                      , either
 
 test-suite integration-tests
@@ -126,5 +125,4 @@ test-suite integration-tests
                      , hw-kafka-client
                      , monad-loops
                      , hspec
-                     , regex-posix
                      , either

@@ -21,14 +21,14 @@ import Test.Hspec
 
 spec :: Spec
 spec = do
-    describe "Kafka.IntegrationSpec" $ do
+    describe "Per-message commit" $ do
         specWithProducer "Run producer" $ do
-            it "sends messages to test topic" $ \prod -> do
+            it "1. sends 2 messages to test topic" $ \prod -> do
                 res    <- sendMessages (testMessages testTopic) prod
                 res `shouldBe` Right ()
 
-        specWithConsumer "Consumer with per-message commit" $ do
-            it "should receive 2 messages" $ \k -> do
+        specWithConsumer "Consumer with per-message commit" consumerProps $ do
+            it "2. should receive 2 messages" $ \k -> do
                 res <- receiveMessages k
                 length <$> res `shouldBe` Right 2
 
@@ -36,24 +36,69 @@ spec = do
                 comRes `shouldBe` Right [Nothing, Nothing]
 
         specWithProducer "Run producer again" $ do
-            it "sends messages to test topic" $ \prod -> do
+            it "3. sends 2 messages to test topic" $ \prod -> do
                 res    <- sendMessages (testMessages testTopic) prod
                 res `shouldBe` Right ()
 
-        specWithConsumer "Consumer after per-message commit" $ do
-            it "should receive 2 messages again" $ \k -> do
+        specWithConsumer "Consumer after per-message commit" consumerProps $ do
+            it "4. should receive 2 messages again" $ \k -> do
                 res <- receiveMessages k
                 comRes <- commitAllOffsets OffsetCommit k
 
                 length <$> res `shouldBe` Right 2
                 comRes `shouldBe` Nothing
 
+    describe "Store offsets" $ do
+        specWithProducer "Run producer" $ do
+            it "1. sends 2 messages to test topic" $ \prod -> do
+                res    <- sendMessages (testMessages testTopic) prod
+                res `shouldBe` Right ()
+
+        specWithConsumer "Consumer with no auto store" consumerPropsNoStore $ do
+            it "2. should receive 2 messages without storing" $ \k -> do
+                res <- receiveMessages k
+                length <$> res `shouldBe` Right 2
+
+                comRes <- commitAllOffsets OffsetCommit k
+                comRes `shouldBe` Just (KafkaResponseError RdKafkaRespErrNoOffset)
+
+        specWithProducer "Run producer again" $ do
+            it "3. sends 2 messages to test topic" $ \prod -> do
+                res    <- sendMessages (testMessages testTopic) prod
+                res `shouldBe` Right ()
+
+        specWithConsumer "Consumer after commit without store" consumerPropsNoStore $ do
+            it "4. should receive 4 messages and store them" $ \k -> do
+                res <- receiveMessages k
+                storeRes <- forM res . mapM $ storeOffsetMessage k
+                comRes <- commitAllOffsets OffsetCommit k
+
+                length <$> storeRes `shouldBe` Right 4
+                length <$> res `shouldBe` Right 4
+                comRes `shouldBe` Nothing
+
+        specWithProducer "Run producer again" $ do
+            it "5. sends 2 messages to test topic" $ \prod -> do
+                res    <- sendMessages (testMessages testTopic) prod
+                res `shouldBe` Right ()
+
+        specWithConsumer "Consumer after commit with store" consumerPropsNoStore $ do
+            it "6. should receive 2 messages" $ \k -> do
+                res <- receiveMessages k
+                storeRes <- forM res $ mapM (storeOffsetMessage k)
+                comRes <- commitAllOffsets OffsetCommit k
+
+                length <$> res `shouldBe` Right 2
+                length <$> storeRes `shouldBe` Right 2
+                comRes `shouldBe` Nothing
+
+    describe "Kafka.IntegrationSpec" $ do
         specWithProducer "Run producer" $ do
             it "sends messages to test topic" $ \prod -> do
                 res    <- sendMessages (testMessages testTopic) prod
                 res `shouldBe` Right ()
 
-        specWithConsumer "Run consumer" $ do
+        specWithConsumer "Run consumer" consumerProps $ do
             it "should get committed" $ \k -> do
                 res <- committed k (Timeout 10000) [(testTopic, PartitionId 0)]
                 res `shouldSatisfy` isRight
