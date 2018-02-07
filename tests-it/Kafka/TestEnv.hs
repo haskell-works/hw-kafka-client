@@ -35,7 +35,7 @@ consumerProps broker = C.brokersList [broker]
                     <> noAutoCommit
 
 consumerPropsNoStore :: BrokerAddress -> ConsumerProperties
-consumerPropsNoStore broker = consumerProps broker <> noAutoStore
+consumerPropsNoStore broker = consumerProps broker <> noAutoOffsetStore
 
 producerProps :: BrokerAddress -> ProducerProperties
 producerProps broker = P.brokersList [broker]
