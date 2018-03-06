@@ -67,7 +67,7 @@ data KafkaError =
   | KafkaResponseError RdKafkaRespErrT
   | KafkaInvalidConfigurationValue String
   | KafkaUnknownConfigurationKey String
-  | KakfaBadConfiguration
+  | KafkaBadConfiguration
     deriving (Eq, Show, Typeable)
 
 instance Exception KafkaError
