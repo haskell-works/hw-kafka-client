@@ -16,30 +16,30 @@ module Kafka.Consumer
 )
 where
 
-import           Control.Arrow
-import           Control.Concurrent               (forkIO, rtsSupportsBoundThreads)
-import           Control.Exception
-import           Control.Monad                    (forM_, void, when)
-import           Control.Monad.IO.Class
-import           Control.Monad.Trans.Except
-import           Data.Bifunctor
-import qualified Data.ByteString                  as BS
-import           Data.IORef
-import qualified Data.Map                         as M
-import           Data.Maybe                       (fromMaybe)
-import           Data.Monoid                      ((<>))
-import           Foreign                          hiding (void)
-import           Kafka.Consumer.Convert
-import           Kafka.Consumer.Types
-import           Kafka.Internal.CancellationToken as CToken
-import           Kafka.Internal.RdKafka
-import           Kafka.Internal.Setup
-import           Kafka.Internal.Shared
+import Control.Arrow
+import Control.Exception
+import Control.Monad                    (forM_, void)
+import Control.Monad.IO.Class
+import Control.Monad.Trans.Except
+import Data.Bifunctor
+import Data.IORef
+import Data.Maybe                       (fromMaybe)
+import Data.Monoid                      ((<>))
+import Foreign                          hiding (void)
+import Kafka.Consumer.Convert
+import Kafka.Consumer.Types
+import Kafka.Internal.CancellationToken as CToken
+import Kafka.Internal.RdKafka
+import Kafka.Internal.Setup
+import Kafka.Internal.Shared
 
 import Kafka.Consumer.ConsumerProperties as X
 import Kafka.Consumer.Subscription       as X
 import Kafka.Consumer.Types              as X hiding (KafkaConsumer)
 import Kafka.Types                       as X
+
+import qualified Data.ByteString as BS
+import qualified Data.Map        as M
 
 -- | Runs high-level kafka consumer.
 -- A callback provided is expected to call 'pollMessage' when convenient.
@@ -65,7 +65,7 @@ newConsumer :: MonadIO m
             -> m (Either KafkaError KafkaConsumer)
 newConsumer props (Subscription ts tp) = liftIO $ do
   let cp = setCallback (rebalanceCallback (\_ _ -> return ())) <> props
-  kc@(KafkaConf kc' qref ct) <- newConsumerConf cp
+  kc@(KafkaConf kc' qref _) <- newConsumerConf cp
   tp' <- topicConf (TopicProps $ M.toList tp)
   _   <- setDefaultTopicConf kc tp'
   rdk <- newRdKafkaT RdKafkaConsumer kc'
@@ -82,19 +82,15 @@ newConsumer props (Subscription ts tp) = liftIO $ do
           forM_ (cpLogLevel cp) (setConsumerLogLevel kafka)
           sub <- subscribe kafka ts
           case sub of
-            Nothing  -> runConsumerLoop kafka ct (Just $ Timeout 100) >> return (Right kafka)
+            Nothing  -> return (Right kafka)
             Just err -> closeConsumer kafka >> return (Left err)
 
 pollMessage :: MonadIO m
             => KafkaConsumer
             -> Timeout -- ^ the timeout, in milliseconds
             -> m (Either KafkaError (ConsumerRecord (Maybe BS.ByteString) (Maybe BS.ByteString))) -- ^ Left on error or timeout, right for success
-pollMessage c@(KafkaConsumer _ (KafkaConf _ qr _)) (Timeout ms) = liftIO $ do
---    pollConsumerEvents c Nothing
-    mbq <- readIORef qr
-    case mbq of
-      Nothing -> return . Left $ KafkaBadSpecification "Messages queue is not configured, internal error, fatal."
-      Just q  -> rdKafkaConsumeQueue q (fromIntegral ms) >>= fromMessagePtr
+pollMessage (KafkaConsumer k _) (Timeout ms) =
+  liftIO $ rdKafkaConsumerPoll (getRdKafka k) ms >>= fromMessagePtr
 
 -- | Commit message's offset on broker for the message's partition.
 commitOffsetMessage :: MonadIO m
@@ -270,13 +266,12 @@ redirectCallbacksPoll :: KafkaConsumer -> IO (Maybe KafkaError)
 redirectCallbacksPoll (KafkaConsumer (Kafka k) _) =
   (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaPollSetConsumer k
 
-runConsumerLoop :: KafkaConsumer -> CancellationToken -> Maybe Timeout -> IO ()
-runConsumerLoop k ct timeout =
-    when rtsSupportsBoundThreads $ void $ forkIO go
-    where
-        go = do
-            token <- CToken.status ct
-            case token of
-                Running   -> pollConsumerEvents k timeout >> go
-                Cancelled -> return ()
-
+-- runConsumerLoop :: KafkaConsumer -> CancellationToken -> Maybe Timeout -> IO ()
+-- runConsumerLoop k ct timeout =
+--     when rtsSupportsBoundThreads $ void $ forkIO go
+--     where
+--         go = do
+--             token <- CToken.status ct
+--             case token of
+--                 Running   -> pollConsumerEvents k timeout >> go
+--                 Cancelled -> return ()
