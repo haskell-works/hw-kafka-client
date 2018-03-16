@@ -73,9 +73,6 @@ setRebalanceCallback f k e ps =
   in case e of
     KafkaResponseError RdKafkaRespErrAssignPartitions -> do
         mbq <- getRdMsgQueue $ getKafkaConf k
-        case mbq of
-          Nothing -> pure ()
-          Just mq -> forM_ ps (\tp -> redirectPartitionQueue (getKafka k) (tpTopicName tp) (tpPartition tp) mq)
         f k (RebalanceBeforeAssign assignment)
         void $ assign k ps
         f k (RebalanceAssign assignment)
