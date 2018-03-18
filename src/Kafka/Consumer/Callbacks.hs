@@ -68,21 +68,20 @@ setRebalanceCallback :: (KafkaConsumer -> RebalanceEvent -> IO ())
                           -> KafkaConsumer
                           -> KafkaError
                           -> RdKafkaTopicPartitionListTPtr -> IO ()
-setRebalanceCallback f k e pls =
+setRebalanceCallback f k e pls = do
+  ps <- fromNativeTopicPartitionList'' pls
+  let assignment = (tpTopicName &&& tpPartition) <$> ps
+
   case e of
     KafkaResponseError RdKafkaRespErrAssignPartitions -> do
-        ps <- fromNativeTopicPartitionList'' pls
-        let assignment = (tpTopicName &&& tpPartition) <$> ps
         mbq <- getRdMsgQueue $ getKafkaConf k
         case mbq of
           Nothing -> pure ()
           Just mq -> forM_ ps (\tp -> redirectPartitionQueue (getKafka k) (tpTopicName tp) (tpPartition tp) mq)
         f k (RebalanceBeforeAssign assignment)
-        void $ assign' k pls
+        void $ assign' k pls -- pass as pointer to avoid possible serialisation issues
         f k (RebalanceAssign assignment)
     KafkaResponseError RdKafkaRespErrRevokePartitions -> do
-        ps <- fromNativeTopicPartitionList'' pls
-        let assignment = (tpTopicName &&& tpPartition) <$> ps
         f k (RebalanceBeforeRevoke assignment)
         void $ assign k []
         f k (RebalanceRevoke assignment)
