@@ -35,7 +35,7 @@ rebalanceCallback callback kc@(KafkaConf conf _ _) = rdKafkaConfSetRebalanceCb c
   where
     realCb k err pl = do
       k' <- newForeignPtr_ k
-      pls <- fromNativeTopicPartitionList' pl
+      pls <- newForeignPtr_ pl
       setRebalanceCallback callback (KafkaConsumer (Kafka k') kc) (KafkaResponseError err) pls
 
 -- | Sets a callback that is called when rebalance is needed.
@@ -67,17 +67,19 @@ redirectPartitionQueue (Kafka k) (TopicName t) (PartitionId p) q = do
 setRebalanceCallback :: (KafkaConsumer -> RebalanceEvent -> IO ())
                           -> KafkaConsumer
                           -> KafkaError
-                          -> [TopicPartition] -> IO ()
-setRebalanceCallback f k e ps =
+                          -> RdKafkaTopicPartitionListTPtr -> IO ()
+setRebalanceCallback f k e pls = do
+  ps <- fromNativeTopicPartitionList'' pls
   let assignment = (tpTopicName &&& tpPartition) <$> ps
-  in case e of
+
+  case e of
     KafkaResponseError RdKafkaRespErrAssignPartitions -> do
         mbq <- getRdMsgQueue $ getKafkaConf k
         case mbq of
           Nothing -> pure ()
           Just mq -> forM_ ps (\tp -> redirectPartitionQueue (getKafka k) (tpTopicName tp) (tpPartition tp) mq)
         f k (RebalanceBeforeAssign assignment)
-        void $ assign k ps
+        void $ assign' k pls -- pass as pointer to avoid possible serialisation issues
         f k (RebalanceAssign assignment)
     KafkaResponseError RdKafkaRespErrRevokePartitions -> do
         f k (RebalanceBeforeRevoke assignment)
@@ -94,3 +96,12 @@ assign (KafkaConsumer (Kafka k) _) ps =
                 else toNativeTopicPartitionList ps
         er = KafkaResponseError <$> (pl >>= rdKafkaAssign k)
     in kafkaErrorToMaybe <$> er
+
+-- | Assigns specified partitions to a current consumer.
+-- Assigning an empty list means unassigning from all partitions that are currently assigned.
+assign' :: KafkaConsumer -> RdKafkaTopicPartitionListTPtr -> IO (Maybe KafkaError)
+assign' (KafkaConsumer (Kafka k) _) pls = do
+    let er = KafkaResponseError <$> rdKafkaAssign k pls
+    m <- kafkaErrorToMaybe <$> er
+    return m
+
