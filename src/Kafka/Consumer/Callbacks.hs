@@ -102,7 +102,7 @@ assign (KafkaConsumer (Kafka k) _) ps =
 -- Assigning an empty list means unassigning from all partitions that are currently assigned.
 assign' :: KafkaConsumer -> RdKafkaTopicPartitionListTPtr -> IO (Maybe KafkaError)
 assign' (KafkaConsumer (Kafka k) _) pls = do
-    er <- KafkaResponseError <$> rdKafkaAssign k pls
-    -- let m = kafkaErrorToMaybe <$> er
-    return (Just er)
+    let er = KafkaResponseError <$> rdKafkaAssign k pls
+    m <- kafkaErrorToMaybe <$> er
+    return m
 
