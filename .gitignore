@@ -33,7 +33,6 @@ cabal-dev
 cabal.sandbox.config
 cabal.config
 .stack-work/
-*.cabal
 
 ### Emacs ###
 # -*- mode: gitignore; -*-
