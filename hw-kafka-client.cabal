@@ -1,128 +1,149 @@
-name:                hw-kafka-client
-version:             2.4.1
-homepage:            https://github.com/haskell-works/hw-kafka-client
-bug-reports:         https://github.com/haskell-works/hw-kafka-client/issues
-license:             MIT
-license-file:        LICENSE
-author:              Alexey Raga <alexey.raga@gmail.com>
-maintainer:          Alexey Raga <alexey.raga@gmail.com>
-category:            Database
-build-type:          Simple
-cabal-version:       >=1.10
-synopsis:            Kafka bindings for Haskell
-description:         Apache Kafka bindings backed by the librdkafka C library.
-  .
-  Features include:
-  .
-  * Consumer groups: auto-rebalancing consumers
-  .
-  * Keyed and keyless messages producing/consuming
-  .
-  * Batch producing messages
+-- This file has been generated from package.yaml by hpack version 0.20.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: f7f83e6f591649d7ec42849faac81d2b2d25b361567f88ee217f8d1043cc4165
 
+name:           hw-kafka-client
+version:        2.4.1
+synopsis:       Kafka bindings for Haskell
+description:    Apache Kafka bindings backed by the librdkafka C library.
+                .
+                Features include:
+                .
+                * Consumer groups: auto-rebalancing consumers
+                .
+                * Keyed and keyless messages producing/consuming
+                .
+                * Batch producing messages
+category:       Database
+homepage:       https://github.com/haskell-works/hw-kafka-client
+bug-reports:    https://github.com/haskell-works/hw-kafka-client/issues
+author:         Alexey Raga <alexey.raga@gmail.com>
+maintainer:     Alexey Raga <alexey.raga@gmail.com>
+license:        MIT
+license-file:   LICENSE
+build-type:     Simple
+cabal-version:  >= 1.10
 
-extra-source-files:   README.md
-
-flag examples
-  default: False
-  manual: True
-  description: Also compile examples
+extra-source-files:
+    README.md
 
 source-repository head
-  type:     git
+  type: git
   location: git://github.com/haskell-works/hw-kafka-client.git
 
-executable kafka-client-example
-  main-is:             Main.hs
-  other-modules:       ConsumerExample
-                     , ProducerExample
-  hs-source-dirs:      example
-  default-language:    Haskell2010
-  build-depends:       base >=4.6 && < 5
-                     , bifunctors
-                     , bytestring
-                     , containers
-                     , temporary
-                     , transformers
-                     , unix
-                     , hw-kafka-client
-  ghc-options:       -threaded -rtsopts
-
-  if flag(examples)
-    buildable: True
-  else
-    buildable: False
+flag examples
+  description: Also compile examples
+  manual: True
+  default: False
 
 library
-  Build-tools:       c2hs
-  build-depends:       base >=4.6 && < 5
-                     , bifunctors
-                     , bytestring
-                     , containers
-                     , temporary
-                     , transformers
-                     , unix
-  if impl(ghc < 8.0)
-    build-depends: semigroups
-
-  exposed-modules:
-    Kafka.Consumer
-    Kafka.Consumer.ConsumerProperties
-    Kafka.Consumer.Subscription
-    Kafka.Consumer.Types
-    Kafka.Dump
-    Kafka.Metadata
-    Kafka.Producer
-    Kafka.Producer.ProducerProperties
-    Kafka.Producer.Types
-    Kafka.Types
-  other-modules:
-    Kafka.Callbacks
-    Kafka.Consumer.Callbacks
-    Kafka.Consumer.Convert
-    Kafka.Internal.CancellationToken
-    Kafka.Internal.RdKafka
-    Kafka.Internal.Setup
-    Kafka.Internal.Shared
-    Kafka.Producer.Convert
-    Kafka.Producer.Callbacks
-  hs-source-dirs:      src
-  default-language:    Haskell2010
-  ghc-options:         -Wall
-  extra-libraries:     rdkafka
-  if os(darwin)
+  hs-source-dirs:
+      src
+  ghc-options: -Wall
+  extra-libraries:
+      rdkafka
+  build-depends:
+      base >=4.6 && <5
+    , bifunctors
+    , bytestring
+    , containers
+    , temporary
+    , transformers
+    , unix
+  build-tools:
+      c2hs
+  if impl(ghc <8.0)
+    build-depends:
+        semigroups
+  if os(osx)
     cpp-options: -D__attribute__(A)= -D_Nullable= -D_Nonnull=
+  exposed-modules:
+      Kafka.Consumer
+      Kafka.Consumer.ConsumerProperties
+      Kafka.Consumer.Subscription
+      Kafka.Consumer.Types
+      Kafka.Dump
+      Kafka.Metadata
+      Kafka.Producer
+      Kafka.Producer.ProducerProperties
+      Kafka.Producer.Types
+      Kafka.Types
+  other-modules:
+      Kafka.Callbacks
+      Kafka.Consumer.Callbacks
+      Kafka.Consumer.Convert
+      Kafka.Internal.CancellationToken
+      Kafka.Internal.RdKafka
+      Kafka.Internal.Setup
+      Kafka.Internal.Shared
+      Kafka.Producer.Callbacks
+      Kafka.Producer.Convert
+      Paths_hw_kafka_client
+  default-language: Haskell2010
 
-test-suite tests
-  type:                exitcode-stdio-1.0
-  default-language:    Haskell2010
-  hs-source-dirs:      tests
-  other-modules:       Kafka.Consumer.ConsumerRecordMapSpec
-                     , Kafka.Consumer.ConsumerRecordTraverseSpec
-  main-is:             Spec.hs
-  ghc-options:         -Wall -threaded
-  build-depends:       base >=4.6 && < 5
-                     , bifunctors
-                     , bytestring
-                     , containers
-                     , hw-kafka-client
-                     , monad-loops
-                     , hspec
-                     , either
+executable kafka-client-example
+  main-is: Main.hs
+  hs-source-dirs:
+      example
+  ghc-options: -threaded -rtsopts
+  build-depends:
+      base >=4.6 && <5
+    , bifunctors
+    , bytestring
+    , containers
+    , hw-kafka-client
+    , temporary
+    , transformers
+    , unix
+  if !(flag(examples))
+    buildable: False
+  other-modules:
+      ConsumerExample
+      ProducerExample
+      Paths_hw_kafka_client
+  default-language: Haskell2010
 
 test-suite integration-tests
-  type:                exitcode-stdio-1.0
-  default-language:    Haskell2010
-  hs-source-dirs:      tests-it
-  other-modules:       Kafka.IntegrationSpec
-                     , Kafka.TestEnv
-  main-is:             Spec.hs
-  ghc-options:         -Wall -threaded
-  build-depends:       base >=4.6 && < 5
-                     , bifunctors
-                     , bytestring
-                     , containers
-                     , hw-kafka-client
-                     , monad-loops
-                     , hspec
-                     , either
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  hs-source-dirs:
+      tests-it
+  ghc-options: -Wall -threaded
+  build-depends:
+      base >=4.6 && <5
+    , bifunctors
+    , bytestring
+    , containers
+    , either
+    , hspec
+    , hw-kafka-client
+    , monad-loops
+  other-modules:
+      Kafka.IntegrationSpec
+      Kafka.TestEnv
+      Paths_hw_kafka_client
+  default-language: Haskell2010
+
+test-suite tests
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  hs-source-dirs:
+      tests
+  ghc-options: -Wall -threaded
+  build-depends:
+      base >=4.6 && <5
+    , bifunctors
+    , bytestring
+    , containers
+    , either
+    , hspec
+    , hw-kafka-client
+    , monad-loops
+  other-modules:
+      Kafka.Consumer.ConsumerRecordMapSpec
+      Kafka.Consumer.ConsumerRecordTraverseSpec
+      TestMain
+      Paths_hw_kafka_client
+  default-language: Haskell2010
