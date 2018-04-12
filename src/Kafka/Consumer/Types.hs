@@ -25,7 +25,7 @@ instance HasKafkaConf KafkaConsumer where
   {-# INLINE getKafkaConf #-}
 
 newtype ConsumerGroupId = ConsumerGroupId String deriving (Show, Eq)
-newtype Offset          = Offset Int64 deriving (Show, Eq, Read)
+newtype Offset          = Offset Int64 deriving (Show, Eq, Ord, Read)
 data OffsetReset        = Earliest | Latest deriving (Show, Eq)
 
 -- | A set of events which happen during the rebalancing process
