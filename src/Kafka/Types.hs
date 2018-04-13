@@ -21,7 +21,7 @@ newtype ClientId    = ClientId { unClientId :: String} deriving (Show, Eq, Ord)
 -- be regex-matched to the full list of topics in the cluster and matching
 -- topics will be added to the subscription list.
 newtype TopicName =
-    TopicName { unTimestamp :: String } -- ^ a simple topic name or a regex if started with @^@
+    TopicName { unTopicName :: String } -- ^ a simple topic name or a regex if started with @^@
     deriving (Show, Eq, Ord, Read)
 
 -- | Kafka broker address string (e.g. @broker1:9092@)
