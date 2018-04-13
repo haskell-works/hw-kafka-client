@@ -8,13 +8,11 @@ import Data.Int
 import Data.Typeable
 import Kafka.Internal.RdKafka
 
-newtype BrokerId =
-  BrokerId Int
-  deriving (Show, Eq, Ord, Read)
+newtype BrokerId = BrokerId { unBrokerId :: Int} deriving (Show, Eq, Ord, Read)
 
-newtype PartitionId = PartitionId Int deriving (Show, Eq, Read, Ord, Enum)
-newtype Millis      = Millis Int64 deriving (Show, Read, Eq, Ord, Num)
-newtype ClientId    = ClientId String deriving (Show, Eq, Ord)
+newtype PartitionId = PartitionId { unPartitionId :: Int} deriving (Show, Eq, Read, Ord, Enum)
+newtype Millis      = Millis { unMillis :: Int64 } deriving (Show, Read, Eq, Ord, Num)
+newtype ClientId    = ClientId { unClientId :: String} deriving (Show, Eq, Ord)
 
 -- | Topic name to be consumed
 --
@@ -23,14 +21,14 @@ newtype ClientId    = ClientId String deriving (Show, Eq, Ord)
 -- be regex-matched to the full list of topics in the cluster and matching
 -- topics will be added to the subscription list.
 newtype TopicName =
-    TopicName String -- ^ a simple topic name or a regex if started with @^@
+    TopicName { unTimestamp :: String } -- ^ a simple topic name or a regex if started with @^@
     deriving (Show, Eq, Ord, Read)
 
 -- | Kafka broker address string (e.g. @broker1:9092@)
-newtype BrokerAddress = BrokerAddress String deriving (Show, Eq)
+newtype BrokerAddress = BrokerAddress { unBrokerAddress :: String } deriving (Show, Eq)
 
 -- | Timeout in milliseconds
-newtype Timeout = Timeout Int deriving (Show, Eq, Read)
+newtype Timeout = Timeout { unTimeout :: Int } deriving (Show, Eq, Read)
 
 -- | Log levels for /librdkafka/.
 data KafkaLogLevel =

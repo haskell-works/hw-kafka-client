@@ -24,8 +24,8 @@ instance HasKafkaConf KafkaConsumer where
   getKafkaConf = kcKafkaConf
   {-# INLINE getKafkaConf #-}
 
-newtype ConsumerGroupId = ConsumerGroupId String deriving (Show, Eq)
-newtype Offset          = Offset Int64 deriving (Show, Eq, Ord, Read)
+newtype ConsumerGroupId = ConsumerGroupId { unConsumerGroupId :: String} deriving (Show, Ord, Eq)
+newtype Offset          = Offset { unOffset :: Int64 } deriving (Show, Eq, Ord, Read)
 data OffsetReset        = Earliest | Latest deriving (Show, Eq)
 
 -- | A set of events which happen during the rebalancing process
