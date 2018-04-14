@@ -1,86 +1,110 @@
+defaults: &defaults
+  working_directory: ~/build
+  docker:
+    - image: quay.io/haskell_works/stack-build-python
+
+    - image: confluentinc/cp-zookeeper
+      environment:
+        ZOOKEEPER_CLIENT_PORT: 2181
+
+    - image: confluentinc/cp-kafka
+      environment:
+        KAFKA_ZOOKEEPER_CONNECT: "localhost:2181"
+        KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
+        KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  steps:
+    - checkout
+
+    - restore_cache:
+        keys:
+          - dot-stack-{{ arch }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "package.yaml" }}
+          - dot-stack-{{ arch }}-{{ .Environment.CIRCLE_JOB }}
+
+    - restore_cache:
+        key: stack-work-{{ arch }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "package.yaml" }}
+
+    - restore_cache:
+        key: librdkafka--{{ arch }}-{{ checksum "scripts/build-librdkafka" }}
+
+    - run:
+        name: Build librdkafka
+        command: ./scripts/build-librdkafka
+
+    - save_cache:
+        key: librdkafka--{{ arch }}-{{ checksum "scripts/build-librdkafka" }}
+        paths: ~/build/.librdkafka
+
+    - run: stack setup --resolver ${LTS}
+    - run: stack build --test --no-run-tests --haddock --no-haddock-deps --resolver ${LTS}
+
+    - save_cache:
+        key: dot-stack-{{ arch }}-{{ .Environment.CIRCLE_JOB }}
+        paths:
+          - ~/.stack
+
+    - run:
+        name: Running unit tests
+        command: stack test --resolver ${LTS}
+
+    - save_cache:
+        key: dot-stack-{{ arch }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "package.yaml" }}
+        paths:
+          - ~/.stack
+
+    - save_cache:
+        key: stack-work-{{ arch }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "package.yaml" }}
+        paths: ~/build/.stack-work
+
 version: 2.0
 jobs:
-  build:
-    working_directory: ~/hw-kafka-client
+  lts-7:
+    environment:
+      - LTS: "lts-7"
+    <<: *defaults
+
+  lts-9:
+    environment:
+      - LTS: "lts-9"
+    <<: *defaults
+
+  lts-11:
+    environment:
+      - LTS: "lts-11"
+    <<: *defaults
+
+  nightly:
+    environment:
+      - LTS: "nightly"
+    <<: *defaults
+
+  release:
+    working_directory: ~/build
     docker:
-      - image: fpco/stack-build:latest
-
-      - image: confluentinc/cp-zookeeper
-        environment:
-          ZOOKEEPER_CLIENT_PORT: 2181
-
-      - image: confluentinc/cp-kafka
-        environment:
-          KAFKA_ZOOKEEPER_CONNECT: "localhost:2181"
-          KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
-          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      - image: quay.io/haskell_works/stack-build-python
 
     steps:
       - checkout
 
       - run:
-          name: Copying scripts
-          command: |
-            mkdir -p ~/.local/bin
-            cp ./scripts/* ~/.local/bin
+          name: Making a release
+          command: ./scripts/release
 
-      - restore_cache:
-          keys:
-            - dot-stack-{{ checksum "stack.yaml" }}-{{ checksum "hw-kafka-client.cabal" }}
-            - dot-stack
-      - restore_cache:
-          key: stack-work-{{ checksum "stack.yaml" }}
-      - restore_cache:
-          key: librdkafka-{{ checksum "scripts/build-librdkafka" }}
 
-      - run:
-          name: Build librdkafka
-          command: build-librdkafka
-
-      - run: stack setup
-      - run: stack build --test --no-run-tests --haddock --no-haddock-deps
-
-      - run:
-          name: Copying documentation
-          command: copy-docs
-
-      - run:
-          name: Running unit tests
-          command: stack test
-
-      - save_cache:
-          key: dot-stack-base
-          paths:
-            - ~/.stack
-
-      - save_cache:
-          key: dot-stack-{{ checksum "stack.yaml" }}-{{ checksum "hw-kafka-client.cabal" }}
-          paths:
-            - ~/.stack
-
-      - save_cache:
-          key: stack-work-{{ checksum "stack.yaml" }}
-          paths: ~/hw-kafka-client/.stack-work
-
-      - save_cache:
-          key: librdkafka-{{ checksum "scripts/build-librdkafka" }}
-          paths: ~/hw-kafka-client/.librdkafka
-
-      - store_artifacts:
-          path: /tmp/doc
-
+workflows:
+  version: 2
+  multiple-ghcs:
+    jobs:
+      - lts-7
+      - lts-9
+      - lts-11
+      # - nightly
       - deploy:
-          command: |
-            if [ "$CIRCLE_PROJECT_USERNAME" == "haskell-works" ]; then
-              if [[ "$CIRCLE_BRANCH" == master ]]; then
-                when tag autotag
-              elif [[ "$CIRCLE_TAG" =~ v.* ]]; then
-                setup-cred && publish && publish-docs
-              fi
-            fi
+          requires:
+            - lts-7
+            - lts-9
+            - lts-11
+          filters:
+            branches:
+              only: master
 
-deployment:
-  tagged_builds:
-    tag: /v.*/
-    commands:
-      - echo "Make tags run in 2.0"

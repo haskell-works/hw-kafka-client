@@ -3,12 +3,4 @@ packages:
 - '.'
 extra-deps:
 
-resolver: lts-9.11
-
-docker:
-  enable: false
-  repo: "fpco/stack-build:latest"
-  auto-pull: true
-  env:
-    - "LD_LIBRARY_PATH=.librdkafka/lib"
-    - "LD_INCLUDE_PATH=.librdkafka/include/librdkafka"
+resolver: lts-10.8
