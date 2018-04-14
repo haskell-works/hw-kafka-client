@@ -99,7 +99,7 @@ workflows:
       - lts-9
       - lts-11
       # - nightly
-      - deploy:
+      - release:
           requires:
             - lts-7
             - lts-9
