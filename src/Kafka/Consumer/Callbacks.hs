@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module Kafka.Consumer.Callbacks
 ( rebalanceCallback
 , offsetCommitCallback
@@ -16,6 +17,8 @@ import Kafka.Internal.RdKafka
 import Kafka.Internal.Setup
 import Kafka.Internal.Shared
 import Kafka.Types
+
+import Control.Concurrent (threadDelay)
 
 -- | Sets a callback that is called when rebalance is needed.
 --
@@ -71,13 +74,19 @@ setRebalanceCallback :: (KafkaConsumer -> RebalanceEvent -> IO ())
 setRebalanceCallback f k e pls = do
   ps <- fromNativeTopicPartitionList'' pls
   let assignment = (tpTopicName &&& tpPartition) <$> ps
-
   case e of
     KafkaResponseError RdKafkaRespErrAssignPartitions -> do
         mbq <- getRdMsgQueue $ getKafkaConf k
         case mbq of
           Nothing -> pure ()
-          Just mq -> forM_ ps (\tp -> redirectPartitionQueue (getKafka k) (tpTopicName tp) (tpPartition tp) mq)
+          Just mq -> do
+            forM_ ps (\tp -> redirectPartitionQueue (getKafka k) (tpTopicName tp) (tpPartition tp) mq)
+            -- sleep for 1 second.
+            -- it looks like without it there is not enough time for redirect to happen
+            -- or something similarly strange. I don't understand it.
+            -- If you know WTH is going on PLEASE let me know because the current "fix" is ugly
+            -- and is completely unreasonable :(
+            threadDelay 1000000
         f k (RebalanceBeforeAssign assignment)
         void $ assign' k pls -- pass as pointer to avoid possible serialisation issues
         f k (RebalanceAssign assignment)
@@ -100,8 +109,6 @@ assign (KafkaConsumer (Kafka k) _) ps =
 -- | Assigns specified partitions to a current consumer.
 -- Assigning an empty list means unassigning from all partitions that are currently assigned.
 assign' :: KafkaConsumer -> RdKafkaTopicPartitionListTPtr -> IO (Maybe KafkaError)
-assign' (KafkaConsumer (Kafka k) _) pls = do
-    let er = KafkaResponseError <$> rdKafkaAssign k pls
-    m <- kafkaErrorToMaybe <$> er
-    return m
+assign' (KafkaConsumer (Kafka k) _) pls =
+    (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaAssign k pls
 

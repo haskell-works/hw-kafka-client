@@ -4,7 +4,7 @@
 module Kafka.IntegrationSpec
 where
 
-import           Control.Monad       (forM_, forM)
+import           Control.Monad       (forM, forM_)
 import           Control.Monad.Loops
 import qualified Data.ByteString     as BS
 import           Data.Either
@@ -197,14 +197,21 @@ spec = do
 
 ----------------------------------------------------------------------------------------------------------------
 
+data ReadState = Skip | Read
+
 receiveMessages :: KafkaConsumer -> IO (Either KafkaError [ConsumerRecord (Maybe BS.ByteString) (Maybe BS.ByteString)])
 receiveMessages kafka =
-     (Right . rights) <$> www
-     where
-         www = whileJust maybeMsg return
-         isOK msg = if msg /= Left (KafkaResponseError RdKafkaRespErrPartitionEof) then Just msg else Nothing
-         maybeMsg = isOK <$> get
-         get = pollMessage kafka (Timeout 1000)
+    (Right . rights) <$> allMessages
+    where
+        allMessages =
+            unfoldrM (\s -> do
+                msg <- pollMessage kafka (Timeout 1000)
+                case (s, msg) of
+                    (Skip, Left _)  -> pure $ Just (msg, Skip)
+                    (_, Right msg') -> pure $ Just (Right msg', Read)
+                    (Read, _)       -> pure Nothing
+
+            ) Skip
 
 testMessages :: TopicName -> [ProducerRecord]
 testMessages t =

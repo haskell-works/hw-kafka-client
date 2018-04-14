@@ -259,7 +259,7 @@ commitOffsets o (KafkaConsumer (Kafka k) _) pl =
     (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaCommit k pl (offsetCommitToBool o)
 
 commitOffsetsStore :: KafkaConsumer -> RdKafkaTopicPartitionListTPtr -> IO (Maybe KafkaError)
-commitOffsetsStore (KafkaConsumer (Kafka k) _) pl = do
+commitOffsetsStore (KafkaConsumer (Kafka k) _) pl =
     (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaOffsetsStore k pl
 
 setConsumerLogLevel :: KafkaConsumer -> KafkaLogLevel -> IO ()
@@ -272,11 +272,11 @@ redirectCallbacksPoll (KafkaConsumer (Kafka k) _) =
 
 runConsumerLoop :: KafkaConsumer -> CancellationToken -> Maybe Timeout -> IO ()
 runConsumerLoop k ct timeout =
-    when rtsSupportsBoundThreads $ void $ forkIO go
-    where
-        go = do
-            token <- CToken.status ct
-            case token of
-                Running   -> pollConsumerEvents k timeout >> go
-                Cancelled -> return ()
+  when rtsSupportsBoundThreads $ void $ forkIO go
+  where
+    go = do
+      token <- CToken.status ct
+      case token of
+        Running   -> pollConsumerEvents k timeout >> go
+        Cancelled -> return ()
 
