@@ -9,6 +9,7 @@ import           Control.Monad
 import qualified Data.List            as L
 import           Data.Map             (Map)
 import qualified Data.Map             as M
+import           Data.Semigroup       as Sem
 import           Kafka.Consumer.Types
 import           Kafka.Internal.Setup
 import           Kafka.Types
@@ -22,6 +23,11 @@ data ConsumerProperties = ConsumerProperties
   , cpCallbacks :: [KafkaConf -> IO ()]
   }
 
+instance Sem.Semigroup ConsumerProperties where
+  (ConsumerProperties m1 ll1 cb1) <> (ConsumerProperties m2 ll2 cb2) =
+    ConsumerProperties (M.union m2 m1) (ll2 `mplus` ll1) (cb1 `mplus` cb2)
+  {-# INLINE (<>) #-}
+
 -- | /Right biased/ so we prefer newer properties over older ones.
 instance Monoid ConsumerProperties where
   mempty = ConsumerProperties
@@ -30,8 +36,7 @@ instance Monoid ConsumerProperties where
     , cpCallbacks      = []
     }
   {-# INLINE mempty #-}
-  mappend (ConsumerProperties m1 ll1 cb1) (ConsumerProperties m2 ll2 cb2) =
-    ConsumerProperties (M.union m2 m1) (ll2 `mplus` ll1) (cb1 `mplus` cb2)
+  mappend = (Sem.<>)
   {-# INLINE mappend #-}
 
 brokersList :: [BrokerAddress] -> ConsumerProperties

@@ -8,6 +8,7 @@ import           Control.Monad
 import qualified Data.List                as L
 import           Data.Map                 (Map)
 import qualified Data.Map                 as M
+import           Data.Semigroup           as Sem
 import           Kafka.Internal.Setup
 import           Kafka.Producer.Callbacks
 import           Kafka.Types
@@ -20,6 +21,11 @@ data ProducerProperties = ProducerProperties
   , ppCallbacks  :: [KafkaConf -> IO ()]
   }
 
+instance Sem.Semigroup ProducerProperties where
+  (ProducerProperties k1 t1 ll1 cb1) <> (ProducerProperties k2 t2 ll2 cb2) =
+    ProducerProperties (M.union k2 k1) (M.union t2 t1) (ll2 `mplus` ll1) (cb1 `mplus` cb2)
+  {-# INLINE (<>) #-}
+
 -- | /Right biased/ so we prefer newer properties over older ones.
 instance Monoid ProducerProperties where
   mempty = ProducerProperties
@@ -29,8 +35,7 @@ instance Monoid ProducerProperties where
     , ppCallbacks      = []
     }
   {-# INLINE mempty #-}
-  mappend (ProducerProperties k1 t1 ll1 cb1) (ProducerProperties k2 t2 ll2 cb2) =
-    ProducerProperties (M.union k2 k1) (M.union t2 t1) (ll2 `mplus` ll1) (cb1 `mplus` cb2)
+  mappend = (Sem.<>)
   {-# INLINE mappend #-}
 
 brokersList :: [BrokerAddress] -> ProducerProperties
