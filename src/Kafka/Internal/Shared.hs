@@ -6,7 +6,9 @@ import           Control.Exception
 import           Control.Monad                    (void, when)
 import qualified Data.ByteString                  as BS
 import qualified Data.ByteString.Internal         as BSI
+import           Foreign                          hiding (void)
 import           Foreign.C.Error
+import           Kafka.Consumer.Types
 import           Kafka.Internal.CancellationToken as CToken
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.Setup
@@ -70,3 +72,28 @@ kafkaErrorToMaybe err = case err of
 maybeToLeft :: Maybe a -> Either a ()
 maybeToLeft = maybe (Right ()) Left
 {-# INLINE maybeToLeft #-}
+
+readPayload :: RdKafkaMessageT -> IO (Maybe BS.ByteString)
+readPayload = readBS len'RdKafkaMessageT payload'RdKafkaMessageT
+
+readTopic :: RdKafkaMessageT -> IO String
+readTopic msg = newForeignPtr_ (topic'RdKafkaMessageT msg) >>= rdKafkaTopicName
+
+readKey :: RdKafkaMessageT -> IO (Maybe BSI.ByteString)
+readKey = readBS keyLen'RdKafkaMessageT key'RdKafkaMessageT
+
+readTimestamp :: RdKafkaMessageTPtr -> IO Timestamp
+readTimestamp msg =
+  alloca $ \p -> do
+    typeP <- newForeignPtr_ p
+    ts <- fromIntegral <$> rdKafkaMessageTimestamp msg typeP
+    tsType <- peek p
+    return $ case tsType of
+               RdKafkaTimestampCreateTime    -> CreateTime (Millis ts)
+               RdKafkaTimestampLogAppendTime -> LogAppendTime (Millis ts)
+               RdKafkaTimestampNotAvailable  -> NoTimestamp
+
+readBS :: (t -> Int) -> (t -> Ptr Word8) -> t -> IO (Maybe BS.ByteString)
+readBS flen fdata s = if fdata s == nullPtr
+                        then return Nothing
+                        else Just <$> word8PtrToBS (flen s) (fdata s)
