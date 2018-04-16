@@ -46,9 +46,10 @@ library:
   - Kafka.Producer.Types
   - Kafka.Types
   dependencies:
-  - temporary
   - transformers
   - unix
+  ghc-options:
+    - -Wcompat -Wall
   when:
   - condition: impl(ghc <8.0)
     dependencies:
@@ -66,7 +67,6 @@ executables:
     - -threaded
     - -rtsopts
     dependencies:
-    - temporary
     - transformers
     - unix
     - hw-kafka-client
