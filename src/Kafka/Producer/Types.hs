@@ -41,18 +41,23 @@ data ProducePartition =
   | UnassignedPartition
   deriving (Show, Eq, Ord, Typeable)
 
--- | Represents the report of a successfully delivered message.
-data ProducerSuccess = ProducerSuccess
-  { psTopic     :: !TopicName    -- ^ Kafka topic this message was received from
-  , psPartition :: !PartitionId  -- ^ Kafka partition this message was received from
-  , psOffset    :: !Offset       -- ^ Offset within the 'crPartition' Kafka partition
-  , psKey       :: !(Maybe BS.ByteString)
-  , psValue     :: !(Maybe BS.ByteString)
-  }
-  deriving (Eq, Show, Read, Typeable)
+data DeliveryReport
+  = DeliverySuccess ProducerRecord Offset
+  | DeliveryFailure ProducerRecord KafkaError
+  | NoMessageError KafkaError
 
--- | Represents the failure to deliver a message.
-data ProducerError = ProducerError
-  { peValue :: !(Maybe BS.ByteString)  -- ^ The message that failed.
-  , peError :: KafkaError              -- ^ The reason for the failure.
-  } deriving (Eq, Show)
+-- -- | Represents the report of a successfully delivered message.
+-- data ProducerSuccess = ProducerSuccess
+--   { psTopic     :: !TopicName    -- ^ Kafka topic this message was received from
+--   , psPartition :: !PartitionId  -- ^ Kafka partition this message was received from
+--   , psOffset    :: !Offset       -- ^ Offset within the 'crPartition' Kafka partition
+--   , psKey       :: !(Maybe BS.ByteString)
+--   , psValue     :: !(Maybe BS.ByteString)
+--   }
+--   deriving (Eq, Show, Read, Typeable)
+
+-- -- | Represents the failure to deliver a message.
+-- data ProducerError = ProducerError
+--   { peValue :: !(Maybe BS.ByteString)  -- ^ The message that failed.
+--   , peError :: KafkaError              -- ^ The reason for the failure.
+--   } deriving (Eq, Show)

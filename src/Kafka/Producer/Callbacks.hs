@@ -14,43 +14,38 @@ import           Kafka.Internal.Shared
 import           Kafka.Producer.Types
 import           Kafka.Types
 
--- | Sets the callback for delivery errors.
--- The callback is only called in case of errors.
-deliveryCallback :: (Either ProducerError ProducerSuccess -> IO ()) -> KafkaConf -> IO ()
+-- | Sets the callback for delivery reports.
+deliveryCallback :: (DeliveryReport -> IO ()) -> KafkaConf -> IO ()
 deliveryCallback callback kc = rdKafkaConfSetDrMsgCb (getRdKafkaConf kc) realCb
   where
     realCb :: t -> Ptr RdKafkaMessageT -> IO ()
     realCb _ mptr =
       if mptr == nullPtr
-        then getErrno >>= (callback . Left . errNoMessage . kafkaRespErr)
+        then getErrno >>= (callback . NoMessageError . kafkaRespErr)
         else do
           s <- peek mptr
           if err'RdKafkaMessageT s /= RdKafkaRespErrNoError
-            then do
-              r <- mkErrorReport s
-              callback (Left r)
-            else do
-              r <- mkSuccessReport s
-              callback (Right r)
-    errNoMessage ke = ProducerError { peValue = Nothing, peError = ke }
+            then mkErrorReport s   >>= callback
+            else mkSuccessReport s >>= callback
 
-mkErrorReport :: RdKafkaMessageT -> IO ProducerError
-mkErrorReport p = do
-  payload <- readPayload p
-  pure ProducerError
-    { peError = KafkaResponseError (err'RdKafkaMessageT p)
-    , peValue = payload
-    }
+mkErrorReport :: RdKafkaMessageT -> IO DeliveryReport
+mkErrorReport msg = do
+  prodRec <- mkProdRec msg
+  pure $ DeliveryFailure prodRec (KafkaResponseError (err'RdKafkaMessageT msg))
 
-mkSuccessReport :: RdKafkaMessageT -> IO ProducerSuccess
+mkSuccessReport :: RdKafkaMessageT -> IO DeliveryReport
 mkSuccessReport msg = do
+  prodRec <- mkProdRec msg
+  pure $ DeliverySuccess prodRec (Offset $ offset'RdKafkaMessageT msg)
+
+mkProdRec :: RdKafkaMessageT -> IO ProducerRecord
+mkProdRec msg = do
   topic     <- readTopic msg
   key       <- readKey msg
   payload   <- readPayload msg
-  pure ProducerSuccess
-    { psTopic     = TopicName topic
-    , psPartition = PartitionId $ partition'RdKafkaMessageT msg
-    , psOffset    = Offset $ offset'RdKafkaMessageT msg
-    , psKey       = key
-    , psValue     = payload
+  pure ProducerRecord
+    { prTopic = TopicName topic
+    , prPartition = SpecifiedPartition (partition'RdKafkaMessageT msg)
+    , prKey = key
+    , prValue = payload
     }
