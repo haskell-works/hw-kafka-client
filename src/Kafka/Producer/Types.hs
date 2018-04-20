@@ -45,6 +45,7 @@ data DeliveryReport
   = DeliverySuccess ProducerRecord Offset
   | DeliveryFailure ProducerRecord KafkaError
   | NoMessageError KafkaError
+  deriving (Show, Eq)
 
 -- -- | Represents the report of a successfully delivered message.
 -- data ProducerSuccess = ProducerSuccess

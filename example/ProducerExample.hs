@@ -13,7 +13,7 @@ import Kafka.Producer
 producerProps :: ProducerProperties
 producerProps = brokersList [BrokerAddress "localhost:9092"]
              <> sendTimeout (Timeout 10000)
-             <> setCallback (deliveryErrorsCallback print)
+             <> setCallback (deliveryCallback print)
              <> logLevel KafkaLogDebug
 
 -- Topic to send messages to
