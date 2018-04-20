@@ -68,7 +68,10 @@ data KafkaError =
   | KafkaBadConfiguration
     deriving (Eq, Show, Typeable)
 
-instance Exception KafkaError
+instance Exception KafkaError where
+  displayException (KafkaResponseError err) =
+    "[" ++ rdKafkaErr2name err ++ "] " ++ rdKafkaErr2str err
+  displayException err = show err
 
 data KafkaDebug =
     DebugGeneric

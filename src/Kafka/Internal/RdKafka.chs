@@ -26,7 +26,7 @@ type CCharBufPointer  = Ptr CChar
 
 {#enum rd_kafka_type_t as ^ {underscoreToCase} deriving (Show, Eq) #}
 {#enum rd_kafka_conf_res_t as ^ {underscoreToCase} deriving (Show, Eq) #}
-{#enum rd_kafka_resp_err_t as ^ {underscoreToCase} deriving (Show, Eq) #}
+{#enum rd_kafka_resp_err_t as ^ {underscoreToCase} deriving (Show, Eq, Bounded) #}
 {#enum rd_kafka_timestamp_type_t as ^ {underscoreToCase} deriving (Show, Eq) #}
 
 type RdKafkaMsgFlag = Int
@@ -47,6 +47,9 @@ nErrorBytes = 1024 * 8
     {} -> `String' #}
 
 {#fun pure rd_kafka_err2str as ^
+    {enumToCInt `RdKafkaRespErrT'} -> `String' #}
+
+{#fun pure rd_kafka_err2name as ^
     {enumToCInt `RdKafkaRespErrT'} -> `String' #}
 
 {#fun pure rd_kafka_errno2err as ^
