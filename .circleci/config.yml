@@ -3,11 +3,11 @@ defaults: &defaults
   docker:
     - image: quay.io/haskell_works/stack-build-python
 
-    - image: confluentinc/cp-zookeeper
+    - image: confluentinc/cp-zookeeper:3.1.2
       environment:
         ZOOKEEPER_CLIENT_PORT: 2181
 
-    - image: confluentinc/cp-kafka
+    - image: confluentinc/cp-kafka:3.1.2
       environment:
         KAFKA_ZOOKEEPER_CONNECT: "localhost:2181"
         KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
