@@ -132,24 +132,6 @@ fromMessagePtr ptr =
                 , crValue     = payload
                 }
 
-        readTopic msg = newForeignPtr_ (topic'RdKafkaMessageT msg) >>= rdKafkaTopicName
-        readPayload = readBS len'RdKafkaMessageT payload'RdKafkaMessageT
-        readKey = readBS keyLen'RdKafkaMessageT key'RdKafkaMessageT
-        readTimestamp msg =
-            alloca $ \p -> do
-                typeP <- newForeignPtr_ p
-                ts <- fromIntegral <$> rdKafkaMessageTimestamp msg typeP
-                tsType <- peek p
-                return $ case tsType of
-                    RdKafkaTimestampCreateTime    -> CreateTime (Millis ts)
-                    RdKafkaTimestampLogAppendTime -> LogAppendTime (Millis ts)
-                    RdKafkaTimestampNotAvailable  -> NoTimestamp
-
-        readBS flen fdata s = if fdata s == nullPtr
-                        then return Nothing
-                        else Just <$> word8PtrToBS (flen s) (fdata s)
-
-
 offsetCommitToBool :: OffsetCommit -> Bool
 offsetCommitToBool OffsetCommit      = False
 offsetCommitToBool OffsetCommitAsync = True
