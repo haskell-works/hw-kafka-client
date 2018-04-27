@@ -8,7 +8,7 @@ module Kafka.Consumer
 , committed, position, seek
 , pollMessage, pollConsumerEvents
 , commitOffsetMessage, commitAllOffsets, commitPartitionsOffsets
-, storeOffsetMessage
+, storeOffsets, storeOffsetMessage
 , closeConsumer
 -- ReExport Types
 , KafkaConsumer
@@ -107,11 +107,19 @@ commitOffsetMessage o k m =
 
 -- | Stores message's offset locally for the message's partition.
 storeOffsetMessage :: MonadIO m
-                    => KafkaConsumer
-                    -> ConsumerRecord k v
-                    -> m (Maybe KafkaError)
+                   => KafkaConsumer
+                   -> ConsumerRecord k v
+                   -> m (Maybe KafkaError)
 storeOffsetMessage k m =
   liftIO $ toNativeTopicPartitionList [topicPartitionFromMessageForCommit m] >>= commitOffsetsStore k
+
+-- | Stores offsets locally
+storeOffsets :: MonadIO m
+             => KafkaConsumer
+             -> [TopicPartition]
+             -> m (Maybe KafkaError)
+storeOffsets k ps =
+  liftIO $ toNativeTopicPartitionList ps >>= commitOffsetsStore k
 
 -- | Commit offsets for all currently assigned partitions.
 commitAllOffsets :: MonadIO m
@@ -171,12 +179,11 @@ seek (KafkaConsumer (Kafka k) _) (Timeout timeout) tps = liftIO $
   where
     seekAll = runExceptT $ do
       tr <- traverse (ExceptT . topicPair) tps
-      _  <- traverse (\(kt, p, o) -> ExceptT (rdSeek kt p o)) tr
+      void $ traverse (\(kt, p, o) -> ExceptT (rdSeek kt p o)) tr
       return ()
 
-    rdSeek kt (PartitionId p) o = do
-      res <- rdKafkaSeek kt (fromIntegral p) (offsetToInt64 o) timeout
-      return $ rdKafkaErrorToEither res
+    rdSeek kt (PartitionId p) o =
+      rdKafkaErrorToEither <$> rdKafkaSeek kt (fromIntegral p) (offsetToInt64 o) timeout
 
     topicPair tp = do
       let (TopicName tn) = tpTopicName tp
@@ -228,7 +235,7 @@ closeConsumer (KafkaConsumer (Kafka k) (KafkaConf _ qr ct)) = liftIO $ do
   CToken.cancel ct
   mbq <- readIORef qr
   void $ traverse rdKafkaQueueDestroy mbq
-  (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaConsumerClose k
+  kafkaErrorToMaybe . KafkaResponseError <$> rdKafkaConsumerClose k
 
 -----------------------------------------------------------------------------
 newConsumerConf :: ConsumerProperties -> IO KafkaConf
@@ -256,11 +263,11 @@ setDefaultTopicConf (KafkaConf kc _ _) (TopicConf tc) =
 
 commitOffsets :: OffsetCommit -> KafkaConsumer -> RdKafkaTopicPartitionListTPtr -> IO (Maybe KafkaError)
 commitOffsets o (KafkaConsumer (Kafka k) _) pl =
-    (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaCommit k pl (offsetCommitToBool o)
+    kafkaErrorToMaybe . KafkaResponseError <$> rdKafkaCommit k pl (offsetCommitToBool o)
 
 commitOffsetsStore :: KafkaConsumer -> RdKafkaTopicPartitionListTPtr -> IO (Maybe KafkaError)
 commitOffsetsStore (KafkaConsumer (Kafka k) _) pl =
-    (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaOffsetsStore k pl
+    kafkaErrorToMaybe . KafkaResponseError <$> rdKafkaOffsetsStore k pl
 
 setConsumerLogLevel :: KafkaConsumer -> KafkaLogLevel -> IO ()
 setConsumerLogLevel (KafkaConsumer (Kafka k) _) level =
@@ -268,7 +275,7 @@ setConsumerLogLevel (KafkaConsumer (Kafka k) _) level =
 
 redirectCallbacksPoll :: KafkaConsumer -> IO (Maybe KafkaError)
 redirectCallbacksPoll (KafkaConsumer (Kafka k) _) =
-  (kafkaErrorToMaybe . KafkaResponseError) <$> rdKafkaPollSetConsumer k
+  kafkaErrorToMaybe . KafkaResponseError <$> rdKafkaPollSetConsumer k
 
 runConsumerLoop :: KafkaConsumer -> CancellationToken -> Maybe Timeout -> IO ()
 runConsumerLoop k ct timeout =
