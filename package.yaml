@@ -1,5 +1,5 @@
 name: hw-kafka-client
-version: '2.4.3'
+version: '2.4.4'
 synopsis: Kafka bindings for Haskell
 description: ! 'Apache Kafka bindings backed by the librdkafka C library.
 
