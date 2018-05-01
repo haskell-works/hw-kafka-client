@@ -83,6 +83,17 @@ toNativeTopicPartitionList ps = do
         rdKafkaTopicPartitionListSetOffset pl tn tp to) ps
     return pl
 
+toNativeTopicPartitionListNoDispose :: [TopicPartition] -> IO RdKafkaTopicPartitionListTPtr
+toNativeTopicPartitionListNoDispose ps = do
+    pl <- rdKafkaTopicPartitionListNew (length ps)
+    mapM_ (\p -> do
+        let TopicName tn = tpTopicName p
+            (PartitionId tp) = tpPartition p
+            to = offsetToInt64 $ tpOffset p
+        _ <- rdKafkaTopicPartitionListAdd pl tn tp
+        rdKafkaTopicPartitionListSetOffset pl tn tp to) ps
+    return pl
+
 toNativeTopicPartitionList' :: [(TopicName, PartitionId)] -> IO RdKafkaTopicPartitionListTPtr
 toNativeTopicPartitionList' tps = do
     let utps = S.toList . S.fromList $ tps
@@ -100,8 +111,9 @@ topicPartitionFromMessage m =
 -- the consumer reads from to process the next message.
 topicPartitionFromMessageForCommit :: ConsumerRecord k v -> TopicPartition
 topicPartitionFromMessageForCommit m =
-  let (TopicPartition t p (PartitionOffset moff)) = topicPartitionFromMessage m
-   in TopicPartition t p (PartitionOffset $ moff + 1)
+  case topicPartitionFromMessage m of
+    (TopicPartition t p (PartitionOffset moff)) -> TopicPartition t p (PartitionOffset $ moff + 1)
+    other                                       -> other
 
 toMap :: Ord k => [(k, v)] -> Map k [v]
 toMap kvs = fromListWith (++) [(k, [v]) | (k, v) <- kvs]
@@ -109,7 +121,7 @@ toMap kvs = fromListWith (++) [(k, [v]) | (k, v) <- kvs]
 fromMessagePtr :: RdKafkaMessageTPtr -> IO (Either KafkaError (ConsumerRecord (Maybe BS.ByteString) (Maybe BS.ByteString)))
 fromMessagePtr ptr =
     withForeignPtr ptr $ \realPtr ->
-    if realPtr == nullPtr then (Left . kafkaRespErr) <$> getErrno
+    if realPtr == nullPtr then Left . kafkaRespErr <$> getErrno
     else do
         s <- peek realPtr
         msg <- if err'RdKafkaMessageT s /= RdKafkaRespErrNoError

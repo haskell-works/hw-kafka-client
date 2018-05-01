@@ -537,6 +537,15 @@ rdKafkaQueueGetPartition k t p = do
             addForeignPtrFinalizer rdKafkaQueueDestroyF ret
             return $ Just ret
 
+{#fun rd_kafka_consume_batch_queue as rdKafkaConsumeBatchQueue'
+  {`RdKafkaQueueTPtr', `Int', castPtr `Ptr (Ptr RdKafkaMessageT)', cIntConv `CSize'}
+  -> `CSize' cIntConv #}
+
+rdKafkaConsumeBatchQueue :: RdKafkaQueueTPtr -> Int -> Int -> IO [RdKafkaMessageTPtr]
+rdKafkaConsumeBatchQueue qptr timeout batchSize = do
+  allocaArray batchSize $ \pArr -> do
+    rSize <- rdKafkaConsumeBatchQueue' qptr timeout pArr (fromIntegral batchSize)
+    peekArray (fromIntegral rSize) pArr >>= traverse newForeignPtr_
 
 -------------------------------------------------------------------------------------------------
 ---- High-level KafkaConsumer
@@ -739,6 +748,9 @@ instance Storable RdKafkaTimestampTypeT where
   alignment _ = {#alignof rd_kafka_timestamp_type_t#}
   peek p      = cIntToEnum <$> peek (castPtr p)
   poke p x    = poke (castPtr p) (enumToCInt x)
+
+{#fun rd_kafka_message_timestamp as rdKafkaReadTimestamp'
+    {castPtr `Ptr RdKafkaMessageT', `RdKafkaTimestampTypeTPtr'} -> `CInt64T' cIntConv #}
 
 {#fun rd_kafka_message_timestamp as ^
     {`RdKafkaMessageTPtr', `RdKafkaTimestampTypeTPtr'} -> `CInt64T' cIntConv #}

@@ -9,6 +9,7 @@ import           Control.Monad.Loops
 import qualified Data.ByteString     as BS
 import           Data.Either
 import           Data.Map
+import           Data.Monoid         ((<>))
 
 import Kafka.Consumer as C
 import Kafka.Metadata as M
@@ -92,6 +93,20 @@ spec = do
                 length <$> storeRes `shouldBe` Right 2
                 comRes `shouldBe` Nothing
 
+        specWithKafka "Part 3 - Consume after committing stored offsets" consumerPropsNoStore $ do
+            it "5. sends 2 messages to test topic" $ \(_, prod) -> do
+                res    <- sendMessages (testMessages testTopic) prod
+                res `shouldBe` Right ()
+
+            it "6. should receive 2 messages" $ \(k, _) -> do
+                res <- receiveMessages k
+                storeRes <- forM res $ mapM (storeOffsetMessage k)
+                comRes <- commitAllOffsets OffsetCommit k
+
+                length <$> res `shouldBe` Right 2
+                length <$> storeRes `shouldBe` Right 2
+                comRes `shouldBe` Nothing
+
     describe "Kafka.IntegrationSpec" $ do
         specWithProducer "Run producer" $ do
             it "sends messages to test topic" $ \prod -> do
@@ -100,7 +115,7 @@ spec = do
 
         specWithConsumer "Run consumer" consumerProps $ do
             it "should get committed" $ \k -> do
-                res <- committed k (Timeout 10000) [(testTopic, PartitionId 0)]
+                res <- committed k (Timeout 1000) [(testTopic, PartitionId 0)]
                 res `shouldSatisfy` isRight
 
             it "should get position" $ \k -> do
@@ -194,14 +209,29 @@ spec = do
                 msg <- pollMessage k (Timeout 1000)
                 crOffset <$> msg `shouldBe` Right (Offset 0)
 
+    describe "Kafka.Consumer.BatchSpec" $ do
+        specWithConsumer "Batch consumer" (consumerProps <> groupId (ConsumerGroupId "batch-consumer")) $ do
+            it "should consume first batch" $ \k -> do
+                res <- pollMessageBatch k (Timeout 1000) (BatchSize 5)
+                length res `shouldBe` 5
+                forM_ res (`shouldSatisfy` isRight)
 
+            it "should consume second batch with not enough messages" $ \k -> do
+                res <- pollMessageBatch k (Timeout 1000) (BatchSize 50)
+                let res' = Prelude.filter (/= Left (KafkaResponseError RdKafkaRespErrPartitionEof)) res
+                length res' `shouldSatisfy` (< 50)
+                forM_ res' (`shouldSatisfy` isRight)
+
+            it "should consume empty batch when there are no messages" $ \k -> do
+                res <- pollMessageBatch k (Timeout 1000) (BatchSize 50)
+                length res `shouldBe` 0
 ----------------------------------------------------------------------------------------------------------------
 
 data ReadState = Skip | Read
 
 receiveMessages :: KafkaConsumer -> IO (Either KafkaError [ConsumerRecord (Maybe BS.ByteString) (Maybe BS.ByteString)])
 receiveMessages kafka =
-    (Right . rights) <$> allMessages
+    Right . rights <$> allMessages
     where
         allMessages =
             unfoldrM (\s -> do
@@ -221,4 +251,4 @@ testMessages t =
 
 sendMessages :: [ProducerRecord] -> KafkaProducer -> IO (Either KafkaError ())
 sendMessages msgs prod =
-  Right <$> forM_ msgs (produceMessage prod)
+  Right <$> (forM_ msgs (produceMessage prod) >> flushProducer prod)

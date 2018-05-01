@@ -7,6 +7,7 @@ module Kafka.Consumer
 , pausePartitions, resumePartitions
 , committed, position, seek
 , pollMessage, pollConsumerEvents
+, pollMessageBatch
 , commitOffsetMessage, commitAllOffsets, commitPartitionsOffsets
 , storeOffsets, storeOffsetMessage
 , closeConsumer
@@ -90,11 +91,26 @@ pollMessage :: MonadIO m
             -> Timeout -- ^ the timeout, in milliseconds
             -> m (Either KafkaError (ConsumerRecord (Maybe BS.ByteString) (Maybe BS.ByteString))) -- ^ Left on error or timeout, right for success
 pollMessage c@(KafkaConsumer _ (KafkaConf _ qr _)) (Timeout ms) = liftIO $ do
-    pollConsumerEvents c Nothing
-    mbq <- readIORef qr
-    case mbq of
-      Nothing -> return . Left $ KafkaBadSpecification "Messages queue is not configured, internal error, fatal."
-      Just q  -> rdKafkaConsumeQueue q (fromIntegral ms) >>= fromMessagePtr
+  pollConsumerEvents c Nothing
+  mbq <- readIORef qr
+  case mbq of
+    Nothing -> return . Left $ KafkaBadSpecification "Messages queue is not configured, internal error, fatal."
+    Just q  -> rdKafkaConsumeQueue q (fromIntegral ms) >>= fromMessagePtr
+
+-- | Polls up to BatchSize messages.
+-- Unlike 'pollMessage' this function does not return usual "timeout" errors.
+-- An empty batch is returned when there are no messages available.
+pollMessageBatch :: MonadIO m
+                 => KafkaConsumer
+                 -> Timeout
+                 -> BatchSize
+                 -> m [Either KafkaError (ConsumerRecord (Maybe BS.ByteString) (Maybe BS.ByteString))]
+pollMessageBatch c@(KafkaConsumer _ (KafkaConf _ qr _)) (Timeout ms) (BatchSize b) = liftIO $ do
+  pollConsumerEvents c Nothing
+  mbq <- readIORef qr
+  case mbq of
+    Nothing -> return [Left $ KafkaBadSpecification "Messages queue is not configured, internal error, fatal."]
+    Just q  -> rdKafkaConsumeBatchQueue q ms b >>= traverse fromMessagePtr
 
 -- | Commit message's offset on broker for the message's partition.
 commitOffsetMessage :: MonadIO m
@@ -111,7 +127,7 @@ storeOffsetMessage :: MonadIO m
                    -> ConsumerRecord k v
                    -> m (Maybe KafkaError)
 storeOffsetMessage k m =
-  liftIO $ toNativeTopicPartitionList [topicPartitionFromMessageForCommit m] >>= commitOffsetsStore k
+  liftIO $ toNativeTopicPartitionListNoDispose [topicPartitionFromMessageForCommit m] >>= commitOffsetsStore k
 
 -- | Stores offsets locally
 storeOffsets :: MonadIO m
@@ -119,7 +135,7 @@ storeOffsets :: MonadIO m
              -> [TopicPartition]
              -> m (Maybe KafkaError)
 storeOffsets k ps =
-  liftIO $ toNativeTopicPartitionList ps >>= commitOffsetsStore k
+  liftIO $ toNativeTopicPartitionListNoDispose ps >>= commitOffsetsStore k
 
 -- | Commit offsets for all currently assigned partitions.
 commitAllOffsets :: MonadIO m
