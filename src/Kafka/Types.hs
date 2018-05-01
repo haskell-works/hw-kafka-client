@@ -13,6 +13,7 @@ newtype BrokerId = BrokerId { unBrokerId :: Int} deriving (Show, Eq, Ord, Read)
 newtype PartitionId = PartitionId { unPartitionId :: Int} deriving (Show, Eq, Read, Ord, Enum)
 newtype Millis      = Millis { unMillis :: Int64 } deriving (Show, Read, Eq, Ord, Num)
 newtype ClientId    = ClientId { unClientId :: String} deriving (Show, Eq, Ord)
+newtype BatchSize   = BatchSize { unBatchSize :: Int } deriving (Show, Read, Eq, Ord, Num)
 
 -- | Topic name to be consumed
 --

@@ -9,8 +9,9 @@ import Data.Monoid        ((<>))
 import System.Environment
 import System.IO.Unsafe
 
-import Kafka.Consumer as C
-import Kafka.Producer as P
+import Control.Concurrent
+import Kafka.Consumer     as C
+import Kafka.Producer     as P
 
 import Test.Hspec
 
@@ -27,20 +28,20 @@ testTopic = unsafePerformIO $
 testGroupId :: ConsumerGroupId
 testGroupId = ConsumerGroupId "it_spec_03"
 
-consumerProps :: BrokerAddress -> ConsumerProperties
-consumerProps broker = C.brokersList [broker]
-                    <> groupId testGroupId
-                    <> C.setCallback (logCallback (\l s1 s2 -> print $ show l <> ": " <> s1 <> ", " <> s2))
-                    <> C.setCallback (errorCallback (\e r -> print $ show e <> ": " <> r))
-                    <> noAutoCommit
+consumerProps :: ConsumerProperties
+consumerProps =  C.brokersList [brokerAddress]
+              <> groupId testGroupId
+              <> C.setCallback (logCallback (\l s1 s2 -> print $ show l <> ": " <> s1 <> ", " <> s2))
+              <> C.setCallback (errorCallback (\e r -> print $ show e <> ": " <> r))
+              <> noAutoCommit
 
-consumerPropsNoStore :: BrokerAddress -> ConsumerProperties
-consumerPropsNoStore broker = consumerProps broker <> noAutoOffsetStore
+consumerPropsNoStore :: ConsumerProperties
+consumerPropsNoStore = consumerProps <> noAutoOffsetStore
 
-producerProps :: BrokerAddress -> ProducerProperties
-producerProps broker = P.brokersList [broker]
-                    <> P.setCallback (logCallback (\l s1 s2 -> print $ show l <> ": " <> s1 <> ", " <> s2))
-                    <> P.setCallback (errorCallback (\e r -> print $ show e <> ": " <> r))
+producerProps :: ProducerProperties
+producerProps =  P.brokersList [brokerAddress]
+              <> P.setCallback (logCallback (\l s1 s2 -> print $ show l <> ": " <> s1 <> ", " <> s2))
+              <> P.setCallback (errorCallback (\e r -> print $ show e <> ": " <> r))
 
 testSubscription :: TopicName -> Subscription
 testSubscription t = topics [t]
@@ -48,16 +49,30 @@ testSubscription t = topics [t]
 
 mkProducer :: IO KafkaProducer
 mkProducer = do
-    (Right p) <- newProducer (producerProps brokerAddress)
+    (Right p) <- newProducer producerProps
     return p
 
-mkConsumerWith :: (BrokerAddress -> ConsumerProperties) -> IO KafkaConsumer
+mkConsumerWith :: ConsumerProperties -> IO KafkaConsumer
 mkConsumerWith props = do
-    (Right c) <- newConsumer (props brokerAddress) (testSubscription testTopic)
-    return c
+  waitVar <- newEmptyMVar
+  let props' = props <> C.setCallback (rebalanceCallback (\_ -> rebCallback waitVar))
+  (Right c) <- newConsumer props' (testSubscription testTopic)
+  _ <- readMVar waitVar
+  return c
+  where
+    rebCallback var evt = case evt of
+      (RebalanceAssign _) -> putMVar var True
+      _                   -> pure ()
 
-specWithConsumer :: String -> (BrokerAddress -> ConsumerProperties) -> SpecWith KafkaConsumer -> Spec
+
+specWithConsumer :: String -> ConsumerProperties -> SpecWith KafkaConsumer -> Spec
 specWithConsumer s p f = beforeAll (mkConsumerWith p) $ afterAll (void . closeConsumer) $ describe s f
 
 specWithProducer :: String -> SpecWith KafkaProducer -> Spec
 specWithProducer s f = beforeAll mkProducer $ afterAll (void . closeProducer) $ describe s f
+
+specWithKafka :: String -> ConsumerProperties -> SpecWith (KafkaConsumer, KafkaProducer) -> Spec
+specWithKafka s p f =
+  beforeAll ((,) <$> mkConsumerWith p <*> mkProducer)
+    $ afterAll (\(consumer, producer) -> void $ closeProducer producer >> closeConsumer consumer)
+    $ describe s f
