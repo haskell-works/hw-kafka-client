@@ -1,13 +1,4 @@
-# This is the complex Travis configuration, which is intended for use
-# on open source libraries which need compatibility across multiple GHC
-# versions, must work with cabal-install, and should be
-# cross-platform. For more information and other options, see:
-#
 # https://docs.haskellstack.org/en/stable/travis_ci/
-#
-# Copy these contents into the root directory of your Github project in a file
-# named .travis.yml
-
 # Use new container infrastructure to enable caching
 sudo: true
 dist: trusty
@@ -23,109 +14,68 @@ cache:
   - $HOME/.ghc
   - $HOME/.cabal
   - $HOME/.stack
-  - $TRAVIS_BUILD_DIR/.librdkafka
-  - $TRAVIS_BUILD_DIR/.stack-work
 
-# The different configurations we want to test. We have BUILD=cabal which uses
-# cabal-install, and BUILD=stack which uses Stack. More documentation on each
-# of those below.
-#
-# We set the compiler values here to tell Travis to use a different
-# cache file per set of arguments.
-#
-# If you need to have different apt packages for each combination in the
-# matrix, you can use a line such as:
-#     addons: {apt: {packages: [libfcgi-dev,libgmp-dev]}}
+addons:
+  apt:
+    packages: &apt_packages
+      - ghc-ppa-tools
+      - freeglut3-dev
+      - alex-3.1.7
+      - happy-1.19.5
+
 matrix:
   include:
-  # We grab the appropriate GHC and cabal-install versions from hvr's PPA. See:
-  # https://github.com/hvr/multi-ghc-travis
-  #- env: BUILD=cabal GHCVER=7.0.4 CABALVER=1.16 HAPPYVER=1.19.5 ALEXVER=3.1.7
-  #  compiler: ": #GHC 7.0.4"
-  #  addons: {apt: {packages: [cabal-install-1.16,ghc-7.0.4,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
-  #- env: BUILD=cabal GHCVER=7.2.2 CABALVER=1.16 HAPPYVER=1.19.5 ALEXVER=3.1.7
-  #  compiler: ": #GHC 7.2.2"
-  #  addons: {apt: {packages: [cabal-install-1.16,ghc-7.2.2,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
-  #- env: BUILD=cabal GHCVER=7.4.2 CABALVER=1.16 HAPPYVER=1.19.5 ALEXVER=3.1.7
-  #  compiler: ": #GHC 7.4.2"
-  #  addons: {apt: {packages: [cabal-install-1.16,ghc-7.4.2,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
-  # - env: BUILD=cabal GHCVER=7.6.3 CABALVER=1.16 HAPPYVER=1.19.5 ALEXVER=3.1.7
-  #   compiler: ": #GHC 7.6.3"
-  #   addons: {apt: {packages: [cabal-install-1.16,ghc-7.6.3,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
-  # - env: BUILD=cabal GHCVER=7.8.4 CABALVER=1.18 HAPPYVER=1.19.5 ALEXVER=3.1.7
-  #   compiler: ": #GHC 7.8.4"
-  #   addons: {apt: {packages: [cabal-install-1.18,ghc-7.8.4,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
-  - env: BUILD=cabal GHCVER=7.10.3 CABALVER=1.22 HAPPYVER=1.19.5 ALEXVER=3.1.7
-    compiler: ": #GHC 7.10.3"
-    addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
-  - env: BUILD=cabal GHCVER=8.0.1 CABALVER=1.24 HAPPYVER=1.19.5 ALEXVER=3.1.7
-    compiler: ": #GHC 8.0.1"
-    addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.1,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
-  - env: BUILD=cabal GHCVER=8.0.2 CABALVER=1.24 HAPPYVER=1.19.5 ALEXVER=3.1.7
+  - env: BUILD=cabal GHCVER=8.0.2
     compiler: ": #GHC 8.0.2"
-    addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.2,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
+    addons: {apt: {packages: [*apt_packages,cabal-install-2.0,ghc-8.0.2], sources: [hvr-ghc]}}
+  - env: BUILD=cabal GHCVER=8.2.2
+    compiler: ": #GHC 8.2.2"
+    addons: {apt: {packages: [*apt_packages,cabal-install-2.0,ghc-8.2.2], sources: [hvr-ghc]}}
 
   # Build with the newest GHC and cabal-install. This is an accepted failure,
   # see below.
-  - env: BUILD=cabal GHCVER=head  CABALVER=head HAPPYVER=1.19.5 ALEXVER=3.1.7
+  - env: BUILD=cabal GHCVER=head
     compiler: ": #GHC HEAD"
-    addons: {apt: {packages: [cabal-install-head,ghc-head,happy-1.19.5,alex-3.1.7], sources: [hvr-ghc]}}
-
-  # The Stack builds. We can pass in arbitrary Stack arguments via the ARGS
-  # variable, such as using --stack-yaml to point to a different file.
-  - env: BUILD=stack ARGS=""
-    compiler: ": #stack default"
-    addons: {apt: {packages: [libgmp-dev]}}
-
-  - env: BUILD=stack ARGS="--resolver lts-6"
-    compiler: ": #stack 7.10.3"
-    addons: {apt: {packages: [libgmp-dev]}}
-
-  - env: BUILD=stack ARGS="--resolver lts-7"
-    compiler: ": #stack 8.0.1"
-    addons: {apt: {packages: [libgmp-dev]}}
-
-  - env: BUILD=stack ARGS="--resolver lts-8"
-    compiler: ": #stack 8.0.2"
-    addons: {apt: {packages: [libgmp-dev]}}
+    addons: {apt: {packages: [*apt_packages,cabal-install-head,ghc-head], sources: [hvr-ghc]}}
 
   # Nightly builds are allowed to fail
-  - env: BUILD=stack ARGS="--resolver nightly"
-    compiler: ": #stack nightly"
-    addons: {apt: {packages: [libgmp-dev]}}
+  # - env: BUILD=stack ARGS="--resolver nightly"
+  #   compiler: ": #stack nightly"
+  #   addons: {apt: {packages: [libgmp-dev]}}
 
   # Build on macOS in addition to Linux
   - env: BUILD=stack ARGS=""
     compiler: ": #stack default osx"
     os: osx
 
-  - env: BUILD=stack ARGS="--resolver lts-6"
-    compiler: ": #stack 7.10.3 osx"
-    os: osx
-
   - env: BUILD=stack ARGS="--resolver lts-7"
-    compiler: ": #stack 8.0.1 osx"
-    os: osx
-
-  - env: BUILD=stack ARGS="--resolver lts-8"
     compiler: ": #stack 8.0.2 osx"
     os: osx
 
-  # Nightly builds are allowed to fail
+  - env: BUILD=stack ARGS="--resolver lts-9"
+    compiler: ": #stack 8.2.2 osx"
+    os: osx
+
+  - env: BUILD=stack ARGS="--resolver lts-11"
+    compiler: ": #stack 8.2.2 osx"
+    os: osx
+
   - env: BUILD=stack ARGS="--resolver nightly"
     compiler: ": #stack nightly osx"
     os: osx
 
   allow_failures:
-  - env: BUILD=cabal GHCVER=7.10.3 CABALVER=1.22 HAPPYVER=1.19.5 ALEXVER=3.1.7
-  - env: BUILD=cabal GHCVER=head  CABALVER=head HAPPYVER=1.19.5 ALEXVER=3.1.7
-  - env: BUILD=stack ARGS="--resolver nightly"
+  - env: BUILD=cabal GHCVER=head
+  # - env: BUILD=stack ARGS="--resolver nightly"
 
 before_install:
 # Using compiler above sets CC to an invalid value, so unset it
 - unset CC
 
-- export DOCKER_IP=`ifconfig | grep "inet addr:" | grep "Bcast:0.0.0.0" | cut -d ':' -f2 | awk '{ print $1}'`
+- export HAPPYVER=1.19.5
+- export ALEXVER=3.1.7
+
+- export LD_LIBRARY_PATH=/usr/local/lib
 
 # - docker-compose --version
 
@@ -134,7 +84,7 @@ before_install:
 - if [ "x$GHCVER" = "xhead" ]; then CABALARGS=--allow-newer; fi
 
 # Download and unpack the stack executable
-- export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$HOME/.local/bin:/opt/alex/$ALEXVER/bin:/opt/happy/$HAPPYVER/bin:$HOME/.cabal/bin:$PATH
+- export PATH=/opt/ghc/bin:/opt/ghc-ppa-tools/bin:$HOME/.local/bin:/opt/alex/$ALEXVER/bin:/opt/happy/$HAPPYVER/bin:$HOME/.cabal/bin:$PATH
 - mkdir -p ~/.local/bin
 - |
   if [ `uname` = "Darwin" ]
@@ -149,11 +99,6 @@ before_install:
   echo 'remote-repo: hackage.haskell.org:http://hackage.fpcomplete.com/' > $HOME/.cabal/config
   echo 'remote-repo-cache: $HOME/.cabal/packages' >> $HOME/.cabal/config
 
-  if [ "$CABALVER" != "1.16" ]
-  then
-    echo 'jobs: $ncpus' >> $HOME/.cabal/config
-  fi
-
 install:
 - ./scripts/build-librdkafka
 - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
@@ -162,7 +107,7 @@ install:
   set -ex
   case "$BUILD" in
     stack)
-      stack --no-terminal --install-ghc $ARGS test --bench --only-dependencies
+      stack --no-terminal --install-ghc $ARGS test --bench --only-dependencies --flag hw-kafka-client:examples
       ;;
     cabal)
       cabal --version
@@ -182,8 +127,8 @@ before_script:
   if [ $TRAVIS_OS_NAME == "linux" ]
   then
     export KAFKA_TEST_BROKER=$DOCKER_IP
-    docker run -d --name zookeeper -p 2181:2181 -e ZOOKEEPER_CLIENT_PORT=2181 confluentinc/cp-zookeeper
-    docker run -d --name kafka -p 9092:9092 -e KAFKA_ADVERTISED_LISTENERS="PLAINTEXT://$DOCKER_IP:9092" -e KAFKA_ZOOKEEPER_CONNECT="$DOCKER_IP:2181" -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 confluentinc/cp-kafka
+    docker run -d --name zookeeper -p 2181:2181 -e ZOOKEEPER_CLIENT_PORT=2181 confluentinc/cp-zookeeper:3.1.2
+    docker run -d --name kafka -p 9092:9092 -e KAFKA_ADVERTISED_LISTENERS="PLAINTEXT://$DOCKER_IP:9092" -e KAFKA_ZOOKEEPER_CONNECT="$DOCKER_IP:2181" -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 confluentinc/cp-kafka:3.1.2
     sleep 10
   fi
 
@@ -206,7 +151,7 @@ script:
       for dir in $PACKAGES
       do
         cd $dir
-        cabal check || [ "$CABALVER" == "1.16" ]
+        cabal check
         cabal sdist
         PKGVER=$(cabal info . | awk '{print $2;exit}')
         SRC_TGZ=$PKGVER.tar.gz
