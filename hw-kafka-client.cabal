@@ -64,6 +64,8 @@ library
       Kafka.Producer.Types
       Kafka.Types
   other-modules:
+      Kafka.Admin
+      Kafka.Admin.AdminProperties
       Kafka.Callbacks
       Kafka.Consumer.Callbacks
       Kafka.Consumer.Convert

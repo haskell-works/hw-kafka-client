@@ -958,6 +958,104 @@ newRdKafkaTopicT kafkaPtr topic topicConfPtr = do
     _ <- traverse (addForeignPtrFinalizer rdKafkaTopicDestroy') res
     return res
 
+----------------------------------------- ADMIN API -----------------------------------------------
+{#enum rd_kafka_admin_op_t as ^ {underscoreToCase} deriving (Show, Eq) #}
+
+data RdKafkaAdminOptionsT
+{#pointer *rd_kafka_AdminOptions_t as RdKafkaAdminOptionsTPtr foreign -> RdKafkaAdminOptionsT #}
+
+{#fun rd_kafka_AdminOptions_new as ^
+    {`RdKafkaTPtr', enumToCInt `RdKafkaAdminOpT'} -> `RdKafkaAdminOptionsTPtr' #}
+
+foreign import ccall unsafe "rdkafka.h &rd_kafka_AdminOptions_destroy"
+    rdKafkaAdminOptionsDestroy' :: FinalizerPtr RdKafkaAdminOptionsT
+
+newRdKafkaAdminOptions :: RdKafkaTPtr -> RdKafkaAdminOpT -> IO RdKafkaAdminOptionsTPtr
+newRdKafkaAdminOptions kafkaPtr op = do
+    ret <- rdKafkaAdminOptionsNew kafkaPtr op
+    addForeignPtrFinalizer rdKafkaAdminOptionsDestroy' ret
+    pure ret
+
+-- Create topics
+
+data RdKafkaTopicResultT
+{#pointer *rd_kafka_topic_result_t as RdKafkaTopicResultTPtr foreign -> RdKafkaTopicResultT#}
+
+data RdKafkaNewTopicT
+{#pointer *rd_kafka_NewTopic_t as RdKafkaNewTopicTPtr foreign -> RdKafkaNewTopicT #}
+
+data RdKafkaCreateTopicsResultT
+{#pointer *rd_kafka_CreateTopics_result_t as RdKafkaCreateTopicsResultTPtr foreign -> RdKafkaCreateTopicsResultT #}
+
+{#fun rd_kafka_NewTopic_new as ^
+    {`String', `Int', `Int', id `Ptr CChar', cIntConv `CSize'} -> `RdKafkaNewTopicTPtr' #}
+
+{#fun rd_kafka_NewTopic_destroy as ^
+    {castPtr `Ptr RdKafkaNewTopicT'} -> `()' #}
+
+foreign import ccall unsafe "rdkafka.h &rd_kafka_topic_destroy"
+    rdKafkaNewTopicDestroy' :: FinalizerPtr RdKafkaNewTopicT
+
+newRdKafkaNewTopic :: String -> Int -> Int -> IO (Either String RdKafkaNewTopicTPtr)
+newRdKafkaNewTopic name partitions repFactor = do
+    allocaBytes nErrorBytes $ \strPtr -> do
+        ret <- rdKafkaNewTopicNew name partitions repFactor strPtr (fromIntegral nErrorBytes)
+        withForeignPtr ret $ \realPtr -> do
+            if realPtr == nullPtr
+                then peekCString strPtr >>= pure . Left
+                else addForeignPtrFinalizer rdKafkaNewTopicDestroy' ret >> pure (Right ret)
+
+rdKafkaCreateTopics :: RdKafkaTPtr
+                    -> [RdKafkaNewTopicTPtr]
+                    -> RdKafkaAdminOptionsTPtr
+                    -> RdKafkaQueueTPtr
+                    -> IO ()
+rdKafkaCreateTopics kafkaPtr topics opts queue =
+  withForeignPtr3 kafkaPtr opts queue $ \kPtr oPtr qPtr ->
+    withForeignPtrsArrayLen topics $ \tLen tPtr ->
+      {#call rd_kafka_CreateTopics#} kPtr tPtr (fromIntegral tLen) oPtr qPtr
+
+rdKafkaCreateTopicsResultTopics :: RdKafkaCreateTopicsResultTPtr
+                                -> IO [Either (String, RdKafkaRespErrT, String) String]
+rdKafkaCreateTopicsResultTopics tRes =
+  withForeignPtr tRes $ \tRes' ->
+    alloca $ \sPtr -> do
+      res <- {#call rd_kafka_CreateTopics_result_topics#} (castPtr tRes') sPtr
+      size <- peekIntConv sPtr
+      arr <- peekArray size res
+      traverse unpackRdKafkaTopicResult arr
+
+
+-- | Unpacks raw result into
+-- 'Either (topicName, errorType, errorMsg) topicName'
+unpackRdKafkaTopicResult :: Ptr RdKafkaTopicResultT
+                         -> IO (Either (String, RdKafkaRespErrT, String) String)
+unpackRdKafkaTopicResult resPtr = do
+  name <- {#call rd_kafka_topic_result_name#} resPtr >>= peekCString
+  err <- {#call rd_kafka_topic_result_error#} resPtr
+  case cIntToEnum err of
+    RdKafkaRespErrNoError -> pure $ Right name
+    respErr -> do
+      errMsg <- {#call rd_kafka_topic_result_error_string#} resPtr >>= peekCString
+      pure $ Left (name, respErr, errMsg)
+
+
+---------------------------------------------------------------------------------------------------
+
+-- withForeignPtr :: ForeignPtr a -> (Ptr a -> IO b) -> IO b
+
+withForeignPtrsArrayLen :: [ForeignPtr a] -> (Int -> Ptr (Ptr a) -> IO b) -> IO b
+withForeignPtrsArrayLen as f =
+  withForeignPtrs as $ \ptrs ->
+    withArrayLen ptrs $ \llen pptrs -> f llen pptrs
+
+withForeignPtrs :: [ForeignPtr a] -> ([Ptr a] -> IO b) -> IO b
+withForeignPtrs as act =
+  go [] as act
+  where
+    go acc [] f = f acc
+    go acc (x:xs) f = withForeignPtr x $ \x' -> go (x':acc) xs f
+
 -- Marshall / Unmarshall
 enumToCInt :: Enum a => a -> CInt
 enumToCInt = fromIntegral . fromEnum
@@ -975,6 +1073,9 @@ boolToCInt :: Bool -> CInt
 boolToCInt True = CInt 1
 boolToCInt False = CInt 0
 {-# INLINE boolToCInt #-}
+
+peekIntConv :: (Storable a, Integral a, Integral b) => Ptr a -> IO b
+peekIntConv = liftM fromIntegral . peek
 
 peekInt64Conv :: (Storable a, Integral a) =>  Ptr a -> IO Int64
 peekInt64Conv  = liftM cIntConv . peek
@@ -1000,3 +1101,23 @@ c_stdout :: IO CFilePtr
 c_stdout = handleToCFile stdout "w"
 c_stderr :: IO CFilePtr
 c_stderr = handleToCFile stderr "w"
+
+withForeignPtr2 :: ForeignPtr a
+                -> ForeignPtr b
+                -> (Ptr a -> Ptr b -> IO c)
+                -> IO c
+withForeignPtr2 a b f =
+  withForeignPtr a $ \a' ->
+    withForeignPtr b $ \b' -> f a' b'
+{-# INLINE withForeignPtr2 #-}
+
+withForeignPtr3 :: ForeignPtr a
+                -> ForeignPtr b
+                -> ForeignPtr c
+                -> (Ptr a -> Ptr b -> Ptr c -> IO d)
+                -> IO d
+withForeignPtr3 a b c f =
+  withForeignPtr a $ \a' ->
+    withForeignPtr b $ \b' ->
+      withForeignPtr c $ \c' -> f a' b' c'
+{-# INLINE withForeignPtr3 #-}
