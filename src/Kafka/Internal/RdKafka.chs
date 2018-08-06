@@ -996,10 +996,11 @@ newRdKafkaAdminOptions kafkaPtr op = do
     addForeignPtrFinalizer rdKafkaAdminOptionsDestroy' ret
     pure ret
 
--- Create topics
-
+-- Common admin stuff
 data RdKafkaTopicResultT
 {#pointer *rd_kafka_topic_result_t as RdKafkaTopicResultTPtr foreign -> RdKafkaTopicResultT#}
+
+-- Create topics
 
 data RdKafkaNewTopicT
 {#pointer *rd_kafka_NewTopic_t as RdKafkaNewTopicTPtr foreign -> RdKafkaNewTopicT #}
@@ -1010,11 +1011,8 @@ data RdKafkaCreateTopicsResultT
 {#fun rd_kafka_NewTopic_new as ^
     {`String', `Int', `Int', id `Ptr CChar', cIntConv `CSize'} -> `RdKafkaNewTopicTPtr' #}
 
-{#fun rd_kafka_NewTopic_destroy as ^
-    {castPtr `Ptr RdKafkaNewTopicT'} -> `()' #}
-
 foreign import ccall unsafe "rdkafka.h &rd_kafka_topic_destroy"
-    rdKafkaNewTopicDestroy' :: FinalizerPtr RdKafkaNewTopicT
+    rdKafkaNewTopicDestroy :: FinalizerPtr RdKafkaNewTopicT
 
 newRdKafkaNewTopic :: String -> Int -> Int -> IO (Either String RdKafkaNewTopicTPtr)
 newRdKafkaNewTopic name partitions repFactor = do
@@ -1023,7 +1021,7 @@ newRdKafkaNewTopic name partitions repFactor = do
         withForeignPtr ret $ \realPtr -> do
             if realPtr == nullPtr
                 then peekCString strPtr >>= pure . Left
-                else addForeignPtrFinalizer rdKafkaNewTopicDestroy' ret >> pure (Right ret)
+                else addForeignPtrFinalizer rdKafkaNewTopicDestroy ret >> pure (Right ret)
 
 rdKafkaCreateTopics :: RdKafkaTPtr
                     -> [RdKafkaNewTopicTPtr]
@@ -1035,6 +1033,14 @@ rdKafkaCreateTopics kafkaPtr topics opts queue =
     withForeignPtrsArrayLen topics $ \tLen tPtr ->
       {#call rd_kafka_CreateTopics#} kPtr tPtr (fromIntegral tLen) oPtr qPtr
 
+rdKafkaEventCreateTopicsResult :: RdKafkaEventTPtr -> IO (Maybe RdKafkaCreateTopicsResultTPtr)
+rdKafkaEventCreateTopicsResult evtPtr =
+  withForeignPtr evtPtr $ \evtPtr' -> do
+    res <- {#call rd_kafka_event_CreateTopics_result#} (castPtr evtPtr')
+    if (res == nullPtr)
+      then pure Nothing
+      else Just <$> newForeignPtr_ (castPtr res)
+
 rdKafkaCreateTopicsResultTopics :: RdKafkaCreateTopicsResultTPtr
                                 -> IO [Either (String, RdKafkaRespErrT, String) String]
 rdKafkaCreateTopicsResultTopics tRes =
@@ -1045,13 +1051,50 @@ rdKafkaCreateTopicsResultTopics tRes =
       arr <- peekArray size res
       traverse unpackRdKafkaTopicResult arr
 
-rdKafkaEventCreateTopicsResult :: RdKafkaEventTPtr -> IO (Maybe RdKafkaCreateTopicsResultTPtr)
-rdKafkaEventCreateTopicsResult evtPtr =
+-- Delete topics
+
+data RdKafkaDeleteTopicT
+{#pointer *rd_kafka_DeleteTopic_t as RdKafkaDeleteTopicTPtr foreign -> RdKafkaDeleteTopicT #}
+
+data RdKafkaDeleteTopicsResultT
+{#pointer *rd_kafka_DeleteTopics_result_t as RdKafkaDeleteTopicsResultTPtr foreign -> RdKafkaDeleteTopicsResultT #}
+
+foreign import ccall unsafe "rdkafka.h &rd_kafka_DeleteTopic_destroy"
+    rdKafkaDeleteTopicDestroy :: FinalizerPtr RdKafkaDeleteTopicT
+
+newRdKafkaDeleteTopic :: String -> IO RdKafkaDeleteTopicTPtr
+newRdKafkaDeleteTopic str =
+  withCString str $ \strPtr -> do
+    res <- {#call rd_kafka_DeleteTopic_new#} strPtr
+    newForeignPtr rdKafkaDeleteTopicDestroy res
+
+rdKafkaDeleteTopics :: RdKafkaTPtr
+                    -> [RdKafkaDeleteTopicTPtr]
+                    -> RdKafkaAdminOptionsTPtr
+                    -> RdKafkaQueueTPtr
+                    -> IO ()
+rdKafkaDeleteTopics kafkaPtr topics opts queue =
+  withForeignPtr3 kafkaPtr opts queue $ \kPtr oPtr qPtr ->
+    withForeignPtrsArrayLen topics $ \tLen tPtr ->
+      {#call rd_kafka_DeleteTopics#} kPtr tPtr (fromIntegral tLen) oPtr qPtr
+
+rdKafkaEventDeleteTopicsResult :: RdKafkaEventTPtr -> IO (Maybe RdKafkaDeleteTopicsResultTPtr)
+rdKafkaEventDeleteTopicsResult evtPtr =
   withForeignPtr evtPtr $ \evtPtr' -> do
-    res <- {#call rd_kafka_event_CreateTopics_result#} (castPtr evtPtr')
+    res <- {#call rd_kafka_event_DeleteTopics_result#} (castPtr evtPtr')
     if (res == nullPtr)
       then pure Nothing
       else Just <$> newForeignPtr_ (castPtr res)
+
+rdKafkaDeleteTopicsResultTopics :: RdKafkaDeleteTopicsResultTPtr
+                                -> IO [Either (String, RdKafkaRespErrT, String) String]
+rdKafkaDeleteTopicsResultTopics tRes =
+  withForeignPtr tRes $ \tRes' ->
+    alloca $ \sPtr -> do
+      res <- {#call rd_kafka_DeleteTopics_result_topics#} (castPtr tRes') sPtr
+      size <- peekIntConv sPtr
+      arr <- peekArray size res
+      traverse unpackRdKafkaTopicResult arr
 
 
 -- | Unpacks raw result into

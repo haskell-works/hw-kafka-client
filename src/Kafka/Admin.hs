@@ -6,6 +6,7 @@ module Kafka.Admin
 
 , newKafkaAdmin
 , createTopics
+, deleteTopics
 , closeKafkaAdmin
 )
 where
@@ -48,6 +49,8 @@ newKafkaAdmin props = liftIO $ do
 closeKafkaAdmin :: KafkaAdmin -> IO ()
 closeKafkaAdmin client = void $ rdKafkaConsumerClose (acKafkaPtr client)
 
+----------------------------- CREATE ------------------------------------------
+
 createTopics :: KafkaAdmin
              -> [(TopicName, PartitionsCount, ReplicationFactor)]
              -> IO [Either (TopicName, KafkaError, String) TopicName]
@@ -65,6 +68,18 @@ createTopics client ts = do
   where
     newTopics = sequence <$> traverse (\(t, p, r) -> mkNewTopic t p r) ts
     mkNewTopic (TopicName t) (PartitionsCount c) (ReplicationFactor r) = newRdKafkaNewTopic t c r
+
+----------------------------- DELETE ------------------------------------------
+
+deleteTopics :: KafkaAdmin
+             -> [TopicName]
+             -> IO [Either (TopicName, KafkaError, String) TopicName]
+deleteTopics client ts = do
+  let kafkaPtr = acKafkaPtr client
+  queue <- newRdKafkaQueue kafkaPtr
+  topics <- traverse (newRdKafkaDeleteTopic . unTopicName) ts
+  rdKafkaDeleteTopics kafkaPtr topics (acOptions client) queue
+  waitForAllResponses ts rdKafkaEventDeleteTopicsResult rdKafkaDeleteTopicsResultTopics queue
 
 -------------------- Hepler servicing functions
 

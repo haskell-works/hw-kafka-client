@@ -25,10 +25,18 @@ import Test.Hspec
 
 spec :: Spec
 spec = do
-    describe "Kafka.AdminSpec" $ do
-        specWithAdmin "Create topic spec" $ do
-            it "1. Creates one topic" $ \admin ->  do
-                res <- createTopics admin [(TopicName "admin-1", PartitionsCount 3, ReplicationFactor 1)]
-                -- threadDelay (1000*10000)
-                res `shouldSatisfy` all isRight
+  describe "Kafka.AdminSpec" $ do
+    let adminTopic = TopicName "admin-1"
+
+    specWithAdmin "Create topic spec" $ do
+
+      it "1. Creates one topic" $ \admin ->  do
+        res <- createTopics admin [(adminTopic, PartitionsCount 3, ReplicationFactor 1)]
+        res `shouldSatisfy` all isRight
+
+      it "2. Delete that newly created topic" $ \admin -> do
+        threadDelay (1000*1000)
+        res <- deleteTopics admin [adminTopic]
+        res `shouldSatisfy` all isRight
+
 
