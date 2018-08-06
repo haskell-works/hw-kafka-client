@@ -13,6 +13,7 @@ import           System.IO.Unsafe
 import qualified System.Random as Rnd
 
 import Control.Concurrent
+import Kafka.Admin        as A
 import Kafka.Consumer     as C
 import Kafka.Producer     as P
 
@@ -42,6 +43,9 @@ makeGroupId suffix =
 isTestGroupId :: ConsumerGroupId -> Bool
 isTestGroupId (ConsumerGroupId group) = Text.pack testPrefix `Text.isPrefixOf` group
 
+adminProps :: AdminProperties
+adminProps = A.brokersList [brokerAddress]
+
 consumerProps :: ConsumerProperties
 consumerProps =  C.brokersList [brokerAddress]
               <> groupId testGroupId
@@ -61,6 +65,11 @@ testSubscription :: TopicName -> Subscription
 testSubscription t = topics [t]
               <> offsetReset Earliest
 
+mkAdmin :: IO KafkaAdmin
+mkAdmin = do
+  (Right  p) <- newKafkaAdmin adminProps
+  return p
+
 mkProducer :: IO KafkaProducer
 mkProducer = newProducer producerProps >>= \(Right p) -> pure p
 
@@ -76,6 +85,8 @@ mkConsumerWith props = do
       (RebalanceAssign _) -> putMVar var True
       _                   -> pure ()
 
+specWithAdmin :: String -> SpecWith KafkaAdmin -> Spec
+specWithAdmin s f = beforeAll mkAdmin $ afterAll (void . closeKafkaAdmin) $ describe s f
 
 specWithConsumer :: String -> ConsumerProperties -> SpecWith KafkaConsumer -> Spec
 specWithConsumer s p f =

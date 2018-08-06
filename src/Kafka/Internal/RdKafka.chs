@@ -83,6 +83,9 @@ data RdKafkaTopicConfT
 data RdKafkaT
 {#pointer *rd_kafka_t as RdKafkaTPtr foreign -> RdKafkaT #}
 
+data RdKafkaEventT
+{#pointer *rd_kafka_event_t as RdKafkaEventTPtr foreign -> RdKafkaEventT #}
+
 data RdKafkaTopicPartitionT = RdKafkaTopicPartitionT
     { topic'RdKafkaTopicPartitionT :: CString
     , partition'RdKafkaTopicPartitionT :: Int
@@ -257,6 +260,15 @@ instance Storable RdKafkaMetadataT where
   poke _ _ = undefined
 
 {#pointer *rd_kafka_metadata_t as RdKafkaMetadataTPtr foreign -> RdKafkaMetadataT #}
+
+-------------------------------------------------------------------------------------------------
+---- Events
+
+foreign import ccall unsafe "rdkafka.h &rd_kafka_event_destroy"
+    rdKafkaEventDestroyF :: FinalizerPtr RdKafkaEventT
+
+{#fun rd_kafka_event_destroy as ^
+    {`RdKafkaEventTPtr'} -> `()'#}
 
 -------------------------------------------------------------------------------------------------
 ---- Partitions
@@ -530,6 +542,14 @@ newRdKafkaQueue k = do
     q <- rdKafkaQueueNew k
     addForeignPtrFinalizer rdKafkaQueueDestroyF q
     return q
+
+rdKafkaQueuePoll :: RdKafkaQueueTPtr -> Int -> IO (Maybe RdKafkaEventTPtr)
+rdKafkaQueuePoll qPtr timeout =
+  withForeignPtr qPtr $ \qPtr' -> do
+    res <- {#call rd_kafka_queue_poll#} qPtr' (fromIntegral timeout)
+    if res == nullPtr
+      then pure Nothing
+      else Just <$> newForeignPtr rdKafkaEventDestroyF res
 
 {#fun rd_kafka_consume_queue as ^
     {`RdKafkaQueueTPtr', `Int'} -> `RdKafkaMessageTPtr' #}
@@ -1025,6 +1045,14 @@ rdKafkaCreateTopicsResultTopics tRes =
       arr <- peekArray size res
       traverse unpackRdKafkaTopicResult arr
 
+rdKafkaEventCreateTopicsResult :: RdKafkaEventTPtr -> IO (Maybe RdKafkaCreateTopicsResultTPtr)
+rdKafkaEventCreateTopicsResult evtPtr =
+  withForeignPtr evtPtr $ \evtPtr' -> do
+    res <- {#call rd_kafka_event_CreateTopics_result#} (castPtr evtPtr')
+    if (res == nullPtr)
+      then pure Nothing
+      else Just <$> newForeignPtr_ (castPtr res)
+
 
 -- | Unpacks raw result into
 -- 'Either (topicName, errorType, errorMsg) topicName'
@@ -1050,11 +1078,11 @@ withForeignPtrsArrayLen as f =
     withArrayLen ptrs $ \llen pptrs -> f llen pptrs
 
 withForeignPtrs :: [ForeignPtr a] -> ([Ptr a] -> IO b) -> IO b
-withForeignPtrs as act =
-  go [] as act
+withForeignPtrs as f =
+  go [] as
   where
-    go acc [] f = f acc
-    go acc (x:xs) f = withForeignPtr x $ \x' -> go (x':acc) xs f
+    go acc [] = f acc
+    go acc (x:xs) = withForeignPtr x $ \x' -> go (x':acc) xs
 
 -- Marshall / Unmarshall
 enumToCInt :: Enum a => a -> CInt
