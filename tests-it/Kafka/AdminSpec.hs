@@ -8,7 +8,6 @@ import           Control.Monad       (forM, forM_)
 import           Control.Monad.Loops
 import qualified Data.ByteString     as BS
 import           Data.Either
-import           Data.Map
 import           Data.Monoid         ((<>))
 
 import Kafka.Admin    as A
@@ -17,6 +16,7 @@ import Kafka.Metadata as M
 import Kafka.Producer as P
 
 import Control.Concurrent
+import Data.Map           as M
 
 import Kafka.TestEnv
 import Test.Hspec
@@ -31,7 +31,8 @@ spec = do
     specWithAdmin "Create topic spec" $ do
 
       it "1. Creates one topic" $ \admin ->  do
-        res <- createTopics admin [(adminTopic, PartitionsCount 3, ReplicationFactor 1)]
+        let newTopic = NewTopic adminTopic (PartitionsCount 3) (ReplicationFactor 1) M.empty
+        res <- createTopics admin [newTopic]
         res `shouldSatisfy` all isRight
 
       it "2. Delete that newly created topic" $ \admin -> do

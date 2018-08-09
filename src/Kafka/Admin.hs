@@ -1,5 +1,7 @@
+{-# LANGUAGE RecordWildCards #-}
 module Kafka.Admin
 ( module X
+, NewTopic (..)
 , ReplicationFactor(..)
 , PartitionsCount(..)
 , KafkaAdmin
@@ -11,14 +13,20 @@ module Kafka.Admin
 )
 where
 
-import           Control.Monad             (void)
+import           Control.Exception          (displayException)
+import           Control.Exception          (bracket)
+import           Control.Monad              (void)
 import           Control.Monad.IO.Class
-import           Control.Monad.Trans.Class (lift)
+import           Control.Monad.Trans.Class  (lift)
+import           Control.Monad.Trans.Except (ExceptT (..), runExceptT, withExceptT)
 import           Control.Monad.Trans.Maybe
 import           Data.Bifunctor
-import qualified Data.Map                  as M
-import           Data.Maybe                (fromMaybe)
-import           Data.Set                  as S
+import           Data.Either                (partitionEithers)
+import           Data.List.NonEmpty         (NonEmpty (..))
+import qualified Data.List.NonEmpty         as NEL
+import qualified Data.Map                   as M
+import           Data.Maybe                 (fromMaybe)
+import qualified Data.Set                   as S
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.Setup
 import           Kafka.Types
@@ -33,6 +41,13 @@ data KafkaAdmin = KafkaAdmin
   , acKafkaConf :: !KafkaConf
   , acOptions   :: !RdKafkaAdminOptionsTPtr
   }
+
+data NewTopic = NewTopic
+  { ntName              :: TopicName
+  , ntPartitions        :: PartitionsCount
+  , ntReplicationFactor :: ReplicationFactor
+  , ntConfig            :: M.Map String String
+  } deriving (Show)
 
 newKafkaAdmin :: MonadIO m
                => AdminProperties
@@ -52,24 +67,50 @@ closeKafkaAdmin client = void $ rdKafkaConsumerClose (acKafkaPtr client)
 ----------------------------- CREATE ------------------------------------------
 
 createTopics :: KafkaAdmin
-             -> [(TopicName, PartitionsCount, ReplicationFactor)]
-             -> IO [Either (TopicName, KafkaError, String) TopicName]
+             -> [NewTopic]
+             -> IO [Either (KafkaError, String) TopicName]
 createTopics client ts = do
-  let topicNames = (\(t,_,_) -> t) <$> ts
+  let topicNames = ntName <$> ts
   let kafkaPtr = acKafkaPtr client
   queue <- newRdKafkaQueue kafkaPtr
-  topics <- newTopics
-  case topics of
-    Left err ->
-      pure $ (\t -> Left (t, KafkaError err, err)) <$> topicNames
-    Right topics' -> do
-      rdKafkaCreateTopics kafkaPtr topics' (acOptions client) queue
-      waitForAllResponses topicNames rdKafkaEventCreateTopicsResult rdKafkaCreateTopicsResultTopics queue
+  crRes <- withNewTopics ts $ \topics ->
+             rdKafkaCreateTopics kafkaPtr topics (acOptions client) queue
+  case crRes of
+    Left es -> pure $ (\e -> Left (e, displayException e)) <$> NEL.toList es
+    Right _ -> do
+      res <- waitForAllResponses topicNames rdKafkaEventCreateTopicsResult rdKafkaCreateTopicsResultTopics queue
+      pure $ first (\(_, a, b) -> (a, b)) <$> res
+
+withNewTopics :: [NewTopic] -> ([RdKafkaNewTopicTPtr] ->  IO a) -> IO (Either (NonEmpty KafkaError) a)
+withNewTopics ts =
+  withUnsafe ts mkNewTopicUnsafe rdKafkaNewTopicDestroyArray
+
+mkNewTopicUnsafe :: NewTopic -> IO (Either KafkaError RdKafkaNewTopicTPtr)
+mkNewTopicUnsafe NewTopic{..} = runExceptT $ do
+  t <- withStrErr $ newRdKafkaNewTopicUnsafe (unTopicName ntName) (unPartitionsCount ntPartitions) (unReplicationFactor ntReplicationFactor)
+  _ <- withKafkaErr $ whileRight (uncurry $ rdKafkaNewTopicSetConfig undefined) (M.toList ntConfig)
+  pure t
   where
-    newTopics = sequence <$> traverse (\(t, p, r) -> mkNewTopic t p r) ts
-    mkNewTopic (TopicName t) (PartitionsCount c) (ReplicationFactor r) = newRdKafkaNewTopic t c r
+    withStrErr   = withExceptT KafkaError . ExceptT
+    withKafkaErr = withExceptT KafkaResponseError . ExceptT
+
 
 ----------------------------- DELETE ------------------------------------------
+
+withUnsafe :: [a]                                 -- ^ Items to handle
+           -> (a -> IO (Either KafkaError b))     -- ^ Create an unsafe element
+           -> ([b] -> IO ())                      -- ^ Destroy all unsafe elements
+           -> ([b] -> IO c)                       -- ^ Handler
+           -> IO (Either (NonEmpty KafkaError) c)
+withUnsafe as mkOne cleanup f =
+  bracket mkAll cleanupAll processAll
+  where
+    mkAll = partitionEithers <$> traverse mkOne as
+    cleanupAll (_, ts') = cleanup ts'
+    processAll (es, ts') =
+      case es of
+        []      -> Right <$> f ts'
+        (e:es') -> pure $ Left (e :| es')
 
 deleteTopics :: KafkaAdmin
              -> [TopicName]
@@ -82,6 +123,28 @@ deleteTopics client ts = do
   waitForAllResponses ts rdKafkaEventDeleteTopicsResult rdKafkaDeleteTopicsResultTopics queue
 
 -------------------- Hepler servicing functions
+
+whileRight :: Monad m
+           => (a -> m (Either e ()))
+           -> [a]
+           -> m (Either e ())
+whileRight _ [] = pure $ Right ()
+whileRight f (a:as) = do
+  res <- f a
+  case res of
+    Left e  -> pure $ Left e
+    Right _ -> whileRight f as
+
+whileNothing :: Monad m
+             => (a -> m (Maybe e))
+             -> [a]
+             -> m (Maybe e)
+whileNothing _ [] = pure Nothing
+whileNothing f (a:as) = do
+  res <- f a
+  case res of
+    Nothing  -> whileNothing f as
+    Just err -> pure $ Just err
 
 waitForAllResponses :: [TopicName]
                     -> (RdKafkaEventTPtr -> IO (Maybe a))

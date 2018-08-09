@@ -1014,6 +1014,11 @@ data RdKafkaCreateTopicsResultT
 foreign import ccall unsafe "rdkafka.h &rd_kafka_topic_destroy"
     rdKafkaNewTopicDestroy :: FinalizerPtr RdKafkaNewTopicT
 
+rdKafkaNewTopicDestroyArray :: [RdKafkaNewTopicTPtr] -> IO ()
+rdKafkaNewTopicDestroyArray ts = do
+  withForeignPtrsArrayLen ts $ \llen ptrs ->
+    {#call rd_kafka_NewTopic_destroy_array#} ptrs (fromIntegral llen)
+
 newRdKafkaNewTopic :: String -> Int -> Int -> IO (Either String RdKafkaNewTopicTPtr)
 newRdKafkaNewTopic name partitions repFactor = do
     allocaBytes nErrorBytes $ \strPtr -> do
@@ -1022,6 +1027,18 @@ newRdKafkaNewTopic name partitions repFactor = do
             if realPtr == nullPtr
                 then peekCString strPtr >>= pure . Left
                 else addForeignPtrFinalizer rdKafkaNewTopicDestroy ret >> pure (Right ret)
+
+newRdKafkaNewTopicUnsafe :: String -> Int -> Int -> IO (Either String RdKafkaNewTopicTPtr)
+newRdKafkaNewTopicUnsafe name partitions repFactor = do
+    allocaBytes nErrorBytes $ \strPtr -> do
+        ret <- rdKafkaNewTopicNew name partitions repFactor strPtr (fromIntegral nErrorBytes)
+        withForeignPtr ret $ \realPtr -> do
+            if realPtr == nullPtr
+                then peekCString strPtr >>= pure . Left
+                else pure (Right ret)
+
+{#fun rd_kafka_NewTopic_set_config as ^
+  {`RdKafkaNewTopicTPtr', `String', `String'} -> `Either RdKafkaRespErrT ()' cIntToRespEither #}
 
 rdKafkaCreateTopics :: RdKafkaTPtr
                     -> [RdKafkaNewTopicTPtr]
@@ -1112,22 +1129,26 @@ unpackRdKafkaTopicResult resPtr = do
 
 
 ---------------------------------------------------------------------------------------------------
-
--- withForeignPtr :: ForeignPtr a -> (Ptr a -> IO b) -> IO b
-
-withForeignPtrsArrayLen :: [ForeignPtr a] -> (Int -> Ptr (Ptr a) -> IO b) -> IO b
-withForeignPtrsArrayLen as f =
-  withForeignPtrs as $ \ptrs ->
-    withArrayLen ptrs $ \llen pptrs -> f llen pptrs
-
-withForeignPtrs :: [ForeignPtr a] -> ([Ptr a] -> IO b) -> IO b
-withForeignPtrs as f =
-  go [] as
-  where
-    go acc [] = f acc
-    go acc (x:xs) = withForeignPtr x $ \x' -> go (x':acc) xs
-
 -- Marshall / Unmarshall
+
+respErrToMaybe :: RdKafkaRespErrT -> Maybe RdKafkaRespErrT
+respErrToMaybe err =
+  case err of
+    RdKafkaRespErrNoError -> Nothing
+    respErr -> Just respErr
+{-# INLINE respErrToMaybe #-}
+
+cIntToRespErr :: CInt -> Maybe RdKafkaRespErrT
+cIntToRespErr = respErrToMaybe . cIntToEnum
+{-# INLINE cIntToRespErr #-}
+
+cIntToRespEither :: CInt -> Either RdKafkaRespErrT ()
+cIntToRespEither err =
+  case cIntToEnum err of
+    RdKafkaRespErrNoError -> Right ()
+    respErr -> Left respErr
+{-# INLINE cIntToRespEither #-}
+
 enumToCInt :: Enum a => a -> CInt
 enumToCInt = fromIntegral . fromEnum
 {-# INLINE enumToCInt #-}
@@ -1192,3 +1213,15 @@ withForeignPtr3 a b c f =
     withForeignPtr b $ \b' ->
       withForeignPtr c $ \c' -> f a' b' c'
 {-# INLINE withForeignPtr3 #-}
+
+withForeignPtrsArrayLen :: [ForeignPtr a] -> (Int -> Ptr (Ptr a) -> IO b) -> IO b
+withForeignPtrsArrayLen as f =
+  withForeignPtrs as $ \ptrs ->
+    withArrayLen ptrs $ \llen pptrs -> f llen pptrs
+
+withForeignPtrs :: [ForeignPtr a] -> ([Ptr a] -> IO b) -> IO b
+withForeignPtrs as f =
+  go [] as
+  where
+    go acc [] = f acc
+    go acc (x:xs) = withForeignPtr x $ \x' -> go (x':acc) xs
