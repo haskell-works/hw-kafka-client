@@ -21,6 +21,7 @@ import           Control.Monad.Trans.Except (ExceptT (..), runExceptT, withExcep
 import           Control.Monad.Trans.Maybe  (MaybeT (..), runMaybeT)
 import           Data.Bifunctor             (bimap, first)
 import           Data.Either                (partitionEithers)
+import           Data.Foldable              (traverse_)
 import           Data.List.NonEmpty         (NonEmpty (..))
 import qualified Data.List.NonEmpty         as NEL
 import qualified Data.Map                   as M
@@ -125,19 +126,13 @@ withUnsafe as mkOne cleanup f =
 
 -- ^ Keeps applying a function until the error is found
 --
--- this is insane, it is just "runExceptT . sequence_"
--- or even just "sequence_" if internal functions are allowed to return ExceptT IO
--- replace with such
+-- Maybe it'be easier if internal helpers would return "ExceptT e m ()"?
 whileRight :: Monad m
            => (a -> m (Either e ()))
            -> [a]
            -> m (Either e ())
-whileRight _ [] = pure $ Right ()
-whileRight f (a:as) = do
-  res <- f a
-  case res of
-    Left e  -> pure $ Left e
-    Right _ -> whileRight f as
+whileRight f as = runExceptT $ traverse_ (ExceptT . f) as
+
 
 -- ^ Polls the provided queue until it hets all the responses
 -- from all the specified topics
