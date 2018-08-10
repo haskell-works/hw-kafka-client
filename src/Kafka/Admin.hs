@@ -37,11 +37,13 @@ import Kafka.Admin.AdminProperties as X
 newtype ReplicationFactor = ReplicationFactor { unReplicationFactor :: Int } deriving (Show, Eq, Read, Ord)
 newtype PartitionsCount = PartitionsCount { unPartitionsCount :: Int } deriving (Show, Eq, Read, Ord)
 
+{-# DEPRECATED KafkaAdmin "Do we even need a special KafkaAdmin now when all the functions accept HasKafka?" #-}
 data KafkaAdmin = KafkaAdmin
-  { acKafkaPtr  :: !RdKafkaTPtr
+  { acKafka     :: !Kafka
   , acKafkaConf :: !KafkaConf
-  , acOptions   :: !RdKafkaAdminOptionsTPtr
   }
+instance HasKafka KafkaAdmin where
+  getKafka = acKafka
 
 data NewTopic = NewTopic
   { ntName              :: TopicName
@@ -50,37 +52,36 @@ data NewTopic = NewTopic
   , ntConfig            :: M.Map String String
   } deriving (Show)
 
-newKafkaAdmin :: MonadIO m
+{-# DEPRECATED newKafkaAdmin "Do we even need a special KafkaAdmin now when all the functions accept HasKafka?" #-}
+newKafkaAdmin :: (MonadIO m)
                => AdminProperties
                -> m (Either KafkaError KafkaAdmin)
 newKafkaAdmin props = liftIO $ do
   kc@(KafkaConf kc' _ _) <- kafkaConf (KafkaProps $ M.toList (apKafkaProps props)) --kafkaConf (KafkaProps [])
   mbKafka <- newRdKafkaT RdKafkaConsumer kc'
   case mbKafka of
-    Left err    -> return . Left $ KafkaError err
-    Right kafka -> do
-      opts <- newRdKafkaAdminOptions kafka RdKafkaAdminOpAny
-      return $ Right $ KafkaAdmin kafka kc opts
+    Left err    -> pure . Left $ KafkaError err
+    Right kafka -> pure $ Right $ KafkaAdmin (Kafka kafka) kc
 
 closeKafkaAdmin :: KafkaAdmin -> IO ()
-closeKafkaAdmin client = void $ rdKafkaConsumerClose (acKafkaPtr client)
+closeKafkaAdmin k = void $ rdKafkaConsumerClose (getRdKafka k)
 
 ----------------------------- CREATE ------------------------------------------
 
-createTopics :: KafkaAdmin
+createTopics :: (HasKafka k)
+             => k
              -> [NewTopic]
              -> IO [Either (KafkaError, String) TopicName]
-createTopics client ts = do
-  let topicNames = ntName <$> ts
-  let kafkaPtr = acKafkaPtr client
-  queue <- newRdKafkaQueue kafkaPtr
-  crRes <- withNewTopics ts $ \topics ->
-             rdKafkaCreateTopics kafkaPtr topics (acOptions client) queue
-  case crRes of
-    Left es -> pure $ (\e -> Left (e, displayException e)) <$> NEL.toList es
-    Right _ -> do
-      res <- waitForAllResponses topicNames rdKafkaEventCreateTopicsResult rdKafkaCreateTopicsResultTopics queue
-      pure $ first (\(_, a, b) -> (a, b)) <$> res
+createTopics client ts =
+  withAdminOperation client $ \(kafkaPtr, opts, queue) -> do
+    let topicNames = ntName <$> ts
+    crRes <- withNewTopics ts $ \topics ->
+              rdKafkaCreateTopics kafkaPtr topics opts queue
+    case crRes of
+      Left es -> pure $ (\e -> Left (e, displayException e)) <$> NEL.toList es
+      Right _ -> do
+        res <- waitForAllResponses topicNames rdKafkaEventCreateTopicsResult rdKafkaCreateTopicsResultTopics queue
+        pure $ first (\(_, a, b) -> (a, b)) <$> res
 
 withNewTopics :: [NewTopic] -> ([RdKafkaNewTopicTPtr] ->  IO a) -> IO (Either (NonEmpty KafkaError) a)
 withNewTopics ts =
@@ -98,17 +99,28 @@ mkNewTopicUnsafe NewTopic{..} = runExceptT $ do
 
 ----------------------------- DELETE ------------------------------------------
 
-deleteTopics :: KafkaAdmin
+deleteTopics :: (HasKafka k)
+             => k
              -> [TopicName]
              -> IO [Either (TopicName, KafkaError, String) TopicName]
-deleteTopics client ts = do
-  let kafkaPtr = acKafkaPtr client
-  queue <- newRdKafkaQueue kafkaPtr
-  topics <- traverse (newRdKafkaDeleteTopic . unTopicName) ts
-  rdKafkaDeleteTopics kafkaPtr topics (acOptions client) queue
-  waitForAllResponses ts rdKafkaEventDeleteTopicsResult rdKafkaDeleteTopicsResultTopics queue
+deleteTopics client ts =
+  withAdminOperation client $ \(kafkaPtr, opts, queue) -> do
+    topics <- traverse (newRdKafkaDeleteTopic . unTopicName) ts
+    rdKafkaDeleteTopics kafkaPtr topics opts queue
+    waitForAllResponses ts rdKafkaEventDeleteTopicsResult rdKafkaDeleteTopicsResultTopics queue
 
 -------------------- Hepler servicing functions
+
+withAdminOperation :: HasKafka k
+                   => k
+                   -> ((RdKafkaTPtr, RdKafkaAdminOptionsTPtr, RdKafkaQueueTPtr) -> IO a)
+                   -> IO a
+withAdminOperation k f = do
+  let kafkaPtr = getRdKafka k
+  queue <- newRdKafkaQueue kafkaPtr
+  opts <- newRdKafkaAdminOptions kafkaPtr RdKafkaAdminOpAny
+  f (kafkaPtr, opts, queue)
+
 withUnsafe :: [a]                                 -- ^ Items to handle
            -> (a -> IO (Either KafkaError b))     -- ^ Create an unsafe element
            -> ([b] -> IO ())                      -- ^ Destroy all unsafe elements
