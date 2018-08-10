@@ -1,10 +1,12 @@
 module Kafka.Admin.AdminProperties
 where
 
-import           Control.Monad (mplus)
-import qualified Data.List     as L
-import           Data.Map      (Map)
-import qualified Data.Map      as M
+import           Control.Monad  (mplus)
+import qualified Data.List      as L
+import           Data.Map       (Map)
+import qualified Data.Map       as M
+import           Data.Monoid    (Monoid, mempty)
+import           Data.Semigroup (Semigroup, (<>))
 import           Kafka.Types
 
 -- | Properties to create 'KafkaProducer'.
