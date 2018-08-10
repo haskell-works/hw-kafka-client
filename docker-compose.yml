@@ -1,5 +1,5 @@
 zookeeper:
-  image: confluentinc/cp-zookeeper
+  image: confluentinc/cp-zookeeper:3.1.2
   hostname: zookeeper
   ports:
     - 2182:2181
@@ -18,4 +18,5 @@ kafka:
     KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
     KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://$DOCKER_IP:9092"
     KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    KAFKA_DELETE_TOPIC_ENABLE: "true"
     KAFKA_CREATE_TOPICS:
