@@ -39,5 +39,6 @@ spec = do
         threadDelay (1000*1000)
         res <- deleteTopics admin [adminTopic]
         res `shouldSatisfy` all isRight
+        threadDelay (1000*1000)
 
 
