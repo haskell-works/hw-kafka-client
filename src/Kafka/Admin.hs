@@ -13,14 +13,13 @@ module Kafka.Admin
 )
 where
 
-import           Control.Exception          (displayException)
-import           Control.Exception          (bracket)
+import           Control.Exception          (bracket, displayException)
 import           Control.Monad              (void)
-import           Control.Monad.IO.Class
+import           Control.Monad.IO.Class     (MonadIO, liftIO)
 import           Control.Monad.Trans.Class  (lift)
 import           Control.Monad.Trans.Except (ExceptT (..), runExceptT, withExceptT)
-import           Control.Monad.Trans.Maybe
-import           Data.Bifunctor
+import           Control.Monad.Trans.Maybe  (MaybeT (..), runMaybeT)
+import           Data.Bifunctor             (bimap, first)
 import           Data.Either                (partitionEithers)
 import           Data.List.NonEmpty         (NonEmpty (..))
 import qualified Data.List.NonEmpty         as NEL
@@ -97,6 +96,17 @@ mkNewTopicUnsafe NewTopic{..} = runExceptT $ do
 
 ----------------------------- DELETE ------------------------------------------
 
+deleteTopics :: KafkaAdmin
+             -> [TopicName]
+             -> IO [Either (TopicName, KafkaError, String) TopicName]
+deleteTopics client ts = do
+  let kafkaPtr = acKafkaPtr client
+  queue <- newRdKafkaQueue kafkaPtr
+  topics <- traverse (newRdKafkaDeleteTopic . unTopicName) ts
+  rdKafkaDeleteTopics kafkaPtr topics (acOptions client) queue
+  waitForAllResponses ts rdKafkaEventDeleteTopicsResult rdKafkaDeleteTopicsResultTopics queue
+
+-------------------- Hepler servicing functions
 withUnsafe :: [a]                                 -- ^ Items to handle
            -> (a -> IO (Either KafkaError b))     -- ^ Create an unsafe element
            -> ([b] -> IO ())                      -- ^ Destroy all unsafe elements
@@ -112,18 +122,11 @@ withUnsafe as mkOne cleanup f =
         []      -> Right <$> f ts'
         (e:es') -> pure $ Left (e :| es')
 
-deleteTopics :: KafkaAdmin
-             -> [TopicName]
-             -> IO [Either (TopicName, KafkaError, String) TopicName]
-deleteTopics client ts = do
-  let kafkaPtr = acKafkaPtr client
-  queue <- newRdKafkaQueue kafkaPtr
-  topics <- traverse (newRdKafkaDeleteTopic . unTopicName) ts
-  rdKafkaDeleteTopics kafkaPtr topics (acOptions client) queue
-  waitForAllResponses ts rdKafkaEventDeleteTopicsResult rdKafkaDeleteTopicsResultTopics queue
-
--------------------- Hepler servicing functions
-
+-- ^ Keeps applying a function until the error is found
+--
+-- this is insane, it is just "runExceptT . sequence_"
+-- or even just "sequence_" if internal functions are allowed to return ExceptT IO
+-- replace with such
 whileRight :: Monad m
            => (a -> m (Either e ()))
            -> [a]
@@ -135,17 +138,8 @@ whileRight f (a:as) = do
     Left e  -> pure $ Left e
     Right _ -> whileRight f as
 
-whileNothing :: Monad m
-             => (a -> m (Maybe e))
-             -> [a]
-             -> m (Maybe e)
-whileNothing _ [] = pure Nothing
-whileNothing f (a:as) = do
-  res <- f a
-  case res of
-    Nothing  -> whileNothing f as
-    Just err -> pure $ Just err
-
+-- ^ Polls the provided queue until it hets all the responses
+-- from all the specified topics
 waitForAllResponses :: [TopicName]
                     -> (RdKafkaEventTPtr -> IO (Maybe a))
                     -> (a -> IO [Either (String, RdKafkaRespErrT, String) String])
