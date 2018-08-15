@@ -3,8 +3,9 @@ module ConsumerExample
 
 where
 
-import Control.Arrow  ((&&&))
-import Data.Monoid    ((<>))
+import Control.Arrow     ((&&&))
+import Control.Exception (bracket)
+import Data.Monoid       ((<>))
 import Kafka.Consumer
 
 -- Global consumer properties
@@ -25,8 +26,14 @@ consumerSub = topics [TopicName "kafka-client-example-topic"]
 runConsumerExample :: IO ()
 runConsumerExample = do
     print $ cpLogLevel consumerProps
-    res <- runConsumer consumerProps consumerSub processMessages
+    res <- bracket mkConsumer clConsumer runHandler
     print res
+    where
+      mkConsumer = newConsumer consumerProps consumerSub
+      clConsumer (Left err) = return (Left err)
+      clConsumer (Right kc) = (maybe (Right ()) Left) <$> closeConsumer kc
+      runHandler (Left err) = return (Left err)
+      runHandler (Right kc) = processMessages kc
 
 -------------------------------------------------------------------
 processMessages :: KafkaConsumer -> IO (Either KafkaError ())
