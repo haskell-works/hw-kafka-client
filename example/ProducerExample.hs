@@ -3,6 +3,7 @@
 module ProducerExample
 where
 
+import Control.Exception     (bracket)
 import Control.Monad         (forM_)
 import Data.ByteString       (ByteString)
 import Data.ByteString.Char8 (pack)
@@ -30,9 +31,14 @@ mkMessage k v = ProducerRecord
 
 -- Run an example
 runProducerExample :: IO ()
-runProducerExample = do
-    res <- runProducer producerProps sendMessages
-    print res
+runProducerExample =
+    bracket mkProducer clProducer runHandler >>= print
+    where
+      mkProducer = newProducer producerProps
+      clProducer (Left _)     = return ()
+      clProducer (Right prod) = closeProducer prod
+      runHandler (Left err)   = return $ Left err
+      runHandler (Right prod) = sendMessages prod
 
 sendMessages :: KafkaProducer -> IO (Either KafkaError ())
 sendMessages prod = do

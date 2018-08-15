@@ -33,6 +33,7 @@ A working consumer example can be found here: [ConsumerExample.hs](example/Consu
 To run an example please compile with the `examples` flag.
 
 ```Haskell
+import Control.Exception (bracket)
 import Data.Monoid ((<>))
 import Kafka
 import Kafka.Consumer
@@ -52,8 +53,14 @@ consumerSub = topics [TopicName "kafka-client-example-topic"]
 -- Running an example
 runConsumerExample :: IO ()
 runConsumerExample = do
-    res <- runConsumer consumerProps consumerSub processMessages
+    res <- bracket mkConsumer clConsumer runHandler
     print res
+    where
+      mkConsumer = newConsumer consumerProps consumerSub
+      clConsumer (Left err) = return (Left err)
+      clConsumer (Right kc) = (maybe (Right ()) Left) <$> closeConsumer kc
+      runHandler (Left err) = return (Left err)
+      runHandler (Right kc) = processMessages kc
 
 -------------------------------------------------------------------
 processMessages :: KafkaConsumer -> IO (Either KafkaError ())
@@ -111,6 +118,7 @@ This is because no message will ever be timing out for sending.
 ### Example
 
 ```Haskell
+import Control.Exception (bracket)
 import Control.Monad (forM_)
 import Kafka
 import Kafka.Producer
@@ -126,9 +134,14 @@ targetTopic = TopicName "kafka-client-example-topic"
 
 -- Run an example
 runProducerExample :: IO ()
-runProducerExample = do
-    res <- runProducer producerProps sendMessages
-    print res
+runProducerExample =
+    bracket mkProducer clProducer runHandler >>= print
+    where
+      mkProducer = newProducer producerProps
+      clProducer (Left _)     = return ()
+      clProducer (Right prod) = closeProducer prod
+      runHandler (Left err)   = return $ Left err
+      runHandler (Right prod) = sendMessages prod
 
 sendMessages :: KafkaProducer -> IO (Either KafkaError ())
 sendMessages prod = do
