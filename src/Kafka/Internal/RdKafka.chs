@@ -3,6 +3,8 @@
 
 module Kafka.Internal.RdKafka where
 
+import Data.Text (Text)
+import qualified Data.Text as Text
 import Control.Monad
 import Data.Word
 import Foreign
@@ -55,8 +57,13 @@ nErrorBytes = 1024 * 8
 {#fun pure rd_kafka_errno2err as ^
     {`Int'} -> `RdKafkaRespErrT' cIntToEnum #}
 
+peekCAText :: CString -> IO Text
+peekCAText cp = Text.pack <$> peekCAString cp
 
-kafkaErrnoString :: IO (String)
+peekCText :: CString -> IO Text
+peekCText cp = Text.pack <$> peekCString cp
+
+kafkaErrnoString :: IO String
 kafkaErrnoString = do
     (Errno num) <- getErrno
     return $ rdKafkaErr2str $ rdKafkaErrno2err (fromIntegral num)
@@ -818,13 +825,13 @@ newRdKafkaTopicConfT = do
 foreign import ccall unsafe "rdkafka.h &rd_kafka_destroy"
     rdKafkaDestroy :: FunPtr (Ptr RdKafkaT -> IO ())
 
-newRdKafkaT :: RdKafkaTypeT -> RdKafkaConfTPtr -> IO (Either String RdKafkaTPtr)
+newRdKafkaT :: RdKafkaTypeT -> RdKafkaConfTPtr -> IO (Either Text RdKafkaTPtr)
 newRdKafkaT kafkaType confPtr =
     allocaBytes nErrorBytes $ \charPtr -> do
         duper <- rdKafkaConfDup confPtr
         ret <- rdKafkaNew kafkaType duper charPtr (fromIntegral nErrorBytes)
         withForeignPtr ret $ \realPtr -> do
-            if realPtr == nullPtr then peekCString charPtr >>= return . Left
+            if realPtr == nullPtr then peekCText charPtr >>= return . Left
             else do
                 addForeignPtrFinalizer rdKafkaDestroy ret
                 return $ Right ret

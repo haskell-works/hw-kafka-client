@@ -17,6 +17,7 @@ import Kafka.Internal.RdKafka
 import Kafka.Internal.Setup
 import Kafka.Internal.Shared
 import Kafka.Types
+import qualified Data.Text as Text
 
 import Control.Concurrent (threadDelay)
 
@@ -62,7 +63,7 @@ offsetCommitCallback callback kc@(KafkaConf conf _ _) = rdKafkaConfSetOffsetComm
 -------------------------------------------------------------------------------
 redirectPartitionQueue :: Kafka -> TopicName -> PartitionId -> RdKafkaQueueTPtr -> IO ()
 redirectPartitionQueue (Kafka k) (TopicName t) (PartitionId p) q = do
-  mpq <- rdKafkaQueueGetPartition k t p
+  mpq <- rdKafkaQueueGetPartition k (Text.unpack t) p
   case mpq of
     Nothing -> return ()
     Just pq -> rdKafkaQueueForward pq q

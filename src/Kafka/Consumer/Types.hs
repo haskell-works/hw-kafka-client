@@ -3,6 +3,7 @@ module Kafka.Consumer.Types
 
 where
 
+import Data.Text (Text)
 import Data.Bifoldable
 import Data.Bifunctor
 import Data.Bitraversable
@@ -24,7 +25,7 @@ instance HasKafkaConf KafkaConsumer where
   getKafkaConf = kcKafkaConf
   {-# INLINE getKafkaConf #-}
 
-newtype ConsumerGroupId = ConsumerGroupId { unConsumerGroupId :: String} deriving (Show, Ord, Eq)
+newtype ConsumerGroupId = ConsumerGroupId { unConsumerGroupId :: Text } deriving (Show, Ord, Eq)
 newtype Offset          = Offset { unOffset :: Int64 } deriving (Show, Eq, Ord, Read)
 data OffsetReset        = Earliest | Latest deriving (Show, Eq)
 

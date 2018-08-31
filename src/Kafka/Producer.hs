@@ -11,6 +11,7 @@ module Kafka.Producer
 )
 where
 
+import qualified Data.Text as Text
 import           Control.Arrow                    ((&&&))
 import           Control.Exception
 import           Control.Monad
@@ -19,7 +20,6 @@ import qualified Data.ByteString                  as BS
 import qualified Data.ByteString.Internal         as BSI
 import           Data.Function                    (on)
 import           Data.List                        (groupBy, sortBy)
-import qualified Data.Map                         as M
 import           Data.Ord                         (comparing)
 import           Foreign                          hiding (void)
 import           Kafka.Internal.CancellationToken as CToken
@@ -56,8 +56,8 @@ runProducer props f =
 -- A newly created producer must be closed with 'closeProducer' function.
 newProducer :: MonadIO m => ProducerProperties -> m (Either KafkaError KafkaProducer)
 newProducer pps = liftIO $ do
-  kc@(KafkaConf kc' _ _) <- kafkaConf (KafkaProps $ M.toList (ppKafkaProps pps))
-  tc <- topicConf (TopicProps $ M.toList (ppTopicProps pps))
+  kc@(KafkaConf kc' _ _) <- kafkaConf (KafkaProps $ (ppKafkaProps pps))
+  tc <- topicConf (TopicProps $ (ppTopicProps pps))
 
   -- set callbacks
   forM_ (ppCallbacks pps) (\setCb -> setCb kc)
@@ -81,11 +81,11 @@ produceMessage kp@(KafkaProducer (Kafka k) _ (TopicConf tc)) m = liftIO $ do
   pollEvents kp (Just $ Timeout 0) -- fire callbacks if any exist (handle delivery reports)
   bracket (mkTopic $ prTopic m) clTopic withTopic
     where
-      mkTopic (TopicName tn) = newUnmanagedRdKafkaTopicT k tn (Just tc)
+      mkTopic (TopicName tn) = newUnmanagedRdKafkaTopicT k (Text.unpack tn) (Just tc)
 
       clTopic = either (return . const ()) destroyUnmanagedRdKafkaTopic
 
-      withTopic (Left err) = return . Just . KafkaError $ err
+      withTopic (Left err) = return . Just . KafkaError $ Text.pack err
       withTopic (Right t) =
         withBS (prValue m) $ \payloadPtr payloadLength ->
           withBS (prKey m) $ \keyPtr keyLength ->
@@ -112,14 +112,14 @@ produceMessageBatch kp@(KafkaProducer (Kafka k) _ (TopicConf tc)) messages = lif
     mkSortKey = prTopic &&& prPartition
     mkBatches = groupBy ((==) `on` mkSortKey) . sortBy (comparing mkSortKey)
 
-    mkTopic (TopicName tn) = newUnmanagedRdKafkaTopicT k tn (Just tc)
+    mkTopic (TopicName tn) = newUnmanagedRdKafkaTopicT k (Text.unpack tn) (Just tc)
 
     clTopic = either (return . const ()) destroyUnmanagedRdKafkaTopic
 
     sendBatch []    = return []
     sendBatch batch = bracket (mkTopic $ prTopic (head batch)) clTopic (withTopic batch)
 
-    withTopic ms (Left err) = return $ (, KafkaError err) <$> ms
+    withTopic ms (Left err) = return $ (, KafkaError (Text.pack err)) <$> ms
     withTopic ms (Right t) = do
       let (partInt, partCInt) = (producePartitionInt &&& producePartitionCInt) $ prPartition (head ms)
       withForeignPtr t $ \topicPtr -> do

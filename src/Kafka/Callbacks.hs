@@ -5,9 +5,9 @@ module Kafka.Callbacks
 )
 where
 
-import Kafka.Internal.RdKafka
-import Kafka.Internal.Setup
-import Kafka.Types
+import Kafka.Internal.RdKafka (rdKafkaConfSetErrorCb, rdKafkaConfSetLogCb, rdKafkaConfSetStatsCb)
+import Kafka.Internal.Setup (HasKafkaConf(..), getRdKafkaConf)
+import Kafka.Types (KafkaError(..))
 
 errorCallback :: HasKafkaConf k => (KafkaError -> String -> IO ()) -> k -> IO ()
 errorCallback callback k =

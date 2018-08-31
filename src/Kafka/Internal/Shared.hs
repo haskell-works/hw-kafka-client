@@ -1,6 +1,8 @@
 module Kafka.Internal.Shared
 where
 
+import           Data.Text (Text)
+import qualified Data.Text                        as Text
 import           Control.Concurrent               (forkIO, rtsSupportsBoundThreads)
 import           Control.Exception
 import           Control.Monad                    (void, when)
@@ -38,7 +40,7 @@ kafkaRespErr :: Errno -> KafkaError
 kafkaRespErr (Errno num) = KafkaResponseError $ rdKafkaErrno2err (fromIntegral num)
 {-# INLINE kafkaRespErr #-}
 
-throwOnError :: IO (Maybe String) -> IO ()
+throwOnError :: IO (Maybe Text) -> IO ()
 throwOnError action = do
     m <- action
     case m of
@@ -76,8 +78,8 @@ maybeToLeft = maybe (Right ()) Left
 readPayload :: RdKafkaMessageT -> IO (Maybe BS.ByteString)
 readPayload = readBS len'RdKafkaMessageT payload'RdKafkaMessageT
 
-readTopic :: RdKafkaMessageT -> IO String
-readTopic msg = newForeignPtr_ (topic'RdKafkaMessageT msg) >>= rdKafkaTopicName
+readTopic :: RdKafkaMessageT -> IO Text
+readTopic msg = newForeignPtr_ (topic'RdKafkaMessageT msg) >>= (fmap Text.pack . rdKafkaTopicName)
 
 readKey :: RdKafkaMessageT -> IO (Maybe BSI.ByteString)
 readKey = readBS keyLen'RdKafkaMessageT key'RdKafkaMessageT

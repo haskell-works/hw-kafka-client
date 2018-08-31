@@ -1,6 +1,10 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Kafka.Consumer.Subscription
 where
 
+import qualified Data.Text            as Text
+import           Data.Text            (Text)
 import qualified Data.List            as L
 import           Data.Map             (Map)
 import qualified Data.Map             as M
@@ -8,7 +12,7 @@ import           Data.Semigroup       as Sem
 import           Kafka.Consumer.Types
 import           Kafka.Types
 
-data Subscription = Subscription [TopicName] (Map String String)
+data Subscription = Subscription [TopicName] (Map Text Text)
 
 instance Sem.Semigroup Subscription where
   (Subscription ts1 m1) <> (Subscription ts2 m2) =
@@ -37,8 +41,8 @@ autoCommit :: Millis -> Subscription
 autoCommit (Millis ms) = Subscription [] $
   M.fromList
     [ ("enable.auto.commit", "true")
-    , ("auto.commit.interval.ms", show ms)
+    , ("auto.commit.interval.ms", Text.pack $ show ms)
     ]
 
-extraSubscriptionProps :: Map String String -> Subscription
+extraSubscriptionProps :: Map Text Text -> Subscription
 extraSubscriptionProps = Subscription []

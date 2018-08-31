@@ -48,6 +48,7 @@ library
     , bifunctors
     , bytestring
     , containers
+    , text 
     , transformers
     , unix
   build-tools:
