@@ -1,13 +1,11 @@
 { compiler ? "ghc843" }:
 
 with rec {
-  fetchFromGitHub = (
-    (import <nixpkgs> { config = {}; overlays = []; }).fetchFromGitHub);
-  _nixpkgs = fetchFromGitHub {
-    owner  = "NixOS";
-    repo   = "nixpkgs";
-    rev    = "e0d1c6315aa699cf063af6d3661b91c814686b3c";
-    sha256 = "0ni4klvxygyxq75mr69xrrbg5166fwmq9rm6vc46x2ww6p0kz652";
+  fetchNixpkgs = import ./fetchNixpkgs.nix;
+
+  _nixpkgs = fetchNixpkgs {
+    rev = "da0c385a691d38b56b17eb18b852c4cec2050c24";
+    sha256 = "0svhqn139cy2nlgv4kqv1bsxza2dcm0yylrhnmanw4p73gv85caf"; 
   };
 };
 

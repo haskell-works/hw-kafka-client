@@ -7,7 +7,8 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Control.Monad
 import Data.Word
-import Foreign
+import Foreign -- hiding (newForeignPtr)
+-- import Foreign.Concurrent (newForeignPtr)
 import Foreign.C.Error
 import Foreign.C.String
 import Foreign.C.Types

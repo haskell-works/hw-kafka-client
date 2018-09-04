@@ -18,12 +18,12 @@ import Kafka.Producer     as P
 import Test.Hspec
 
 brokerAddress :: BrokerAddress
-brokerAddress = unsafePerformIO $
+brokerAddress = unsafePerformIO $ do
   (BrokerAddress . Text.pack) <$> getEnv "KAFKA_TEST_BROKER" `catch` \(_ :: SomeException) -> (return "localhost:9092")
 {-# NOINLINE brokerAddress #-}
 
 testTopic :: TopicName
-testTopic = unsafePerformIO $
+testTopic = unsafePerformIO $ do
   (TopicName . Text.pack) <$> getEnv "KAFKA_TEST_TOPIC" `catch` \(_ :: SomeException) -> (return "kafka-client_tests")
 {-# NOINLINE testTopic #-}
 
@@ -50,9 +50,7 @@ testSubscription t = topics [t]
               <> offsetReset Earliest
 
 mkProducer :: IO KafkaProducer
-mkProducer = do
-    (Right p) <- newProducer producerProps
-    return p
+mkProducer = newProducer producerProps >>= \(Right p) -> pure p
 
 mkConsumerWith :: ConsumerProperties -> IO KafkaConsumer
 mkConsumerWith props = do

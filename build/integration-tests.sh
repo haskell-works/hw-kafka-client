@@ -2,5 +2,6 @@
 
 export DOCKER_IP=`ifconfig | grep "inet addr:" | grep "Bcast:0.0.0.0" | cut -d: -f2 | awk '{ print $1}'`
 
-stack clean
-KAFKA_TEST_BROKER=$DOCKER_IP stack test
+KAFKA_TEST_BROKER=$DOCKER_IP
+
+nix-build
