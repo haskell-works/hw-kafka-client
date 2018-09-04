@@ -1,12 +1,10 @@
-{ nixpkgs ? import <nixpkgs> {} }:
+{ compiler ? "ghc843" }:
 
-let
-  inherit (nixpkgs) pkgs;
-  inherit (pkgs) haskell;
+with rec {
+  pkgs = (import ./nix/nixpkgs.nix {
+    inherit compiler; 
+  });
+  drv = pkgs.haskellPackages.hw-kafka-client;
+};
 
-  haskellPackages = pkgs.haskell.packages.ghc843;
-
-  drv = haskellPackages.callCabal2nix "hw-kafka-client" ./. {};
-
-in
-  drv
+drv
