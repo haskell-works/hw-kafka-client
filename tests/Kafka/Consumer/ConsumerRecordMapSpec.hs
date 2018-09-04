@@ -7,12 +7,13 @@ import Data.Bitraversable
 import Kafka.Consumer.Types
 import Kafka.Types
 import Test.Hspec
+import Data.Text
 
-testKey, testValue :: String
+testKey, testValue :: Text
 testKey   = "some-key"
 testValue = "some-value"
 
-testRecord :: ConsumerRecord (Maybe String) (Maybe String)
+testRecord :: ConsumerRecord (Maybe Text) (Maybe Text)
 testRecord = ConsumerRecord
   { crTopic     = TopicName "some-topic"
   , crPartition = PartitionId 0

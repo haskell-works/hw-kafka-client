@@ -118,6 +118,7 @@ test-suite integration-tests
     , hspec
     , hw-kafka-client
     , monad-loops
+    , text
   other-modules:
       Kafka.IntegrationSpec
       Kafka.TestEnv
@@ -138,6 +139,7 @@ test-suite tests
     , either
     , hspec
     , hw-kafka-client
+    , text
     , monad-loops
   other-modules:
       Kafka.Consumer.ConsumerRecordMapSpec

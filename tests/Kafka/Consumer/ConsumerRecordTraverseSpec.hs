@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+
 module Kafka.Consumer.ConsumerRecordTraverseSpec
 ( spec
 ) where
@@ -8,12 +9,13 @@ import Data.Bitraversable
 import Kafka.Consumer.Types
 import Kafka.Types
 import Test.Hspec
+import Data.Text
 
-testKey, testValue :: String
+testKey, testValue :: Text
 testKey   = "some-key"
 testValue = "some-value"
 
-testRecord :: ConsumerRecord String String
+testRecord :: ConsumerRecord Text Text
 testRecord = ConsumerRecord
   { crTopic     = TopicName "some-topic"
   , crPartition = PartitionId 0

@@ -8,6 +8,8 @@ import Control.Monad      (void)
 import Data.Monoid        ((<>))
 import System.Environment
 import System.IO.Unsafe
+import Data.Text          (Text)
+import qualified Data.Text as Text
 
 import Control.Concurrent
 import Kafka.Consumer     as C
@@ -17,12 +19,12 @@ import Test.Hspec
 
 brokerAddress :: BrokerAddress
 brokerAddress = unsafePerformIO $
-  BrokerAddress <$> getEnv "KAFKA_TEST_BROKER" `catch` \(_ :: SomeException) -> (return "localhost:9092")
+  (BrokerAddress . Text.pack) <$> getEnv "KAFKA_TEST_BROKER" `catch` \(_ :: SomeException) -> (return "localhost:9092")
 {-# NOINLINE brokerAddress #-}
 
 testTopic :: TopicName
 testTopic = unsafePerformIO $
-  TopicName <$> getEnv "KAFKA_TEST_TOPIC" `catch` \(_ :: SomeException) -> (return "kafka-client_tests")
+  (TopicName . Text.pack) <$> getEnv "KAFKA_TEST_TOPIC" `catch` \(_ :: SomeException) -> (return "kafka-client_tests")
 {-# NOINLINE testTopic #-}
 
 testGroupId :: ConsumerGroupId

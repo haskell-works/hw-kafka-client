@@ -10,6 +10,7 @@ import qualified Data.ByteString     as BS
 import           Data.Either
 import           Data.Map
 import           Data.Monoid         ((<>))
+import           Data.Text           (Text)
 
 import Kafka.Consumer as C
 import Kafka.Metadata as M
