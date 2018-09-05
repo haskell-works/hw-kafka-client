@@ -5,15 +5,20 @@ module Kafka.Internal.RdKafka where
 
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Control.Monad
-import Data.Word
-import Foreign
-import Foreign.C.Error
-import Foreign.C.String
-import Foreign.C.Types
-import System.IO
-import System.Posix.IO
-import System.Posix.Types
+import Control.Monad (liftM)
+import Data.Int (Int32, Int64)
+import Data.Word (Word8)
+import Foreign.Marshal.Alloc (alloca, allocaBytes)
+import Foreign.Marshal.Array (peekArray, allocaArray)
+import Foreign.Storable (Storable(..))
+import Foreign.Ptr (Ptr, FunPtr, castPtr, nullPtr)
+import Foreign.ForeignPtr (FinalizerPtr, addForeignPtrFinalizer, withForeignPtr, newForeignPtr, newForeignPtr_)
+import Foreign.C.Error (Errno(..), getErrno)
+import Foreign.C.String (CString, newCString, withCAString, peekCAString, peekCAStringLen, peekCString)
+import Foreign.C.Types (CFile, CInt(..), CSize, CChar)
+import System.IO (Handle, stdin, stdout, stderr)
+import System.Posix.IO (handleToFd)
+import System.Posix.Types (Fd(..))
 
 #include <librdkafka/rdkafka.h>
 

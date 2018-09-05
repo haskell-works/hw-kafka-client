@@ -1,5 +1,10 @@
 module Kafka.Internal.Setup
-( HasKafka(..)
+( KafkaProps(..)
+, TopicProps(..)
+, Kafka(..)
+, KafkaConf(..)
+, TopicConf(..)
+, HasKafka(..)
 , HasKafkaConf(..)
 , HasTopicConf(..)
 , getRdKafka
@@ -18,14 +23,14 @@ module Kafka.Internal.Setup
 )
 where
 
-import Kafka.Internal.RdKafka
-import Kafka.Types
+import Kafka.Internal.RdKafka (RdKafkaConfResT(..), CCharBufPointer, RdKafkaQueueTPtr, RdKafkaTPtr, RdKafkaConfTPtr, RdKafkaTopicConfTPtr, nErrorBytes, rdKafkaTopicConfSet, newRdKafkaTopicConfT, newRdKafkaConfT, rdKafkaConfSet)
+import Kafka.Types (KafkaError(..))
 
-import Control.Exception
-import Data.IORef
-import Foreign
-import Foreign.C.String
-import Kafka.Internal.CancellationToken
+import Control.Exception (throw)
+import Data.IORef (IORef, newIORef, readIORef)
+import Foreign.Marshal.Alloc (allocaBytes)
+import Foreign.C.String (peekCString)
+import Kafka.Internal.CancellationToken (CancellationToken(..), newCancellationToken)
 import qualified Data.Text as Text
 import Data.Map (Map)
 import Data.Text (Text)

@@ -6,20 +6,20 @@ module Kafka.Consumer.Callbacks
 )
 where
 
-import Control.Arrow          ((&&&))
-import Control.Monad          (forM_, void)
-import Data.Monoid            ((<>))
-import Foreign                hiding (void)
-import Kafka.Callbacks        as X
-import Kafka.Consumer.Convert
-import Kafka.Consumer.Types
-import Kafka.Internal.RdKafka
-import Kafka.Internal.Setup
-import Kafka.Internal.Shared
-import Kafka.Types
-import qualified Data.Text as Text
-
-import Control.Concurrent (threadDelay)
+import           Control.Arrow          ((&&&))
+import           Control.Concurrent     (threadDelay)
+import           Control.Monad          (forM_, void)
+import           Data.Monoid            ((<>))
+import qualified Data.Text              as Text
+import           Foreign.ForeignPtr     (newForeignPtr_)
+import           Foreign.Ptr            (nullPtr)
+import           Kafka.Callbacks        as X
+import           Kafka.Consumer.Convert (fromNativeTopicPartitionList', fromNativeTopicPartitionList'', toNativeTopicPartitionList)
+import           Kafka.Consumer.Types   (KafkaConsumer(..), TopicPartition(..), RebalanceEvent(..))
+import           Kafka.Internal.RdKafka
+import           Kafka.Internal.Setup   (Kafka(..), KafkaConf(..), HasKafka(..), HasKafkaConf(..), getRdMsgQueue)
+import           Kafka.Internal.Shared  (kafkaErrorToMaybe)
+import           Kafka.Types            (KafkaError(..), PartitionId(..), TopicName(..))
 
 -- | Sets a callback that is called when rebalance is needed.
 --

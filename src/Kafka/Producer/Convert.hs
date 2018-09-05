@@ -6,12 +6,12 @@ module Kafka.Producer.Convert
 )
 where
 
-import           Foreign.C.Error
-import           Foreign.C.Types
-import           Kafka.Internal.RdKafka
-import           Kafka.Internal.Shared
-import           Kafka.Types
-import           Kafka.Producer.Types
+import           Foreign.C.Error        (getErrno)
+import           Foreign.C.Types        (CInt)
+import           Kafka.Internal.RdKafka (rdKafkaMsgFlagCopy)
+import           Kafka.Internal.Shared  (kafkaRespErr)
+import           Kafka.Types            (KafkaError(..))
+import           Kafka.Producer.Types   (ProducePartition(..))
 
 copyMsgFlags :: Int
 copyMsgFlags = rdKafkaMsgFlagCopy

@@ -14,8 +14,8 @@ import           Data.Text            (Text)
 import           Data.Map             (Map)
 import qualified Data.Map             as M
 import           Data.Semigroup       as Sem
-import           Kafka.Consumer.Types
-import           Kafka.Types
+import           Kafka.Consumer.Types (OffsetReset(..))
+import           Kafka.Types          (TopicName(..), Millis(..))
 import           Data.Set             (Set)
 import qualified Data.Set             as Set
 

@@ -17,20 +17,24 @@ module Kafka.Internal.Shared
 )
 where
 
-import           Data.Text (Text)
+import           Data.Text                        (Text)
 import qualified Data.Text                        as Text
 import           Control.Concurrent               (forkIO, rtsSupportsBoundThreads)
-import           Control.Exception
+import           Control.Exception                (throw)
 import           Control.Monad                    (void, when)
 import qualified Data.ByteString                  as BS
 import qualified Data.ByteString.Internal         as BSI
-import           Foreign                          hiding (void)
-import           Foreign.C.Error
-import           Kafka.Consumer.Types
+import           Data.Word                        (Word8)
+import           Foreign.Ptr                      (Ptr, nullPtr)
+import           Foreign.Marshal.Alloc            (alloca)
+import           Foreign.ForeignPtr               (newForeignPtr_)
+import           Foreign.Storable                 (Storable(peek))
+import           Foreign.C.Error                  (Errno(..))
+import           Kafka.Consumer.Types             (Timestamp(..))
 import           Kafka.Internal.CancellationToken as CToken
-import           Kafka.Internal.RdKafka
-import           Kafka.Internal.Setup
-import           Kafka.Types
+import           Kafka.Internal.RdKafka           (RdKafkaTimestampTypeT(..), RdKafkaMessageTPtr, RdKafkaMessageT(..), RdKafkaRespErrT(..), Word8Ptr, rdKafkaPoll, rdKafkaErrno2err, rdKafkaTopicName, rdKafkaMessageTimestamp)
+import           Kafka.Internal.Setup             (HasKafka(..), Kafka(..))
+import           Kafka.Types                      (KafkaError(..), Timeout(..), Millis(..))
 
 runEventLoop :: HasKafka a => a -> CancellationToken -> Maybe Timeout -> IO ()
 runEventLoop k ct timeout =

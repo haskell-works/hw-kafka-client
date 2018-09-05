@@ -46,9 +46,17 @@ import           Kafka.Internal.RdKafka
   , rdKafkaOffsetsForTimes
   , rdKafkaListGroups
   )
-import           Kafka.Internal.Setup
-import           Kafka.Internal.Shared
+import           Kafka.Internal.Setup   (Kafka(..), HasKafka(..))
+import           Kafka.Internal.Shared  (kafkaErrorToMaybe)
 import           Kafka.Types
+  ( BrokerId(..)
+  , ClientId(..)
+  , KafkaError(..)
+  , Millis(..)
+  , PartitionId(..)
+  , Timeout(..)
+  , TopicName(..)
+  )
 
 data KafkaMetadata = KafkaMetadata
   { kmBrokers    :: [BrokerMetadata]

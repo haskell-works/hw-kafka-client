@@ -25,14 +25,14 @@ module Kafka.Consumer.Types
 )
 where
 
-import Data.Text (Text)
-import Data.Bifoldable
-import Data.Bifunctor
-import Data.Bitraversable
-import Data.Int
-import Data.Typeable
-import Kafka.Internal.Setup
-import Kafka.Types
+import Data.Text            (Text)
+import Data.Bifoldable      (Bifoldable(..))
+import Data.Bifunctor       (Bifunctor(..))
+import Data.Bitraversable   (Bitraversable(..), bimapM, bisequenceA)
+import Data.Int             (Int64)
+import Data.Typeable        (Typeable)
+import Kafka.Internal.Setup (HasKafka(..), HasKafkaConf(..), Kafka(..), KafkaConf(..))
+import Kafka.Types          (TopicName(..), PartitionId(..), Millis(..))
 
 data KafkaConsumer = KafkaConsumer
   { kcKafkaPtr  :: !Kafka

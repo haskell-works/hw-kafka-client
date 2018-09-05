@@ -11,24 +11,37 @@ module Kafka.Producer
 )
 where
 
-import qualified Data.Text as Text
 import           Control.Arrow                    ((&&&))
-import           Control.Exception
-import           Control.Monad
-import           Control.Monad.IO.Class
+import           Control.Exception                (bracket)
+import           Control.Monad                    (forM, forM_, (<=<))
+import           Control.Monad.IO.Class           (MonadIO(liftIO))
 import qualified Data.ByteString                  as BS
 import qualified Data.ByteString.Internal         as BSI
 import           Data.Function                    (on)
 import           Data.List                        (groupBy, sortBy)
 import           Data.Ord                         (comparing)
-import           Foreign                          hiding (void)
+import qualified Data.Text                        as Text
+import           Foreign.ForeignPtr               (withForeignPtr, newForeignPtr_)
+import           Foreign.Marshal.Array            (withArrayLen)
+import           Foreign.Ptr                      (Ptr, nullPtr, plusPtr)
+import           Foreign.Storable                 (Storable(..))
 import           Kafka.Internal.CancellationToken as CToken
 import           Kafka.Internal.RdKafka
-import           Kafka.Internal.Setup
-import           Kafka.Internal.Shared
-import           Kafka.Producer.Callbacks
-import           Kafka.Producer.Convert
-import           Kafka.Producer.Types
+  ( RdKafkaMessageT(..)
+  , RdKafkaTypeT(..)
+  , RdKafkaRespErrT(..)
+  , newRdKafkaT
+  , newUnmanagedRdKafkaTopicT
+  , destroyUnmanagedRdKafkaTopic
+  , rdKafkaProduce
+  , rdKafkaSetLogLevel
+  , rdKafkaProduceBatch
+  , rdKafkaOutqLen
+  )
+import           Kafka.Internal.Setup             (KafkaConf(..), Kafka(..), TopicConf(..), kafkaConf, KafkaProps(..), topicConf, TopicProps(..))
+import           Kafka.Internal.Shared            (pollEvents)
+import           Kafka.Producer.Convert           (copyMsgFlags, producePartitionCInt, producePartitionInt, handleProduceErr)
+import           Kafka.Producer.Types             (KafkaProducer(..))
 
 import Kafka.Producer.ProducerProperties as X
 import Kafka.Producer.Types              as X hiding (KafkaProducer)

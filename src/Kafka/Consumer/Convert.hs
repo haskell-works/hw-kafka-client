@@ -16,17 +16,33 @@ module Kafka.Consumer.Convert
 )
 where
 
-import qualified Data.Text as Text
-import           Control.Monad
+import           Control.Monad          ((>=>))
 import qualified Data.ByteString        as BS
+import           Data.Int               (Int64)
 import           Data.Map.Strict        (Map, fromListWith)
 import qualified Data.Set               as S
-import           Foreign
-import           Foreign.C.Error
-import           Kafka.Consumer.Types
+import qualified Data.Text              as Text
+import           Foreign.Ptr            (Ptr, nullPtr)
+import           Foreign.ForeignPtr     (withForeignPtr)
+import           Foreign.Storable       (Storable(..))
+import           Foreign.C.Error        (getErrno)
+import           Kafka.Consumer.Types   (ConsumerRecord(..), TopicPartition(..), Offset(..), OffsetCommit(..), PartitionOffset(..), OffsetStoreSync(..))
 import           Kafka.Internal.RdKafka
-import           Kafka.Internal.Shared
-import           Kafka.Types
+  ( RdKafkaRespErrT(..)
+  , RdKafkaMessageT(..)
+  , RdKafkaTopicPartitionListTPtr
+  , RdKafkaTopicPartitionListT(..)
+  , RdKafkaMessageTPtr
+  , RdKafkaTopicPartitionT(..)
+  , rdKafkaTopicPartitionListAdd
+  , newRdKafkaTopicPartitionListT
+  , rdKafkaMessageDestroy
+  , rdKafkaTopicPartitionListSetOffset
+  , rdKafkaTopicPartitionListNew
+  , peekCText
+  )
+import           Kafka.Internal.Shared  (kafkaRespErr, readTopic, readKey, readPayload, readTimestamp)
+import           Kafka.Types            (KafkaError(..), PartitionId(..), TopicName(..))
 
 -- | Converts offsets sync policy to integer (the way Kafka understands it):
 --

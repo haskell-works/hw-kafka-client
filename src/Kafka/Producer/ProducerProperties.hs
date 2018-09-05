@@ -18,13 +18,14 @@ where
 
 import           Data.Text                (Text)
 import qualified Data.Text                as Text
-import           Control.Monad
+import           Control.Monad            (MonadPlus(mplus))
 import           Data.Map                 (Map)
 import qualified Data.Map                 as M
 import           Data.Semigroup           as Sem
-import           Kafka.Internal.Setup
+import           Kafka.Internal.Setup     (KafkaConf(..))
+import           Kafka.Types              (KafkaDebug(..), Timeout(..), KafkaCompressionCodec(..), KafkaLogLevel(..), BrokerAddress(..), kafkaDebugToText, kafkaCompressionCodecToText)  
+
 import           Kafka.Producer.Callbacks
-import           Kafka.Types
 
 -- | Properties to create 'KafkaProducer'.
 data ProducerProperties = ProducerProperties

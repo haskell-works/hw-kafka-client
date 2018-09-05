@@ -1,21 +1,33 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kafka.Consumer.ConsumerProperties
-( module Kafka.Consumer.ConsumerProperties
+( ConsumerProperties(..)
+, brokersList
+, noAutoCommit
+, noAutoOffsetStore
+, groupId
+, clientId
+, setCallback
+, logLevel
+, compression
+, suppressDisconnectLogs
+, extraProps
+, extraProp
+, debugOptions
+, queuedMaxMessagesKBytes
 , module X
 )
 where
 
---
-import           Control.Monad
+import           Control.Monad        (MonadPlus(mplus))
 import           Data.Map             (Map)
 import qualified Data.Map             as M
 import           Data.Semigroup       as Sem
-import           Kafka.Consumer.Types
-import           Kafka.Internal.Setup
-import           Kafka.Types
-import qualified Data.Text as Text
-import Data.Text (Text)
+import           Data.Text            (Text)
+import qualified Data.Text            as Text
+import           Kafka.Consumer.Types (ConsumerGroupId(..))
+import           Kafka.Internal.Setup (KafkaConf(..))
+import           Kafka.Types          (KafkaDebug(..), KafkaCompressionCodec(..), KafkaLogLevel(..), ClientId(..), BrokerAddress(..), kafkaDebugToText, kafkaCompressionCodecToText)
 
 import Kafka.Consumer.Callbacks as X
 
