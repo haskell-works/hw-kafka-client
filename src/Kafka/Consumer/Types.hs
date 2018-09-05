@@ -1,6 +1,28 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 module Kafka.Consumer.Types
-
+( KafkaConsumer(..)
+, ConsumerGroupId(..)
+, Offset(..)
+, OffsetReset(..)
+, RebalanceEvent(..)
+, PartitionOffset(..)
+, SubscribedPartitions(..)
+, Timestamp(..)
+, OffsetCommit(..)
+, OffsetStoreSync(..)
+, OffsetStoreMethod(..)
+, TopicPartition(..)
+, ConsumerRecord(..)
+, crMapKey
+, crMapValue
+, crMapKV
+-- why are these here?
+, sequenceFirst
+, traverseFirst
+, traverseFirstM
+, traverseM
+, bitraverseM
+)
 where
 
 import Data.Text (Text)
@@ -82,7 +104,8 @@ data OffsetStoreMethod =
 data TopicPartition = TopicPartition
   { tpTopicName :: TopicName
   , tpPartition :: PartitionId
-  , tpOffset    :: PartitionOffset } deriving (Show, Eq)
+  , tpOffset    :: PartitionOffset
+  } deriving (Show, Eq)
 
 -- | Represents a /received/ message from Kafka (i.e. used in a consumer)
 data ConsumerRecord k v = ConsumerRecord

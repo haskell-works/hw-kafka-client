@@ -1,4 +1,9 @@
 module Kafka.Producer.Convert
+( copyMsgFlags
+, producePartitionInt
+, producePartitionCInt
+, handleProduceErr
+)
 where
 
 import           Foreign.C.Error

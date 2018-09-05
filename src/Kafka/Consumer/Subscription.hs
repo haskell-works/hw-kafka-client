@@ -1,6 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kafka.Consumer.Subscription
+( Subscription(..)
+, topics
+, offsetReset
+, autoCommit
+, extraSubscriptionProps
+)
 where
 
 import qualified Data.Text            as Text

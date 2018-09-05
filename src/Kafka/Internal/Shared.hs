@@ -1,4 +1,20 @@
 module Kafka.Internal.Shared
+( runEventLoop
+, pollEvents
+, word8PtrToBS
+, kafkaRespErr
+, throwOnError
+, hasError
+, rdKafkaErrorToEither
+, kafkaErrorToEither
+, kafkaErrorToMaybe
+, maybeToLeft
+, readPayload
+, readTopic
+, readKey
+, readTimestamp
+, readBS
+)
 where
 
 import           Data.Text (Text)

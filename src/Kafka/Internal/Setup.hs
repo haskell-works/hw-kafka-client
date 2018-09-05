@@ -1,4 +1,22 @@
-module Kafka.Internal.Setup where
+module Kafka.Internal.Setup
+( HasKafka(..)
+, HasKafkaConf(..)
+, HasTopicConf(..)
+, getRdKafka
+, getRdKafkaConf
+, getRdMsgQueue
+, getRdTopicConf
+, newTopicConf
+, newKafkaConf
+, kafkaConf
+, topicConf
+, checkConfSetValue
+, setKafkaConfValue
+, setAllKafkaConfValues
+, setTopicConfValue
+, setAllTopicConfValues
+)
+where
 
 import Kafka.Internal.RdKafka
 import Kafka.Types

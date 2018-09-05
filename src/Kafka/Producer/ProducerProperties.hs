@@ -1,13 +1,23 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Kafka.Producer.ProducerProperties
-( module Kafka.Producer.ProducerProperties
+( ProducerProperties(..)
+, brokersList
+, setCallback
+, logLevel
+, compression
+, topicCompression
+, sendTimeout
+, extraProps
+, suppressDisconnectLogs
+, extraTopicProps
+, debugOptions
 , module Kafka.Producer.Callbacks
 )
 where
 
-import           Data.Text (Text)
-import qualified Data.Text as Text
+import           Data.Text                (Text)
+import qualified Data.Text                as Text
 import           Control.Monad
 import           Data.Map                 (Map)
 import qualified Data.Map                 as M

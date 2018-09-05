@@ -1,6 +1,10 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 module Kafka.Producer.Types
-
+( KafkaProducer(..)
+, ProducerRecord(..)
+, ProducePartition(..)
+, DeliveryReport(..)
+)
 where
 
 import qualified Data.ByteString      as BS

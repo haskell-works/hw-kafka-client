@@ -1,5 +1,19 @@
 module Kafka.Consumer.Convert
-
+( offsetSyncToInt
+, offsetToInt64
+, int64ToOffset
+, fromNativeTopicPartitionList''
+, fromNativeTopicPartitionList'
+, fromNativeTopicPartitionList
+, toNativeTopicPartitionList
+, toNativeTopicPartitionListNoDispose
+, toNativeTopicPartitionList'
+, topicPartitionFromMessage
+, topicPartitionFromMessageForCommit
+, toMap
+, fromMessagePtr
+, offsetCommitToBool
+)
 where
 
 import qualified Data.Text as Text

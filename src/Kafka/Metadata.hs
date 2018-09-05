@@ -45,10 +45,6 @@ import           Kafka.Internal.RdKafka
   , rdKafkaQueryWatermarkOffsets
   , rdKafkaOffsetsForTimes
   , rdKafkaListGroups
---  , groupCnt'RdKafkaGroupListT
---  , groups'RdKafkaGroupListT
---  , brokerCnt'RdKafkaMetadataT
---  , broker
   )
 import           Kafka.Internal.Setup
 import           Kafka.Internal.Shared

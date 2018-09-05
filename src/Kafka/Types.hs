@@ -3,6 +3,21 @@
 {-# LANGUAGE OverloadedStrings          #-}
 
 module Kafka.Types
+( BrokerId(..)
+, PartitionId(..)
+, Millis(..)
+, ClientId(..)
+, BatchSize(..)
+, TopicName(..)
+, BrokerAddress(..)
+, Timeout(..)
+, KafkaLogLevel(..)
+, KafkaError(..)
+, KafkaDebug(..)
+, KafkaCompressionCodec(..)
+, kafkaDebugToText
+, kafkaCompressionCodecToText
+)
 where
 
 import Control.Exception (Exception(..))
