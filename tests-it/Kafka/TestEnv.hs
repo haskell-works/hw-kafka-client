@@ -8,7 +8,6 @@ import Control.Monad      (void)
 import Data.Monoid        ((<>))
 import System.Environment
 import System.IO.Unsafe
-import Data.Text          (Text)
 import qualified Data.Text as Text
 
 import Control.Concurrent

@@ -38,27 +38,7 @@ newtype Timeout = Timeout { unTimeout :: Int } deriving (Show, Eq, Read)
 data KafkaLogLevel =
   KafkaLogEmerg | KafkaLogAlert | KafkaLogCrit | KafkaLogErr | KafkaLogWarning |
   KafkaLogNotice | KafkaLogInfo | KafkaLogDebug
-  deriving (Show, Eq)
-
-instance Enum KafkaLogLevel where
-   toEnum 0 = KafkaLogEmerg
-   toEnum 1 = KafkaLogAlert
-   toEnum 2 = KafkaLogCrit
-   toEnum 3 = KafkaLogErr
-   toEnum 4 = KafkaLogWarning
-   toEnum 5 = KafkaLogNotice
-   toEnum 6 = KafkaLogInfo
-   toEnum 7 = KafkaLogDebug
-   toEnum _ = undefined
-
-   fromEnum KafkaLogEmerg   = 0
-   fromEnum KafkaLogAlert   = 1
-   fromEnum KafkaLogCrit    = 2
-   fromEnum KafkaLogErr     = 3
-   fromEnum KafkaLogWarning = 4
-   fromEnum KafkaLogNotice  = 5
-   fromEnum KafkaLogInfo    = 6
-   fromEnum KafkaLogDebug   = 7
+  deriving (Show, Enum, Eq)
 
 --
 -- | Any Kafka errors

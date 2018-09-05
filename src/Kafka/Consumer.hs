@@ -18,6 +18,8 @@ module Kafka.Consumer
 )
 where
 
+import           Data.Set                         (Set)
+import qualified Data.Set                         as Set
 import qualified Data.Text                        as Text
 import           Control.Arrow                    ((&&&), left)
 import           Control.Concurrent               (forkIO, rtsSupportsBoundThreads)
@@ -313,10 +315,10 @@ newConsumerConf ConsumerProperties {cpProps = m, cpCallbacks = cbs} = do
 -- any topic name in the topics list that is prefixed with @^@ will
 -- be regex-matched to the full list of topics in the cluster and matching
 -- topics will be added to the subscription list.
-subscribe :: KafkaConsumer -> [TopicName] -> IO (Maybe KafkaError)
+subscribe :: KafkaConsumer -> Set TopicName -> IO (Maybe KafkaError)
 subscribe (KafkaConsumer (Kafka k) _) ts = do
     pl <- newRdKafkaTopicPartitionListT (length ts)
-    mapM_ (\(TopicName t) -> rdKafkaTopicPartitionListAdd pl (Text.unpack t) (-1)) ts
+    mapM_ (\(TopicName t) -> rdKafkaTopicPartitionListAdd pl (Text.unpack t) (-1)) (Set.toList ts)
     res <- KafkaResponseError <$> rdKafkaSubscribe k pl
     return $ kafkaErrorToMaybe res
 
