@@ -98,6 +98,7 @@ executable kafka-client-example
     , bytestring
     , containers
     , hw-kafka-client
+    , text
     , transformers
     , unix
   if !(flag(examples))

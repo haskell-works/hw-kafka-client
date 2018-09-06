@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module ConsumerExample
 
@@ -7,6 +8,7 @@ import Control.Arrow     ((&&&))
 import Control.Exception (bracket)
 import Data.Monoid       ((<>))
 import Kafka.Consumer
+import Data.Text         (Text)
 
 -- Global consumer properties
 consumerProps :: ConsumerProperties

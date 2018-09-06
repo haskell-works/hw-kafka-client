@@ -9,6 +9,7 @@ import Data.ByteString       (ByteString)
 import Data.ByteString.Char8 (pack)
 import Data.Monoid
 import Kafka.Producer
+import Data.Text             (Text)
 
 -- Global producer properties
 producerProps :: ProducerProperties
