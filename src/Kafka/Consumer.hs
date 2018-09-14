@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 module Kafka.Consumer
 ( module X
@@ -17,25 +18,73 @@ module Kafka.Consumer
 )
 where
 
-import           Control.Arrow
+import           Data.Set                         (Set)
+import qualified Data.Set                         as Set
+import qualified Data.Text                        as Text
+import           Control.Arrow                    ((&&&), left)
 import           Control.Concurrent               (forkIO, rtsSupportsBoundThreads)
-import           Control.Exception
+import           Control.Exception                (bracket)
 import           Control.Monad                    (forM_, void, when)
-import           Control.Monad.IO.Class
-import           Control.Monad.Trans.Except
-import           Data.Bifunctor
+import           Control.Monad.IO.Class           (MonadIO(liftIO))
+import           Control.Monad.Trans.Except       (ExceptT(ExceptT), runExceptT)
+import           Data.Bifunctor                   (first, bimap)
 import qualified Data.ByteString                  as BS
-import           Data.IORef
+import           Data.IORef                       (writeIORef, readIORef)
 import qualified Data.Map                         as M
 import           Data.Maybe                       (fromMaybe)
 import           Data.Monoid                      ((<>))
 import           Foreign                          hiding (void)
 import           Kafka.Consumer.Convert
-import           Kafka.Consumer.Types
+  (fromMessagePtr, toNativeTopicPartitionList, topicPartitionFromMessageForCommit
+  , toNativeTopicPartitionListNoDispose, toNativeTopicPartitionList, fromNativeTopicPartitionList''
+  , toMap, offsetToInt64, toNativeTopicPartitionList', offsetCommitToBool
+  )
+import           Kafka.Consumer.Types (KafkaConsumer(..))
 import           Kafka.Internal.CancellationToken as CToken
 import           Kafka.Internal.RdKafka
+  ( RdKafkaRespErrT(..)
+  , RdKafkaTopicPartitionListTPtr
+  , RdKafkaTypeT(..)
+  , newRdKafkaT
+  , rdKafkaQueueNew
+  , rdKafkaConsumeQueue
+  , rdKafkaPollSetConsumer
+  , rdKafkaSetLogLevel
+  , rdKafkaOffsetsStore
+  , rdKafkaCommit
+  , rdKafkaConfSetDefaultTopicConf
+  , rdKafkaTopicConfDup
+  , rdKafkaSubscribe
+  , rdKafkaTopicPartitionListAdd
+  , newRdKafkaTopicPartitionListT
+  , rdKafkaConsumerClose
+  , rdKafkaQueueDestroy
+  , rdKafkaConsumerPoll
+  , rdKafkaPosition
+  , rdKafkaCommitted
+  , rdKafkaSeek
+  , rdKafkaResumePartitions
+  , rdKafkaPausePartitions
+  , rdKafkaSubscription
+  , rdKafkaAssignment
+  , rdKafkaConsumeBatchQueue
+  , newRdKafkaTopicT
+  )
 import           Kafka.Internal.Setup
+  ( Kafka(..)
+  , KafkaConf(..)
+  , TopicConf(..)
+  , KafkaProps(..)
+  , TopicProps(..)
+  , kafkaConf
+  , topicConf
+  , getRdKafka
+  )
 import           Kafka.Internal.Shared
+  ( kafkaErrorToMaybe
+  , maybeToLeft
+  , rdKafkaErrorToEither
+  )
 
 import Kafka.Consumer.ConsumerProperties as X
 import Kafka.Consumer.Subscription       as X
@@ -67,7 +116,7 @@ newConsumer :: MonadIO m
 newConsumer props (Subscription ts tp) = liftIO $ do
   let cp = setCallback (rebalanceCallback (\_ _ -> return ())) <> props
   kc@(KafkaConf kc' qref ct) <- newConsumerConf cp
-  tp' <- topicConf (TopicProps $ M.toList tp)
+  tp' <- topicConf (TopicProps tp)
   _   <- setDefaultTopicConf kc tp'
   rdk <- newRdKafkaT RdKafkaConsumer kc'
   case rdk of
@@ -179,14 +228,14 @@ subscription (KafkaConsumer (Kafka k) _) = liftIO $ do
 pausePartitions :: MonadIO m => KafkaConsumer -> [(TopicName, PartitionId)] -> m KafkaError
 pausePartitions (KafkaConsumer (Kafka k) _) ps = liftIO $ do
   pl <- newRdKafkaTopicPartitionListT (length ps)
-  mapM_ (\(TopicName topicName, PartitionId partitionId) -> rdKafkaTopicPartitionListAdd pl topicName partitionId) ps
+  mapM_ (\(TopicName topicName, PartitionId partitionId) -> rdKafkaTopicPartitionListAdd pl (Text.unpack topicName) partitionId) ps
   KafkaResponseError <$> rdKafkaPausePartitions k pl
 
 -- | Resumes specified partitions on the current consumer.
 resumePartitions :: MonadIO m => KafkaConsumer -> [(TopicName, PartitionId)] -> m KafkaError
 resumePartitions (KafkaConsumer (Kafka k) _) ps = liftIO $ do
   pl <- newRdKafkaTopicPartitionListT (length ps)
-  mapM_ (\(TopicName topicName, PartitionId partitionId) -> rdKafkaTopicPartitionListAdd pl topicName partitionId) ps
+  mapM_ (\(TopicName topicName, PartitionId partitionId) -> rdKafkaTopicPartitionListAdd pl (Text.unpack topicName) partitionId) ps
   KafkaResponseError <$> rdKafkaResumePartitions k pl
 
 seek :: MonadIO m => KafkaConsumer -> Timeout -> [TopicPartition] -> m (Maybe KafkaError)
@@ -203,8 +252,8 @@ seek (KafkaConsumer (Kafka k) _) (Timeout timeout) tps = liftIO $
 
     topicPair tp = do
       let (TopicName tn) = tpTopicName tp
-      nt <- newRdKafkaTopicT k tn Nothing
-      return $ bimap KafkaError (,tpPartition tp, tpOffset tp) nt
+      nt <- newRdKafkaTopicT k (Text.unpack tn) Nothing
+      return $ bimap KafkaError (,tpPartition tp, tpOffset tp) (first Text.pack nt)
 
 -- | Retrieve committed offsets for topics+partitions.
 committed :: MonadIO m => KafkaConsumer -> Timeout -> [(TopicName, PartitionId)] -> m (Either KafkaError [TopicPartition])
@@ -256,7 +305,7 @@ closeConsumer (KafkaConsumer (Kafka k) (KafkaConf _ qr ct)) = liftIO $ do
 -----------------------------------------------------------------------------
 newConsumerConf :: ConsumerProperties -> IO KafkaConf
 newConsumerConf ConsumerProperties {cpProps = m, cpCallbacks = cbs} = do
-  conf <- kafkaConf (KafkaProps $ M.toList m)
+  conf <- kafkaConf (KafkaProps m)
   forM_ cbs (\setCb -> setCb conf)
   return conf
 
@@ -266,10 +315,10 @@ newConsumerConf ConsumerProperties {cpProps = m, cpCallbacks = cbs} = do
 -- any topic name in the topics list that is prefixed with @^@ will
 -- be regex-matched to the full list of topics in the cluster and matching
 -- topics will be added to the subscription list.
-subscribe :: KafkaConsumer -> [TopicName] -> IO (Maybe KafkaError)
+subscribe :: KafkaConsumer -> Set TopicName -> IO (Maybe KafkaError)
 subscribe (KafkaConsumer (Kafka k) _) ts = do
     pl <- newRdKafkaTopicPartitionListT (length ts)
-    mapM_ (\(TopicName t) -> rdKafkaTopicPartitionListAdd pl t (-1)) ts
+    mapM_ (\(TopicName t) -> rdKafkaTopicPartitionListAdd pl (Text.unpack t) (-1)) (Set.toList ts)
     res <- KafkaResponseError <$> rdKafkaSubscribe k pl
     return $ kafkaErrorToMaybe res
 

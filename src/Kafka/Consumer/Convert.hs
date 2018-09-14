@@ -1,18 +1,48 @@
 module Kafka.Consumer.Convert
-
+( offsetSyncToInt
+, offsetToInt64
+, int64ToOffset
+, fromNativeTopicPartitionList''
+, fromNativeTopicPartitionList'
+, fromNativeTopicPartitionList
+, toNativeTopicPartitionList
+, toNativeTopicPartitionListNoDispose
+, toNativeTopicPartitionList'
+, topicPartitionFromMessage
+, topicPartitionFromMessageForCommit
+, toMap
+, fromMessagePtr
+, offsetCommitToBool
+)
 where
 
-import           Control.Monad
+import           Control.Monad          ((>=>))
 import qualified Data.ByteString        as BS
+import           Data.Int               (Int64)
 import           Data.Map.Strict        (Map, fromListWith)
 import qualified Data.Set               as S
-import           Foreign
-import           Foreign.C.Error
-import           Foreign.C.String
-import           Kafka.Consumer.Types
+import qualified Data.Text              as Text
+import           Foreign.Ptr            (Ptr, nullPtr)
+import           Foreign.ForeignPtr     (withForeignPtr)
+import           Foreign.Storable       (Storable(..))
+import           Foreign.C.Error        (getErrno)
+import           Kafka.Consumer.Types   (ConsumerRecord(..), TopicPartition(..), Offset(..), OffsetCommit(..), PartitionOffset(..), OffsetStoreSync(..))
 import           Kafka.Internal.RdKafka
-import           Kafka.Internal.Shared
-import           Kafka.Types
+  ( RdKafkaRespErrT(..)
+  , RdKafkaMessageT(..)
+  , RdKafkaTopicPartitionListTPtr
+  , RdKafkaTopicPartitionListT(..)
+  , RdKafkaMessageTPtr
+  , RdKafkaTopicPartitionT(..)
+  , rdKafkaTopicPartitionListAdd
+  , newRdKafkaTopicPartitionListT
+  , rdKafkaMessageDestroy
+  , rdKafkaTopicPartitionListSetOffset
+  , rdKafkaTopicPartitionListNew
+  , peekCText
+  )
+import           Kafka.Internal.Shared  (kafkaRespErr, readTopic, readKey, readPayload, readTimestamp)
+import           Kafka.Types            (KafkaError(..), PartitionId(..), TopicName(..))
 
 -- | Converts offsets sync policy to integer (the way Kafka understands it):
 --
@@ -65,7 +95,7 @@ fromNativeTopicPartitionList pl =
     where
         toPart :: RdKafkaTopicPartitionT -> IO TopicPartition
         toPart p = do
-            topic <- peekCString $ topic'RdKafkaTopicPartitionT p
+            topic <- peekCText $ topic'RdKafkaTopicPartitionT p
             return TopicPartition {
                 tpTopicName = TopicName topic,
                 tpPartition = PartitionId $ partition'RdKafkaTopicPartitionT p,
@@ -79,8 +109,9 @@ toNativeTopicPartitionList ps = do
         let TopicName tn = tpTopicName p
             (PartitionId tp) = tpPartition p
             to = offsetToInt64 $ tpOffset p
-        _ <- rdKafkaTopicPartitionListAdd pl tn tp
-        rdKafkaTopicPartitionListSetOffset pl tn tp to) ps
+            tnS = Text.unpack tn 
+        _ <- rdKafkaTopicPartitionListAdd pl tnS tp
+        rdKafkaTopicPartitionListSetOffset pl tnS tp to) ps
     return pl
 
 toNativeTopicPartitionListNoDispose :: [TopicPartition] -> IO RdKafkaTopicPartitionListTPtr
@@ -90,15 +121,16 @@ toNativeTopicPartitionListNoDispose ps = do
         let TopicName tn = tpTopicName p
             (PartitionId tp) = tpPartition p
             to = offsetToInt64 $ tpOffset p
-        _ <- rdKafkaTopicPartitionListAdd pl tn tp
-        rdKafkaTopicPartitionListSetOffset pl tn tp to) ps
+            tnS = Text.unpack tn 
+        _ <- rdKafkaTopicPartitionListAdd pl tnS tp
+        rdKafkaTopicPartitionListSetOffset pl tnS tp to) ps
     return pl
 
 toNativeTopicPartitionList' :: [(TopicName, PartitionId)] -> IO RdKafkaTopicPartitionListTPtr
 toNativeTopicPartitionList' tps = do
     let utps = S.toList . S.fromList $ tps
     pl <- newRdKafkaTopicPartitionListT (length utps)
-    mapM_ (\(TopicName t, PartitionId p) -> rdKafkaTopicPartitionListAdd pl t p) utps
+    mapM_ (\(TopicName t, PartitionId p) -> rdKafkaTopicPartitionListAdd pl (Text.unpack t) p) utps
     return pl
 
 topicPartitionFromMessage :: ConsumerRecord k v -> TopicPartition

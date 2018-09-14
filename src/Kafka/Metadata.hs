@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Kafka.Metadata
 ( KafkaMetadata(..), BrokerMetadata(..), TopicMetadata(..), PartitionMetadata(..)
 , WatermarkOffsets(..)
@@ -12,21 +14,49 @@ module Kafka.Metadata
 )
 where
 
+import           Data.Text              (Text)
+import qualified Data.Text              as Text
 import           Control.Arrow          (left)
 import           Control.Exception      (bracket)
-import           Control.Monad.IO.Class (MonadIO, liftIO)
-import           Data.Bifunctor
+import           Control.Monad.IO.Class (MonadIO(liftIO))
+import           Data.Bifunctor         (bimap)
 import           Data.ByteString        (ByteString, pack)
 import           Data.Monoid            ((<>))
 import qualified Data.Set               as S
-import           Foreign
-import           Foreign.C.String
-import           Kafka.Consumer.Convert
-import           Kafka.Consumer.Types
+import           Foreign                (withForeignPtr, Storable(peek), peekArray)
+import           Kafka.Consumer.Convert (toNativeTopicPartitionList, fromNativeTopicPartitionList'')
+import           Kafka.Consumer.Types   (Offset(..), ConsumerGroupId(..), TopicPartition(..), PartitionOffset(..))
 import           Kafka.Internal.RdKafka
-import           Kafka.Internal.Setup
-import           Kafka.Internal.Shared
+  ( RdKafkaGroupListTPtr
+  , RdKafkaMetadataTPtr
+  , RdKafkaMetadataBrokerT(..)
+  , RdKafkaMetadataPartitionT(..)
+  , RdKafkaMetadataTopicT(..)
+  , RdKafkaGroupMemberInfoT(..)
+  , RdKafkaGroupInfoT(..)
+  , RdKafkaGroupListT(..)
+  , RdKafkaTPtr
+  , RdKafkaRespErrT(..)
+  , RdKafkaMetadataT(..)
+  , peekCAText
+  , rdKafkaMetadata
+  , newUnmanagedRdKafkaTopicT
+  , destroyUnmanagedRdKafkaTopic
+  , rdKafkaQueryWatermarkOffsets
+  , rdKafkaOffsetsForTimes
+  , rdKafkaListGroups
+  )
+import           Kafka.Internal.Setup   (Kafka(..), HasKafka(..))
+import           Kafka.Internal.Shared  (kafkaErrorToMaybe)
 import           Kafka.Types
+  ( BrokerId(..)
+  , ClientId(..)
+  , KafkaError(..)
+  , Millis(..)
+  , PartitionId(..)
+  , Timeout(..)
+  , TopicName(..)
+  )
 
 data KafkaMetadata = KafkaMetadata
   { kmBrokers    :: [BrokerMetadata]
@@ -36,7 +66,7 @@ data KafkaMetadata = KafkaMetadata
 
 data BrokerMetadata = BrokerMetadata
   { bmBrokerId   :: !BrokerId
-  , bmBrokerHost :: !String
+  , bmBrokerHost :: !Text
   , bmBrokerPort :: !Int
   } deriving (Show, Eq)
 
@@ -61,17 +91,17 @@ data WatermarkOffsets = WatermarkOffsets
   , woHighWatermark :: !Offset
   } deriving (Show, Eq)
 
-newtype GroupMemberId = GroupMemberId String deriving (Show, Eq, Read, Ord)
+newtype GroupMemberId = GroupMemberId Text deriving (Show, Eq, Read, Ord)
 data GroupMemberInfo = GroupMemberInfo
   { gmiMemberId   :: !GroupMemberId
   , gmiClientId   :: !ClientId
-  , gmiClientHost :: !String
+  , gmiClientHost :: !Text
   , gmiMetadata   :: !ByteString
   , gmiAssignment :: !ByteString
   } deriving (Show, Eq)
 
-newtype GroupProtocolType = GroupProtocolType String deriving (Show, Eq, Read, Ord)
-newtype GroupProtocol = GroupProtocol String  deriving (Show, Eq, Read, Ord)
+newtype GroupProtocolType = GroupProtocolType Text deriving (Show, Eq, Read, Ord)
+newtype GroupProtocol = GroupProtocol Text  deriving (Show, Eq, Read, Ord)
 data GroupState
   = GroupPreparingRebalance       -- ^ Group is preparing to rebalance
   | GroupEmpty                    -- ^ Group has no more members, but lingers until all offsets have expired
@@ -99,12 +129,12 @@ allTopicsMetadata k (Timeout timeout) = liftIO $ do
 topicMetadata :: (MonadIO m, HasKafka k) => k -> Timeout -> TopicName -> m (Either KafkaError KafkaMetadata)
 topicMetadata k (Timeout timeout) (TopicName tn) = liftIO $
   bracket mkTopic clTopic $ \mbt -> case mbt of
-    Left err -> return (Left $ KafkaError err)
+    Left err -> return (Left $ KafkaError (Text.pack err))
     Right t -> do
       meta <- rdKafkaMetadata (getKafkaPtr k) False (Just t) timeout
       traverse fromKafkaMetadataPtr (left KafkaResponseError meta)
   where
-    mkTopic = newUnmanagedRdKafkaTopicT (getKafkaPtr k) tn Nothing
+    mkTopic = newUnmanagedRdKafkaTopicT (getKafkaPtr k) (Text.unpack tn) Nothing
     clTopic = either (return . const ()) destroyUnmanagedRdKafkaTopic
 
 -- | Query broker for low (oldest/beginning) and high (newest/end) offsets for a given topic.
@@ -126,7 +156,7 @@ watermarkOffsets' k timeout tm =
 -- | Query broker for low (oldest/beginning) and high (newest/end) offsets for a specific partition
 partitionWatermarkOffsets :: (MonadIO m, HasKafka k) => k -> Timeout -> TopicName -> PartitionId -> m (Either KafkaError WatermarkOffsets)
 partitionWatermarkOffsets k (Timeout timeout) (TopicName t) (PartitionId p) = liftIO $ do
-  offs <- rdKafkaQueryWatermarkOffsets (getKafkaPtr k) t p timeout
+  offs <- rdKafkaQueryWatermarkOffsets (getKafkaPtr k) (Text.unpack t) p timeout
   return $ bimap KafkaResponseError toWatermark offs
   where
     toWatermark (l, h) = WatermarkOffsets (TopicName t) (PartitionId p) (Offset l) (Offset h)
@@ -181,7 +211,7 @@ allConsumerGroupsInfo k (Timeout t) = liftIO $ do
 -- | Describe a given consumer group.
 consumerGroupInfo :: (MonadIO m, HasKafka k) => k -> Timeout -> ConsumerGroupId -> m (Either KafkaError [GroupInfo])
 consumerGroupInfo k (Timeout timeout) (ConsumerGroupId gn) = liftIO $ do
-  res <- rdKafkaListGroups (getKafkaPtr k) (Just gn) timeout
+  res <- rdKafkaListGroups (getKafkaPtr k) (Just (Text.unpack gn)) timeout
   traverse fromGroupInfoListPtr (left KafkaResponseError res)
 
 -------------------------------------------------------------------------------
@@ -201,10 +231,10 @@ fromGroupInfoPtr :: RdKafkaGroupInfoT -> IO GroupInfo
 fromGroupInfoPtr gi = do
   --bmd <- peek (broker'RdKafkaGroupInfoT gi) -- >>= fromBrokerMetadataPtr
   --xxx <- fromBrokerMetadataPtr bmd
-  cid <- peekCAString $ group'RdKafkaGroupInfoT gi
-  stt <- peekCAString $ state'RdKafkaGroupInfoT gi
-  prt <- peekCAString $ protocolType'RdKafkaGroupInfoT gi
-  pr  <- peekCAString $ protocol'RdKafkaGroupInfoT gi
+  cid <- peekCAText $ group'RdKafkaGroupInfoT gi
+  stt <- peekCAText $ state'RdKafkaGroupInfoT gi
+  prt <- peekCAText $ protocolType'RdKafkaGroupInfoT gi
+  pr  <- peekCAText $ protocol'RdKafkaGroupInfoT gi
   mbs <- peekArray (memberCnt'RdKafkaGroupInfoT gi) (members'RdKafkaGroupInfoT gi)
   mbl <- mapM fromGroupMemberInfoPtr mbs
   return GroupInfo
@@ -219,9 +249,9 @@ fromGroupInfoPtr gi = do
 
 fromGroupMemberInfoPtr :: RdKafkaGroupMemberInfoT -> IO GroupMemberInfo
 fromGroupMemberInfoPtr mi = do
-  mid <- peekCAString $ memberId'RdKafkaGroupMemberInfoT mi
-  cid <- peekCAString $ clientId'RdKafkaGroupMemberInfoT mi
-  hst <- peekCAString $ clientHost'RdKafkaGroupMemberInfoT mi
+  mid <- peekCAText $ memberId'RdKafkaGroupMemberInfoT mi
+  cid <- peekCAText $ clientId'RdKafkaGroupMemberInfoT mi
+  hst <- peekCAText $ clientHost'RdKafkaGroupMemberInfoT mi
   mtd <- peekArray (memberMetadataSize'RdKafkaGroupMemberInfoT mi) (memberMetadata'RdKafkaGroupMemberInfoT mi)
   ass <- peekArray (memberAssignmentSize'RdKafkaGroupMemberInfoT mi) (memberAssignment'RdKafkaGroupMemberInfoT mi)
   return GroupMemberInfo
@@ -234,7 +264,7 @@ fromGroupMemberInfoPtr mi = do
 
 fromTopicMetadataPtr :: RdKafkaMetadataTopicT -> IO TopicMetadata
 fromTopicMetadataPtr tm = do
-  tnm <- peekCAString (topic'RdKafkaMetadataTopicT tm)
+  tnm <- peekCAText (topic'RdKafkaMetadataTopicT tm)
   pts <- peekArray (partitionCnt'RdKafkaMetadataTopicT tm) (partitions'RdKafkaMetadataTopicT tm)
   pms <- mapM fromPartitionMetadataPtr pts
   return TopicMetadata
@@ -258,7 +288,7 @@ fromPartitionMetadataPtr pm = do
 
 fromBrokerMetadataPtr :: RdKafkaMetadataBrokerT -> IO BrokerMetadata
 fromBrokerMetadataPtr bm = do
-    host <- peekCAString (host'RdKafkaMetadataBrokerT bm)
+    host <- peekCAText (host'RdKafkaMetadataBrokerT bm)
     return BrokerMetadata
       { bmBrokerId   = BrokerId (id'RdKafkaMetadataBrokerT bm)
       , bmBrokerHost = host
@@ -280,11 +310,11 @@ fromKafkaMetadataPtr ptr =
       , kmOrigBroker = BrokerId $ fromIntegral (origBrokerId'RdKafkaMetadataT km)
       }
 
-groupStateFromKafkaString :: String -> GroupState
+groupStateFromKafkaString :: Text -> GroupState
 groupStateFromKafkaString s = case s of
   "PreparingRebalance" -> GroupPreparingRebalance
   "AwaitingSync"       -> GroupAwaitingSync
   "Stable"             -> GroupStable
   "Dead"               -> GroupDead
   "Empty"              -> GroupEmpty
-  _                    -> error $ "Unknown group state: " <> s
+  _                    -> error $ "Unknown group state: " <> (Text.unpack s)

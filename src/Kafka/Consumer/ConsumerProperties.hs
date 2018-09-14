@@ -1,24 +1,39 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Kafka.Consumer.ConsumerProperties
-( module Kafka.Consumer.ConsumerProperties
+( ConsumerProperties(..)
+, brokersList
+, noAutoCommit
+, noAutoOffsetStore
+, groupId
+, clientId
+, setCallback
+, logLevel
+, compression
+, suppressDisconnectLogs
+, extraProps
+, extraProp
+, debugOptions
+, queuedMaxMessagesKBytes
 , module X
 )
 where
 
---
-import           Control.Monad
-import qualified Data.List            as L
+import           Control.Monad        (MonadPlus(mplus))
 import           Data.Map             (Map)
 import qualified Data.Map             as M
 import           Data.Semigroup       as Sem
-import           Kafka.Consumer.Types
-import           Kafka.Internal.Setup
-import           Kafka.Types
+import           Data.Text            (Text)
+import qualified Data.Text            as Text
+import           Kafka.Consumer.Types (ConsumerGroupId(..))
+import           Kafka.Internal.Setup (KafkaConf(..))
+import           Kafka.Types          (KafkaDebug(..), KafkaCompressionCodec(..), KafkaLogLevel(..), ClientId(..), BrokerAddress(..), kafkaDebugToText, kafkaCompressionCodecToText)
 
 import Kafka.Consumer.Callbacks as X
 
 -- | Properties to create 'KafkaConsumer'.
 data ConsumerProperties = ConsumerProperties
-  { cpProps     :: Map String String
+  { cpProps     :: Map Text Text
   , cpLogLevel  :: Maybe KafkaLogLevel
   , cpCallbacks :: [KafkaConf -> IO ()]
   }
@@ -41,7 +56,7 @@ instance Monoid ConsumerProperties where
 
 brokersList :: [BrokerAddress] -> ConsumerProperties
 brokersList bs =
-  let bs' = L.intercalate "," ((\(BrokerAddress x) -> x) <$> bs)
+  let bs' = Text.intercalate "," ((\(BrokerAddress x) -> x) <$> bs)
    in extraProps $ M.fromList [("bootstrap.servers", bs')]
 
 -- | Disables auto commit for the consumer
@@ -74,7 +89,7 @@ logLevel ll = mempty { cpLogLevel = Just ll }
 -- | Sets the compression codec for the consumer.
 compression :: KafkaCompressionCodec -> ConsumerProperties
 compression c =
-  extraProps $ M.singleton "compression.codec" (kafkaCompressionCodecToString c)
+  extraProps $ M.singleton "compression.codec" (kafkaCompressionCodecToText c)
 
 -- | Suppresses consumer disconnects logs.
 --
@@ -86,13 +101,13 @@ suppressDisconnectLogs =
 
 -- | Any configuration options that are supported by /librdkafka/.
 -- The full list can be found <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md here>
-extraProps :: Map String String -> ConsumerProperties
+extraProps :: Map Text Text -> ConsumerProperties
 extraProps m = mempty { cpProps = m }
 {-# INLINE extraProps #-}
 
 -- | Any configuration options that are supported by /librdkafka/.
 -- The full list can be found <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md here>
-extraProp :: String -> String -> ConsumerProperties
+extraProp :: Text -> Text -> ConsumerProperties
 extraProp k v = mempty { cpProps = M.singleton k v }
 {-# INLINE extraProp #-}
 
@@ -101,10 +116,10 @@ extraProp k v = mempty { cpProps = M.singleton k v }
 debugOptions :: [KafkaDebug] -> ConsumerProperties
 debugOptions [] = extraProps M.empty
 debugOptions d =
-  let points = L.intercalate "," (kafkaDebugToString <$> d)
+  let points = Text.intercalate "," (kafkaDebugToText <$> d)
    in extraProps $ M.fromList [("debug", points)]
 
 queuedMaxMessagesKBytes :: Int -> ConsumerProperties
 queuedMaxMessagesKBytes kBytes =
-  extraProp "queued.max.messages.kbytes" (show kBytes)
+  extraProp "queued.max.messages.kbytes" (Text.pack $ show kBytes)
 {-# INLINE queuedMaxMessagesKBytes #-}

@@ -4,15 +4,16 @@ module Kafka.Producer.Callbacks
 )
 where
 
-import           Foreign
-import           Foreign.C.Error
+import           Foreign.C.Error        (getErrno)
+import           Foreign.Ptr            (Ptr, nullPtr)
+import           Foreign.Storable       (Storable(peek))
 import           Kafka.Callbacks        as X
-import           Kafka.Consumer.Types
-import           Kafka.Internal.RdKafka
-import           Kafka.Internal.Setup
-import           Kafka.Internal.Shared
-import           Kafka.Producer.Types
-import           Kafka.Types
+import           Kafka.Consumer.Types   (Offset(..))
+import           Kafka.Internal.RdKafka (RdKafkaMessageT(..), RdKafkaRespErrT(..), rdKafkaConfSetDrMsgCb)
+import           Kafka.Internal.Setup   (KafkaConf(..), getRdKafkaConf)
+import           Kafka.Internal.Shared  (kafkaRespErr, readTopic, readKey, readPayload)
+import           Kafka.Producer.Types   (ProducerRecord(..), DeliveryReport(..), ProducePartition(..))
+import           Kafka.Types            (KafkaError(..), TopicName(..))
 
 -- | Sets the callback for delivery reports.
 deliveryCallback :: (DeliveryReport -> IO ()) -> KafkaConf -> IO ()

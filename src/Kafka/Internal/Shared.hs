@@ -1,18 +1,40 @@
 module Kafka.Internal.Shared
+( runEventLoop
+, pollEvents
+, word8PtrToBS
+, kafkaRespErr
+, throwOnError
+, hasError
+, rdKafkaErrorToEither
+, kafkaErrorToEither
+, kafkaErrorToMaybe
+, maybeToLeft
+, readPayload
+, readTopic
+, readKey
+, readTimestamp
+, readBS
+)
 where
 
+import           Data.Text                        (Text)
+import qualified Data.Text                        as Text
 import           Control.Concurrent               (forkIO, rtsSupportsBoundThreads)
-import           Control.Exception
+import           Control.Exception                (throw)
 import           Control.Monad                    (void, when)
 import qualified Data.ByteString                  as BS
 import qualified Data.ByteString.Internal         as BSI
-import           Foreign                          hiding (void)
-import           Foreign.C.Error
-import           Kafka.Consumer.Types
+import           Data.Word                        (Word8)
+import           Foreign.Ptr                      (Ptr, nullPtr)
+import           Foreign.Marshal.Alloc            (alloca)
+import           Foreign.ForeignPtr               (newForeignPtr_)
+import           Foreign.Storable                 (Storable(peek))
+import           Foreign.C.Error                  (Errno(..))
+import           Kafka.Consumer.Types             (Timestamp(..))
 import           Kafka.Internal.CancellationToken as CToken
-import           Kafka.Internal.RdKafka
-import           Kafka.Internal.Setup
-import           Kafka.Types
+import           Kafka.Internal.RdKafka           (RdKafkaTimestampTypeT(..), RdKafkaMessageTPtr, RdKafkaMessageT(..), RdKafkaRespErrT(..), Word8Ptr, rdKafkaPoll, rdKafkaErrno2err, rdKafkaTopicName, rdKafkaMessageTimestamp)
+import           Kafka.Internal.Setup             (HasKafka(..), Kafka(..))
+import           Kafka.Types                      (KafkaError(..), Timeout(..), Millis(..))
 
 runEventLoop :: HasKafka a => a -> CancellationToken -> Maybe Timeout -> IO ()
 runEventLoop k ct timeout =
@@ -38,7 +60,7 @@ kafkaRespErr :: Errno -> KafkaError
 kafkaRespErr (Errno num) = KafkaResponseError $ rdKafkaErrno2err (fromIntegral num)
 {-# INLINE kafkaRespErr #-}
 
-throwOnError :: IO (Maybe String) -> IO ()
+throwOnError :: IO (Maybe Text) -> IO ()
 throwOnError action = do
     m <- action
     case m of
@@ -76,8 +98,8 @@ maybeToLeft = maybe (Right ()) Left
 readPayload :: RdKafkaMessageT -> IO (Maybe BS.ByteString)
 readPayload = readBS len'RdKafkaMessageT payload'RdKafkaMessageT
 
-readTopic :: RdKafkaMessageT -> IO String
-readTopic msg = newForeignPtr_ (topic'RdKafkaMessageT msg) >>= rdKafkaTopicName
+readTopic :: RdKafkaMessageT -> IO Text
+readTopic msg = newForeignPtr_ (topic'RdKafkaMessageT msg) >>= (fmap Text.pack . rdKafkaTopicName)
 
 readKey :: RdKafkaMessageT -> IO (Maybe BSI.ByteString)
 readKey = readBS keyLen'RdKafkaMessageT key'RdKafkaMessageT

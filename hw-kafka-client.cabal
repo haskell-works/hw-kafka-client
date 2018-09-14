@@ -40,7 +40,12 @@ flag examples
 library
   hs-source-dirs:
       src
-  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints
+  ghc-options:
+    -Wall
+    -Wcompat
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -Wredundant-constraints
   extra-libraries:
       rdkafka
   build-depends:
@@ -48,6 +53,7 @@ library
     , bifunctors
     , bytestring
     , containers
+    , text 
     , transformers
     , unix
   build-tools:
@@ -92,6 +98,7 @@ executable kafka-client-example
     , bytestring
     , containers
     , hw-kafka-client
+    , text
     , transformers
     , unix
   if !(flag(examples))
@@ -117,6 +124,7 @@ test-suite integration-tests
     , hspec
     , hw-kafka-client
     , monad-loops
+    , text
   other-modules:
       Kafka.IntegrationSpec
       Kafka.TestEnv
@@ -137,6 +145,7 @@ test-suite tests
     , either
     , hspec
     , hw-kafka-client
+    , text
     , monad-loops
   other-modules:
       Kafka.Consumer.ConsumerRecordMapSpec

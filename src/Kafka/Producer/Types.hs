@@ -1,13 +1,17 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 module Kafka.Producer.Types
-
+( KafkaProducer(..)
+, ProducerRecord(..)
+, ProducePartition(..)
+, DeliveryReport(..)
+)
 where
 
 import qualified Data.ByteString      as BS
-import           Data.Typeable
-import           Kafka.Internal.Setup
-import           Kafka.Types
-import Kafka.Consumer.Types
+import           Data.Typeable        (Typeable)
+import           Kafka.Internal.Setup (HasKafka(..), HasKafkaConf(..), HasTopicConf(..), Kafka(..), KafkaConf(..), TopicConf(..))
+import           Kafka.Types          (TopicName(..), KafkaError(..))
+import           Kafka.Consumer.Types (Offset(..))
 
 -- | Main pointer to Kafka object, which contains our brokers
 data KafkaProducer = KafkaProducer

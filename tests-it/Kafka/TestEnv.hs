@@ -8,6 +8,7 @@ import Control.Monad      (void)
 import Data.Monoid        ((<>))
 import System.Environment
 import System.IO.Unsafe
+import qualified Data.Text as Text
 
 import Control.Concurrent
 import Kafka.Consumer     as C
@@ -16,13 +17,13 @@ import Kafka.Producer     as P
 import Test.Hspec
 
 brokerAddress :: BrokerAddress
-brokerAddress = unsafePerformIO $
-  BrokerAddress <$> getEnv "KAFKA_TEST_BROKER" `catch` \(_ :: SomeException) -> (return "localhost:9092")
+brokerAddress = unsafePerformIO $ do
+  (BrokerAddress . Text.pack) <$> getEnv "KAFKA_TEST_BROKER" `catch` \(_ :: SomeException) -> (return "localhost:9092")
 {-# NOINLINE brokerAddress #-}
 
 testTopic :: TopicName
-testTopic = unsafePerformIO $
-  TopicName <$> getEnv "KAFKA_TEST_TOPIC" `catch` \(_ :: SomeException) -> (return "kafka-client_tests")
+testTopic = unsafePerformIO $ do
+  (TopicName . Text.pack) <$> getEnv "KAFKA_TEST_TOPIC" `catch` \(_ :: SomeException) -> (return "kafka-client_tests")
 {-# NOINLINE testTopic #-}
 
 testGroupId :: ConsumerGroupId
@@ -48,9 +49,7 @@ testSubscription t = topics [t]
               <> offsetReset Earliest
 
 mkProducer :: IO KafkaProducer
-mkProducer = do
-    (Right p) <- newProducer producerProps
-    return p
+mkProducer = newProducer producerProps >>= \(Right p) -> pure p
 
 mkConsumerWith :: ConsumerProperties -> IO KafkaConsumer
 mkConsumerWith props = do

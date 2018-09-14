@@ -1,7 +1,13 @@
 module Kafka.Internal.CancellationToken
+( CancellationStatus(..)
+, CancellationToken(..)
+, newCancellationToken
+, status
+, cancel
+)
 where
 
-import Data.IORef
+import Data.IORef (IORef, newIORef, readIORef, atomicWriteIORef)
 
 data CancellationStatus = Cancelled | Running deriving (Show, Eq)
 newtype CancellationToken = CancellationToken (IORef CancellationStatus)

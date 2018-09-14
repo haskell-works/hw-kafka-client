@@ -1,15 +1,38 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 module Kafka.Consumer.Types
-
+( KafkaConsumer(..)
+, ConsumerGroupId(..)
+, Offset(..)
+, OffsetReset(..)
+, RebalanceEvent(..)
+, PartitionOffset(..)
+, SubscribedPartitions(..)
+, Timestamp(..)
+, OffsetCommit(..)
+, OffsetStoreSync(..)
+, OffsetStoreMethod(..)
+, TopicPartition(..)
+, ConsumerRecord(..)
+, crMapKey
+, crMapValue
+, crMapKV
+-- why are these here?
+, sequenceFirst
+, traverseFirst
+, traverseFirstM
+, traverseM
+, bitraverseM
+)
 where
 
-import Data.Bifoldable
-import Data.Bifunctor
-import Data.Bitraversable
-import Data.Int
-import Data.Typeable
-import Kafka.Internal.Setup
-import Kafka.Types
+import Data.Text            (Text)
+import Data.Bifoldable      (Bifoldable(..))
+import Data.Bifunctor       (Bifunctor(..))
+import Data.Bitraversable   (Bitraversable(..), bimapM, bisequenceA)
+import Data.Int             (Int64)
+import Data.Typeable        (Typeable)
+import Kafka.Internal.Setup (HasKafka(..), HasKafkaConf(..), Kafka(..), KafkaConf(..))
+import Kafka.Types          (TopicName(..), PartitionId(..), Millis(..))
 
 data KafkaConsumer = KafkaConsumer
   { kcKafkaPtr  :: !Kafka
@@ -24,7 +47,7 @@ instance HasKafkaConf KafkaConsumer where
   getKafkaConf = kcKafkaConf
   {-# INLINE getKafkaConf #-}
 
-newtype ConsumerGroupId = ConsumerGroupId { unConsumerGroupId :: String} deriving (Show, Ord, Eq)
+newtype ConsumerGroupId = ConsumerGroupId { unConsumerGroupId :: Text } deriving (Show, Ord, Eq)
 newtype Offset          = Offset { unOffset :: Int64 } deriving (Show, Eq, Ord, Read)
 data OffsetReset        = Earliest | Latest deriving (Show, Eq)
 
@@ -81,7 +104,8 @@ data OffsetStoreMethod =
 data TopicPartition = TopicPartition
   { tpTopicName :: TopicName
   , tpPartition :: PartitionId
-  , tpOffset    :: PartitionOffset } deriving (Show, Eq)
+  , tpOffset    :: PartitionOffset
+  } deriving (Show, Eq)
 
 -- | Represents a /received/ message from Kafka (i.e. used in a consumer)
 data ConsumerRecord k v = ConsumerRecord

@@ -1,22 +1,36 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Kafka.Producer.ProducerProperties
-( module Kafka.Producer.ProducerProperties
+( ProducerProperties(..)
+, brokersList
+, setCallback
+, logLevel
+, compression
+, topicCompression
+, sendTimeout
+, extraProps
+, suppressDisconnectLogs
+, extraTopicProps
+, debugOptions
 , module Kafka.Producer.Callbacks
 )
 where
 
-import           Control.Monad
-import qualified Data.List                as L
+import           Data.Text                (Text)
+import qualified Data.Text                as Text
+import           Control.Monad            (MonadPlus(mplus))
 import           Data.Map                 (Map)
 import qualified Data.Map                 as M
 import           Data.Semigroup           as Sem
-import           Kafka.Internal.Setup
+import           Kafka.Internal.Setup     (KafkaConf(..))
+import           Kafka.Types              (KafkaDebug(..), Timeout(..), KafkaCompressionCodec(..), KafkaLogLevel(..), BrokerAddress(..), kafkaDebugToText, kafkaCompressionCodecToText)  
+
 import           Kafka.Producer.Callbacks
-import           Kafka.Types
 
 -- | Properties to create 'KafkaProducer'.
 data ProducerProperties = ProducerProperties
-  { ppKafkaProps :: Map String String
-  , ppTopicProps :: Map String String
+  { ppKafkaProps :: Map Text Text
+  , ppTopicProps :: Map Text Text
   , ppLogLevel   :: Maybe KafkaLogLevel
   , ppCallbacks  :: [KafkaConf -> IO ()]
   }
@@ -40,7 +54,7 @@ instance Monoid ProducerProperties where
 
 brokersList :: [BrokerAddress] -> ProducerProperties
 brokersList bs =
-  let bs' = L.intercalate "," ((\(BrokerAddress x) -> x) <$> bs)
+  let bs' = Text.intercalate "," ((\(BrokerAddress x) -> x) <$> bs)
    in extraProps $ M.fromList [("bootstrap.servers", bs')]
 
 setCallback :: (KafkaConf -> IO ()) -> ProducerProperties
@@ -53,19 +67,19 @@ logLevel ll = mempty { ppLogLevel = Just ll }
 
 compression :: KafkaCompressionCodec -> ProducerProperties
 compression c =
-  extraProps $ M.singleton "compression.codec" (kafkaCompressionCodecToString c)
+  extraProps $ M.singleton "compression.codec" (kafkaCompressionCodecToText c)
 
 topicCompression :: KafkaCompressionCodec -> ProducerProperties
 topicCompression c =
-  extraTopicProps $ M.singleton "compression.codec" (kafkaCompressionCodecToString c)
+  extraTopicProps $ M.singleton "compression.codec" (kafkaCompressionCodecToText c)
 
 sendTimeout :: Timeout -> ProducerProperties
 sendTimeout (Timeout t) =
-  extraTopicProps $ M.singleton "message.timeout.ms" (show t)
+  extraTopicProps $ M.singleton "message.timeout.ms" (Text.pack $ show t)
 
 -- | Any configuration options that are supported by /librdkafka/.
 -- The full list can be found <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md here>
-extraProps :: Map String String -> ProducerProperties
+extraProps :: Map Text Text -> ProducerProperties
 extraProps m = mempty { ppKafkaProps = m }
 
 -- | Suppresses producer disconnects logs.
@@ -78,7 +92,7 @@ suppressDisconnectLogs =
 
 -- | Any configuration options that are supported by /librdkafka/.
 -- The full list can be found <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md here>
-extraTopicProps :: Map String String -> ProducerProperties
+extraTopicProps :: Map Text Text -> ProducerProperties
 extraTopicProps m = mempty { ppTopicProps = m }
 
 -- | Sets debug features for the producer
@@ -86,5 +100,5 @@ extraTopicProps m = mempty { ppTopicProps = m }
 debugOptions :: [KafkaDebug] -> ProducerProperties
 debugOptions [] = extraProps M.empty
 debugOptions d =
-  let points = L.intercalate "," (kafkaDebugToString <$> d)
+  let points = Text.intercalate "," (kafkaDebugToText <$> d)
    in extraProps $ M.fromList [("debug", points)]

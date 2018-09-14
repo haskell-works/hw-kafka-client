@@ -22,6 +22,7 @@ Icon
 
 ### Haskell ###
 dist
+dist-newstyle
 cabal-dev
 *.o
 *.hi
@@ -34,6 +35,10 @@ cabal.sandbox.config
 cabal.config
 .stack-work/
 *.cabal
+*.ghc*
+
+### Nix ###
+result*
 
 ### Emacs ###
 # -*- mode: gitignore; -*-

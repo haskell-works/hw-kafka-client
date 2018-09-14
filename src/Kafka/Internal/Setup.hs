@@ -1,20 +1,46 @@
-module Kafka.Internal.Setup where
+module Kafka.Internal.Setup
+( KafkaProps(..)
+, TopicProps(..)
+, Kafka(..)
+, KafkaConf(..)
+, TopicConf(..)
+, HasKafka(..)
+, HasKafkaConf(..)
+, HasTopicConf(..)
+, getRdKafka
+, getRdKafkaConf
+, getRdMsgQueue
+, getRdTopicConf
+, newTopicConf
+, newKafkaConf
+, kafkaConf
+, topicConf
+, checkConfSetValue
+, setKafkaConfValue
+, setAllKafkaConfValues
+, setTopicConfValue
+, setAllTopicConfValues
+)
+where
 
-import Kafka.Internal.RdKafka
-import Kafka.Types
+import Kafka.Internal.RdKafka (RdKafkaConfResT(..), CCharBufPointer, RdKafkaQueueTPtr, RdKafkaTPtr, RdKafkaConfTPtr, RdKafkaTopicConfTPtr, nErrorBytes, rdKafkaTopicConfSet, newRdKafkaTopicConfT, newRdKafkaConfT, rdKafkaConfSet)
+import Kafka.Types (KafkaError(..))
 
-import Control.Exception
-import Control.Monad
-import Data.IORef
-import Foreign
-import Foreign.C.String
-import Kafka.Internal.CancellationToken
+import Control.Exception (throw)
+import Data.IORef (IORef, newIORef, readIORef)
+import Foreign.Marshal.Alloc (allocaBytes)
+import Foreign.C.String (peekCString)
+import Kafka.Internal.CancellationToken (CancellationToken(..), newCancellationToken)
+import qualified Data.Text as Text
+import Data.Map (Map)
+import Data.Text (Text)
+import qualified Data.Map as Map
 
 --
 -- Configuration
 --
-newtype KafkaProps = KafkaProps [(String, String)] deriving (Show, Eq)
-newtype TopicProps = TopicProps [(String, String)] deriving (Show, Eq)
+newtype KafkaProps = KafkaProps (Map Text Text) deriving (Show, Eq)
+newtype TopicProps = TopicProps (Map Text Text) deriving (Show, Eq)
 newtype Kafka      = Kafka RdKafkaTPtr deriving Show
 data KafkaConf     = KafkaConf RdKafkaConfTPtr (IORef (Maybe RdKafkaQueueTPtr)) CancellationToken
 newtype TopicConf  = TopicConf RdKafkaTopicConfTPtr deriving Show
@@ -80,25 +106,25 @@ checkConfSetValue err charPtr = case err of
     RdKafkaConfOk -> return ()
     RdKafkaConfInvalid -> do
       str <- peekCString charPtr
-      throw $ KafkaInvalidConfigurationValue str
+      throw $ KafkaInvalidConfigurationValue (Text.pack str)
     RdKafkaConfUnknown -> do
       str <- peekCString charPtr
-      throw $ KafkaUnknownConfigurationKey str
+      throw $ KafkaUnknownConfigurationKey (Text.pack str)
 
-setKafkaConfValue :: KafkaConf -> String -> String -> IO ()
+setKafkaConfValue :: KafkaConf -> Text -> Text -> IO ()
 setKafkaConfValue (KafkaConf confPtr _ _) key value =
   allocaBytes nErrorBytes $ \charPtr -> do
-    err <- rdKafkaConfSet confPtr key value charPtr (fromIntegral nErrorBytes)
+    err <- rdKafkaConfSet confPtr (Text.unpack key) (Text.unpack value) charPtr (fromIntegral nErrorBytes)
     checkConfSetValue err charPtr
 
 setAllKafkaConfValues :: KafkaConf -> KafkaProps -> IO ()
-setAllKafkaConfValues conf (KafkaProps props) = forM_ props $ uncurry (setKafkaConfValue conf)
+setAllKafkaConfValues conf (KafkaProps props) = Map.foldMapWithKey (setKafkaConfValue conf) props --forM_ props $ uncurry (setKafkaConfValue conf)
 
-setTopicConfValue :: TopicConf -> String -> String -> IO ()
+setTopicConfValue :: TopicConf -> Text -> Text -> IO ()
 setTopicConfValue (TopicConf confPtr) key value =
   allocaBytes nErrorBytes $ \charPtr -> do
-    err <- rdKafkaTopicConfSet confPtr key value charPtr (fromIntegral nErrorBytes)
+    err <- rdKafkaTopicConfSet confPtr (Text.unpack key) (Text.unpack value) charPtr (fromIntegral nErrorBytes)
     checkConfSetValue err charPtr
 
 setAllTopicConfValues :: TopicConf -> TopicProps -> IO ()
-setAllTopicConfValues conf (TopicProps props) = forM_ props $ uncurry (setTopicConfValue conf)
+setAllTopicConfValues conf (TopicProps props) = Map.foldMapWithKey (setTopicConfValue conf) props --forM_ props $ uncurry (setTopicConfValue conf)
