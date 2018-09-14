@@ -118,9 +118,10 @@ This is because no message will ever be timing out for sending.
 ### Example
 
 ```Haskell
+{-# LANGUAGE OverloadedStrings #-}
 import Control.Exception (bracket)
 import Control.Monad (forM_)
-import Kafka
+import Data.ByteString (ByteString)
 import Kafka.Producer
 
 -- Global producer properties
