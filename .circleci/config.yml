@@ -1,111 +1,257 @@
 defaults: &defaults
-  working_directory: ~/build
+  working_directory: ~/project
   docker:
-    - image: quay.io/haskell_works/stack-build-python
-
-    - image: confluentinc/cp-zookeeper:3.1.2
-      environment:
-        ZOOKEEPER_CLIENT_PORT: 2181
-
-    - image: confluentinc/cp-kafka:3.1.2
-      environment:
-        KAFKA_ZOOKEEPER_CONNECT: "localhost:2181"
-        KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
-        KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    - image: quay.io/haskell_works/stack-build-cabal:18.04_2018-06-09
 
   steps:
     - checkout
 
+    - run:
+        name: Remove Cabal file
+        command: rm -f *.cabal
+
+    - run:
+        name: Copying scripts
+        command: |
+          mkdir -p ~/.local/bin
+          cp ./scripts/* ~/.local/bin
+
+    - run:
+        name: Query resolver & ghc version
+        command: |
+          resolver "$(resolver $LTS)" > resolver.version
+          ghc-version $(cat resolver.version) >  ghc.version
+
+    - run:
+        name: Find all sub-projects
+        command: projects-summary > projects.summary
+
+    ##### Building library
     - restore_cache:
         keys:
-          - dot-stack-{{ arch }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "package.yaml" }}
-          - dot-stack-{{ arch }}-{{ .Environment.CIRCLE_JOB }}
-
-    - restore_cache:
-        key: stack-work-{{ arch }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "package.yaml" }}
-
-    - restore_cache:
-        key: librdkafka--{{ arch }}-{{ checksum "scripts/build-librdkafka" }}
+          - stack--nAz6PsL--{{ checksum "ghc.version" }}--{{ .Environment.CACHE_VERSION }}--{{ checksum "projects.summary" }}--{{ checksum "package.yaml" }}--{{ checksum "stack.yaml" }}
+          - stack--nAz6PsL--{{ checksum "ghc.version" }}--{{ .Environment.CACHE_VERSION }}--{{ checksum "projects.summary" }}--{{ checksum "package.yaml" }}
+          - stack--nAz6PsL--{{ checksum "ghc.version" }}--{{ .Environment.CACHE_VERSION }}--{{ checksum "projects.summary" }}--
+          - stack--nAz6PsL--{{ checksum "ghc.version" }}--{{ .Environment.CACHE_VERSION }}--X
 
     - run:
-        name: Build librdkafka
-        command: ./scripts/build-librdkafka
+        name: Stack setup
+        command: stack setup --resolver ${LTS}
 
     - save_cache:
-        key: librdkafka--{{ arch }}-{{ checksum "scripts/build-librdkafka" }}
-        paths: ~/build/.librdkafka
-
-    - run: stack setup --resolver ${LTS}
-    - run: stack build --test --no-run-tests --haddock --no-haddock-deps --resolver ${LTS}
-
-    - save_cache:
-        key: dot-stack-{{ arch }}-{{ .Environment.CIRCLE_JOB }}
-        paths:
-          - ~/.stack
+        key:    stack--nAz6PsL--{{ checksum "ghc.version" }}--{{ .Environment.CACHE_VERSION }}--X
+        paths:  [~/.stack, ~/project/.stack-work]
 
     - run:
-        name: Running unit tests
+        name: Building dependencies
+        command: |
+          stack build --resolver ${LTS} --dependencies-only
+          stack build --resolver ${LTS} --dependencies-only --test --no-run-tests
+
+    - save_cache:
+        key:    stack--nAz6PsL--{{ checksum "ghc.version" }}--{{ .Environment.CACHE_VERSION }}--{{ checksum "projects.summary" }}--{{ checksum "package.yaml" }}
+        paths:  [~/.stack, ~/project/.stack-work]
+
+    - run: stack build --resolver ${LTS} --test --no-run-tests
+
+    - save_cache:
+        key:    stack--nAz6PsL--{{ checksum "ghc.version" }}--{{ .Environment.CACHE_VERSION }}--{{ checksum "projects.summary" }}--{{ checksum "package.yaml" }}--{{ checksum "stack.yaml" }}
+        paths:  [~/.stack, ~/project/.stack-work]
+
+    ##### Running tests
+    - run:
+        name: Running tests against latest on hackage
         command: stack test --resolver ${LTS}
 
-    - save_cache:
-        key: dot-stack-{{ arch }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "package.yaml" }}
-        paths:
-          - ~/.stack
+cabalbuild: &cabalbuild
+  working_directory: ~/project
+
+  steps:
+    - checkout
+
+    - run:
+        name: Add GHC tools to PATH
+        command: |
+          echo "HOME=$HOME"
+          echo "BASH_ENV=$BASH_ENV"
+          echo "PATH=$PATH"
+          echo 'export PATH="$PATH:/opt/ghc/bin/"' >> $BASH_ENV
+
+    - run:
+        name: Copying scripts
+        command: |
+          mkdir -p ~/.local/bin
+          cp ./scripts/* ~/.local/bin
+
+    - run:
+        name: GHC version
+        command: |
+          echo "$GHC" > ghc.version
+          date +%Y-%m > month.version
+
+    - run:
+        name: Find all sub-projects
+        command: ./scripts/projects-summary > projects.summary
+
+    - run:
+        name: Generate cabal file
+        command: |
+          rm -f *.cabal
+          hpack
+
+    ##### Building library
+    - restore_cache:
+        keys:
+          - cabal--{{ checksum "ghc.version" }}--{{ .Environment.CACHE_VERSION }}--{{ checksum "projects.summary" }}--extra
+          - cabal--{{ checksum "ghc.version" }}--{{ .Environment.CACHE_VERSION }}--{{ checksum "projects.summary" }}--
+          - cabal--{{ checksum "ghc.version" }}--{{ .Environment.CACHE_VERSION }}--{{ checksum "month.version"}}
+
+    - run:
+        name: Building build dependencies
+        command: |
+          ./scripts/mk-cabal-project > cabal.project
+          cabal update
+          cabal new-build --disable-tests --disable-benchmarks --project-file="cabal.project" --dep -j${CABAL_THREADS:-4} all
+          cabal new-build --enable-tests  --enable-benchmarks  --project-file="cabal.project" --dep -j${CABAL_THREADS:-4} all
 
     - save_cache:
-        key: stack-work-{{ arch }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "package.yaml" }}
-        paths: ~/build/.stack-work
+        key:    cabal--{{ checksum "ghc.version" }}--{{ .Environment.CACHE_VERSION }}--{{ checksum "projects.summary" }}--
+        paths:  [~/.cabal/packages, ~/.cabal/store]
+
+    - run:
+        name: Building project
+        command: |
+          cabal new-build --enable-tests --enable-benchmarks --project-file="cabal.project" -j${CABAL_THREADS:-4} all
+
+    - save_cache:
+        key:    cabal--{{ checksum "ghc.version" }}--{{ .Environment.CACHE_VERSION }}--{{ checksum "projects.summary" }}--extra
+        paths:  [~/.cabal/packages, ~/.cabal/store]
+
+    - save_cache:
+        key:    cabal--{{ checksum "ghc.version" }}--{{ .Environment.CACHE_VERSION }}--{{ checksum "month.version"}}
+        paths:  [~/.cabal/packages, ~/.cabal/store]
+
+    - run:
+        name: Running tests
+        command: |
+          if grep '^test-suite' *.cabal > /dev/null; then
+            cabal new-test --enable-tests --project-file="cabal.project" -j${CABAL_THREADS:-4} all
+          else
+            echo Not tests to run
+          fi
 
 version: 2.0
 jobs:
-  lts-7:
+  ghc-8.6.1:
     environment:
-      - LTS: "lts-7"
-    <<: *defaults
-
-  lts-9:
-    environment:
-      - LTS: "lts-9"
-    <<: *defaults
-
-  lts-11:
-    environment:
-      - LTS: "lts-11"
-    <<: *defaults
-
-  nightly:
-    environment:
-      - LTS: "nightly"
-    <<: *defaults
-
-  release:
-    working_directory: ~/build
+      - GHC: "ghc8.6.1"
     docker:
-      - image: quay.io/haskell_works/stack-build-python
+      - image: quay.io/haskell_works/ghc-8.6.1
+    <<: *cabalbuild
+
+  ghc-8.4.3:
+    environment:
+      - GHC: "ghc8.4.3"
+    docker:
+      - image: quay.io/haskell_works/ghc-8.4.3
+    <<: *cabalbuild
+
+  ghc-8.2.2:
+    environment:
+      - GHC: "ghc8.2.2"
+    docker:
+      - image: quay.io/haskell_works/ghc-8.2.2
+    <<: *cabalbuild
+
+  lts-12:
+    environment:
+      - LTS: "lts-12"
+    <<: *defaults
+
+  checked-builds:
+    docker:
+      - image: quay.io/haskell_works/ghc-8.4.3
 
     steps:
       - checkout
 
       - run:
-          name: Making a release
-          command: ./scripts/release
+          name: Add GHC tools to PATH
+          command: |
+            echo "HOME=$HOME"
+            echo "BASH_ENV=$BASH_ENV"
+            echo "PATH=$PATH"
+            echo 'export PATH="$PATH:/opt/ghc/bin/"' >> $BASH_ENV
 
+      - run:
+          name: Copying scripts
+          command: |
+            mkdir -p ~/.local/bin
+            cp ./scripts/* ~/.local/bin
 
+      - deploy:
+          command: |
+            hpack
+            if [ "$CIRCLE_PROJECT_USERNAME" == "haskell-works" ]; then
+              if [[ "$CIRCLE_BRANCH" == master ]]; then
+                when tag autotag
+              elif [[ "$CIRCLE_TAG" =~ v.* ]]; then
+                publish
+              fi
+            fi
+
+  release:
+    docker:
+      - image: quay.io/haskell_works/ghc-8.4.3
+
+    steps:
+      - checkout
+
+      - run:
+          name: Add GHC tools to PATH
+          command: |
+            echo "HOME=$HOME"
+            echo "BASH_ENV=$BASH_ENV"
+            echo "PATH=$PATH"
+            echo 'export PATH="$PATH:/opt/ghc/bin/"' >> $BASH_ENV
+
+      - run:
+          name: Copying scripts
+          command: |
+            mkdir -p ~/.local/bin
+            cp ./scripts/* ~/.local/bin
+
+      - deploy:
+          command: |
+            hpack
+            if [ "$CIRCLE_PROJECT_USERNAME" == "haskell-works" ]; then
+              if [[ "$CIRCLE_BRANCH" == master ]]; then
+                when tag autotag
+              elif [[ "$CIRCLE_TAG" =~ v.* ]]; then
+                publish
+              fi
+            fi
+  
 workflows:
   version: 2
   multiple-ghcs:
     jobs:
-      - lts-7
-      - lts-9
-      - lts-11
-      - nightly
-      - release:
+      - ghc-8.6.1
+      - ghc-8.4.3
+      - ghc-8.2.2
+      - lts-12
+      - checked-builds:
           requires:
-            - lts-7
-            - lts-9
-            - lts-11
-            - nightly
+            - lts-12
           filters:
             branches:
               only: master
 
+  tagged-release:
+    jobs:
+      - release:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v.*/
