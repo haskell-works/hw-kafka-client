@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric      #-}
 module Kafka.Consumer.Types
 ( KafkaConsumer(..)
 , ConsumerGroupId(..)
@@ -25,14 +26,15 @@ module Kafka.Consumer.Types
 )
 where
 
-import Data.Text            (Text)
-import Data.Bifoldable      (Bifoldable(..))
-import Data.Bifunctor       (Bifunctor(..))
-import Data.Bitraversable   (Bitraversable(..), bimapM, bisequenceA)
+import Data.Bifoldable      (Bifoldable (..))
+import Data.Bifunctor       (Bifunctor (..))
+import Data.Bitraversable   (Bitraversable (..), bimapM, bisequenceA)
 import Data.Int             (Int64)
+import Data.Text            (Text)
 import Data.Typeable        (Typeable)
-import Kafka.Internal.Setup (HasKafka(..), HasKafkaConf(..), Kafka(..), KafkaConf(..))
-import Kafka.Types          (TopicName(..), PartitionId(..), Millis(..))
+import GHC.Generics         (Generic)
+import Kafka.Internal.Setup (HasKafka (..), HasKafkaConf (..), Kafka (..), KafkaConf (..))
+import Kafka.Types          (Millis (..), PartitionId (..), TopicName (..))
 
 data KafkaConsumer = KafkaConsumer
   { kcKafkaPtr  :: !Kafka
@@ -47,9 +49,9 @@ instance HasKafkaConf KafkaConsumer where
   getKafkaConf = kcKafkaConf
   {-# INLINE getKafkaConf #-}
 
-newtype ConsumerGroupId = ConsumerGroupId { unConsumerGroupId :: Text } deriving (Show, Ord, Eq)
-newtype Offset          = Offset { unOffset :: Int64 } deriving (Show, Eq, Ord, Read)
-data OffsetReset        = Earliest | Latest deriving (Show, Eq)
+newtype ConsumerGroupId = ConsumerGroupId { unConsumerGroupId :: Text } deriving (Show, Ord, Eq, Generic)
+newtype Offset          = Offset { unOffset :: Int64 } deriving (Show, Eq, Ord, Read, Generic)
+data OffsetReset        = Earliest | Latest deriving (Show, Eq, Generic)
 
 -- | A set of events which happen during the rebalancing process
 data RebalanceEvent =
@@ -61,7 +63,7 @@ data RebalanceEvent =
   | RebalanceBeforeRevoke [(TopicName, PartitionId)]
     -- | Happens after the rejection is confirmed
   | RebalanceRevoke [(TopicName, PartitionId)]
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 data PartitionOffset =
     PartitionOffsetBeginning
@@ -69,24 +71,24 @@ data PartitionOffset =
   | PartitionOffset Int64
   | PartitionOffsetStored
   | PartitionOffsetInvalid
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 data SubscribedPartitions
   = SubscribedPartitions [PartitionId]
   | SubscribedPartitionsAll
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic)
 
 data Timestamp =
     CreateTime !Millis
   | LogAppendTime !Millis
   | NoTimestamp
-  deriving (Show, Eq, Read)
+  deriving (Show, Eq, Read, Generic)
 
 -- | Offsets commit mode
 data OffsetCommit =
       OffsetCommit       -- ^ Forces consumer to block until the broker offsets commit is done
     | OffsetCommitAsync  -- ^ Offsets will be committed in a non-blocking way
-    deriving (Show, Eq)
+    deriving (Show, Eq, Generic)
 
 
 -- | Indicates how offsets are to be synced to disk
@@ -94,18 +96,20 @@ data OffsetStoreSync =
       OffsetSyncDisable       -- ^ Do not sync offsets (in Kafka: -1)
     | OffsetSyncImmediate     -- ^ Sync immediately after each offset commit (in Kafka: 0)
     | OffsetSyncInterval Int  -- ^ Sync after specified interval in millis
+    deriving (Show, Eq, Generic)
 
 -- | Indicates the method of storing the offsets
 data OffsetStoreMethod =
       OffsetStoreBroker                         -- ^ Offsets are stored in Kafka broker (preferred)
     | OffsetStoreFile FilePath OffsetStoreSync  -- ^ Offsets are stored in a file (and synced to disk according to the sync policy)
+    deriving (Show, Eq, Generic)
 
 -- | Kafka topic partition structure
 data TopicPartition = TopicPartition
   { tpTopicName :: TopicName
   , tpPartition :: PartitionId
   , tpOffset    :: PartitionOffset
-  } deriving (Show, Eq)
+  } deriving (Show, Eq, Generic)
 
 -- | Represents a /received/ message from Kafka (i.e. used in a consumer)
 data ConsumerRecord k v = ConsumerRecord
@@ -116,7 +120,7 @@ data ConsumerRecord k v = ConsumerRecord
   , crKey       :: !k
   , crValue     :: !v
   }
-  deriving (Eq, Show, Read, Typeable)
+  deriving (Eq, Show, Read, Typeable, Generic)
 
 instance Bifunctor ConsumerRecord where
   bimap f g (ConsumerRecord t p o ts k v) =  ConsumerRecord t p o ts (f k) (g v)

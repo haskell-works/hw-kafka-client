@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveDataTypeable         #-}
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
-
 module Kafka.Types
 ( BrokerId(..)
 , PartitionId(..)
@@ -15,23 +15,31 @@ module Kafka.Types
 , KafkaError(..)
 , KafkaDebug(..)
 , KafkaCompressionCodec(..)
+, TopicType(..)
+, topicType
 , kafkaDebugToText
 , kafkaCompressionCodecToText
 )
 where
 
-import Control.Exception (Exception(..))
-import Data.Int (Int64)
-import Data.Typeable (Typeable)
+import Control.Exception      (Exception (..))
+import Data.Int               (Int64)
+import Data.Text              (Text, isPrefixOf)
+import Data.Typeable          (Typeable)
+import GHC.Generics           (Generic)
 import Kafka.Internal.RdKafka (RdKafkaRespErrT, rdKafkaErr2name, rdKafkaErr2str)
-import Data.Text (Text)
 
-newtype BrokerId = BrokerId { unBrokerId :: Int } deriving (Show, Eq, Ord, Read)
+newtype BrokerId = BrokerId { unBrokerId :: Int } deriving (Show, Eq, Ord, Read, Generic)
 
-newtype PartitionId = PartitionId { unPartitionId :: Int } deriving (Show, Eq, Read, Ord, Enum)
-newtype Millis      = Millis { unMillis :: Int64 } deriving (Show, Read, Eq, Ord, Num)
-newtype ClientId    = ClientId { unClientId :: Text } deriving (Show, Eq, Ord)
-newtype BatchSize   = BatchSize { unBatchSize :: Int } deriving (Show, Read, Eq, Ord, Num)
+newtype PartitionId = PartitionId { unPartitionId :: Int } deriving (Show, Eq, Read, Ord, Enum, Generic)
+newtype Millis      = Millis { unMillis :: Int64 } deriving (Show, Read, Eq, Ord, Num, Generic)
+newtype ClientId    = ClientId { unClientId :: Text } deriving (Show, Eq, Ord, Generic)
+newtype BatchSize   = BatchSize { unBatchSize :: Int } deriving (Show, Read, Eq, Ord, Num, Generic)
+
+data TopicType =
+    User    -- ^ Normal topics that are created by user.
+  | System  -- ^ Topics starting with "__" (__consumer_offsets, __confluent.support.metrics) are considered "system" topics
+  deriving (Show, Read, Eq, Ord, Generic)
 
 -- | Topic name to be consumed
 --
@@ -41,13 +49,18 @@ newtype BatchSize   = BatchSize { unBatchSize :: Int } deriving (Show, Read, Eq,
 -- topics will be added to the subscription list.
 newtype TopicName =
     TopicName { unTopicName :: Text } -- ^ a simple topic name or a regex if started with @^@
-    deriving (Show, Eq, Ord, Read)
+    deriving (Show, Eq, Ord, Read, Generic)
+
+topicType :: TopicName -> TopicType
+topicType (TopicName tn) =
+  if "__" `isPrefixOf` tn then System else User
+{-# INLINE topicType #-}
 
 -- | Kafka broker address string (e.g. @broker1:9092@)
-newtype BrokerAddress = BrokerAddress { unBrokerAddress :: Text } deriving (Show, Eq)
+newtype BrokerAddress = BrokerAddress { unBrokerAddress :: Text } deriving (Show, Eq, Generic)
 
 -- | Timeout in milliseconds
-newtype Timeout = Timeout { unTimeout :: Int } deriving (Show, Eq, Read)
+newtype Timeout = Timeout { unTimeout :: Int } deriving (Show, Eq, Read, Generic)
 
 -- | Log levels for /librdkafka/.
 data KafkaLogLevel =
@@ -65,7 +78,7 @@ data KafkaError =
   | KafkaInvalidConfigurationValue Text
   | KafkaUnknownConfigurationKey Text
   | KafkaBadConfiguration
-    deriving (Eq, Show, Typeable)
+    deriving (Eq, Show, Typeable, Generic)
 
 instance Exception KafkaError where
   displayException (KafkaResponseError err) =
@@ -85,7 +98,7 @@ data KafkaDebug =
   | DebugFetch
   | DebugFeature
   | DebugAll
-  deriving (Eq, Show, Typeable)
+  deriving (Eq, Show, Typeable, Generic)
 
 kafkaDebugToText :: KafkaDebug -> Text
 kafkaDebugToText d = case d of
@@ -107,7 +120,7 @@ data KafkaCompressionCodec =
   | Gzip
   | Snappy
   | Lz4
-  deriving (Eq, Show, Typeable)
+  deriving (Eq, Show, Typeable, Generic)
 
 kafkaCompressionCodecToText :: KafkaCompressionCodec -> Text
 kafkaCompressionCodecToText c = case c of
