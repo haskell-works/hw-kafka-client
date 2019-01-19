@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -9,7 +8,7 @@ import           Control.Monad       (forM, forM_)
 import           Control.Monad.Loops
 import qualified Data.ByteString     as BS
 import           Data.Either
-import           Data.Map
+import           Data.Map            (fromList)
 import           Data.Monoid         ((<>))
 
 import Kafka.Consumer as C
@@ -152,8 +151,10 @@ spec = do
             it "should return all topics metadata" $ \k -> do
                 res <- allTopicsMetadata k (Timeout 1000)
                 res `shouldSatisfy` isRight
-                (length . kmBrokers) <$> res `shouldBe` Right 1
-                (length . kmTopics) <$> res `shouldBe` Right 2
+                let filterUserTopics m = m { kmTopics = filter (\t -> topicType (tmTopicName t) == User) (kmTopics m) }
+                let res' = fmap filterUserTopics res
+                length . kmBrokers <$> res' `shouldBe` Right 1
+                length . kmTopics  <$> res' `shouldBe` Right 1
 
             it "should return topic metadata" $ \k -> do
                 res <- topicMetadata k (Timeout 1000) testTopic

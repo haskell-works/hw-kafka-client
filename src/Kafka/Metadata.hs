@@ -1,5 +1,5 @@
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
-
 module Kafka.Metadata
 ( KafkaMetadata(..), BrokerMetadata(..), TopicMetadata(..), PartitionMetadata(..)
 , WatermarkOffsets(..)
@@ -14,61 +14,36 @@ module Kafka.Metadata
 )
 where
 
-import           Data.Text              (Text)
-import qualified Data.Text              as Text
-import           Control.Arrow          (left)
-import           Control.Exception      (bracket)
-import           Control.Monad.IO.Class (MonadIO(liftIO))
-import           Data.Bifunctor         (bimap)
-import           Data.ByteString        (ByteString, pack)
-import           Data.Monoid            ((<>))
-import qualified Data.Set               as S
-import           Foreign                (withForeignPtr, Storable(peek), peekArray)
-import           Kafka.Consumer.Convert (toNativeTopicPartitionList, fromNativeTopicPartitionList'')
-import           Kafka.Consumer.Types   (Offset(..), ConsumerGroupId(..), TopicPartition(..), PartitionOffset(..))
-import           Kafka.Internal.RdKafka
-  ( RdKafkaGroupListTPtr
-  , RdKafkaMetadataTPtr
-  , RdKafkaMetadataBrokerT(..)
-  , RdKafkaMetadataPartitionT(..)
-  , RdKafkaMetadataTopicT(..)
-  , RdKafkaGroupMemberInfoT(..)
-  , RdKafkaGroupInfoT(..)
-  , RdKafkaGroupListT(..)
-  , RdKafkaTPtr
-  , RdKafkaRespErrT(..)
-  , RdKafkaMetadataT(..)
-  , peekCAText
-  , rdKafkaMetadata
-  , newUnmanagedRdKafkaTopicT
-  , destroyUnmanagedRdKafkaTopic
-  , rdKafkaQueryWatermarkOffsets
-  , rdKafkaOffsetsForTimes
-  , rdKafkaListGroups
-  )
-import           Kafka.Internal.Setup   (Kafka(..), HasKafka(..))
-import           Kafka.Internal.Shared  (kafkaErrorToMaybe)
-import           Kafka.Types
-  ( BrokerId(..)
-  , ClientId(..)
-  , KafkaError(..)
-  , Millis(..)
-  , PartitionId(..)
-  , Timeout(..)
-  , TopicName(..)
-  )
+import Control.Arrow          (left)
+import Control.Exception      (bracket)
+import Control.Monad.IO.Class (MonadIO (liftIO))
+import Data.Bifunctor         (bimap)
+import Data.ByteString        (ByteString, pack)
+import Data.Monoid            ((<>))
+import Data.Text              (Text)
+import Foreign                (Storable (peek), peekArray, withForeignPtr)
+import GHC.Generics           (Generic)
+import Kafka.Consumer.Convert (fromNativeTopicPartitionList'', toNativeTopicPartitionList)
+import Kafka.Consumer.Types   (ConsumerGroupId (..), Offset (..), PartitionOffset (..), TopicPartition (..))
+import Kafka.Internal.RdKafka (RdKafkaGroupInfoT (..), RdKafkaGroupListT (..), RdKafkaGroupListTPtr, RdKafkaGroupMemberInfoT (..), RdKafkaMetadataBrokerT (..), RdKafkaMetadataPartitionT (..), RdKafkaMetadataT (..), RdKafkaMetadataTPtr, RdKafkaMetadataTopicT (..), RdKafkaRespErrT (..), RdKafkaTPtr, destroyUnmanagedRdKafkaTopic, newUnmanagedRdKafkaTopicT, peekCAText, rdKafkaListGroups, rdKafkaMetadata, rdKafkaOffsetsForTimes, rdKafkaQueryWatermarkOffsets)
+import Kafka.Internal.Setup   (HasKafka (..), Kafka (..))
+import Kafka.Internal.Shared  (kafkaErrorToMaybe)
+import Kafka.Types            (BrokerId (..), ClientId (..), KafkaError (..), Millis (..), PartitionId (..), Timeout (..), TopicName (..))
+
+import qualified Data.Set  as S
+import qualified Data.Text as Text
 
 data KafkaMetadata = KafkaMetadata
   { kmBrokers    :: [BrokerMetadata]
   , kmTopics     :: [TopicMetadata]
   , kmOrigBroker :: !BrokerId
-  } deriving (Show, Eq)
+  } deriving (Show, Eq, Generic)
 
 data BrokerMetadata = BrokerMetadata
   { bmBrokerId   :: !BrokerId
   , bmBrokerHost :: !Text
   , bmBrokerPort :: !Int
-  } deriving (Show, Eq)
+  } deriving (Show, Eq, Generic)
 
 data PartitionMetadata = PartitionMetadata
   { pmPartitionId    :: !PartitionId
@@ -76,20 +51,20 @@ data PartitionMetadata = PartitionMetadata
   , pmLeader         :: !BrokerId
   , pmReplicas       :: [BrokerId]
   , pmInSyncReplicas :: [BrokerId]
-  } deriving (Show, Eq)
+  } deriving (Show, Eq, Generic)
 
 data TopicMetadata = TopicMetadata
   { tmTopicName  :: !TopicName
   , tmPartitions :: [PartitionMetadata]
   , tmError      :: Maybe KafkaError
-  } deriving (Show, Eq)
+  } deriving (Show, Eq, Generic)
 
 data WatermarkOffsets = WatermarkOffsets
   { woTopicName     :: !TopicName
   , woPartitionId   :: !PartitionId
   , woLowWatermark  :: !Offset
   , woHighWatermark :: !Offset
-  } deriving (Show, Eq)
+  } deriving (Show, Eq, Generic)
 
 newtype GroupMemberId = GroupMemberId Text deriving (Show, Eq, Read, Ord)
 data GroupMemberInfo = GroupMemberInfo
@@ -98,17 +73,17 @@ data GroupMemberInfo = GroupMemberInfo
   , gmiClientHost :: !Text
   , gmiMetadata   :: !ByteString
   , gmiAssignment :: !ByteString
-  } deriving (Show, Eq)
+  } deriving (Show, Eq, Generic)
 
-newtype GroupProtocolType = GroupProtocolType Text deriving (Show, Eq, Read, Ord)
-newtype GroupProtocol = GroupProtocol Text  deriving (Show, Eq, Read, Ord)
+newtype GroupProtocolType = GroupProtocolType Text deriving (Show, Eq, Read, Ord, Generic)
+newtype GroupProtocol = GroupProtocol Text  deriving (Show, Eq, Read, Ord, Generic)
 data GroupState
   = GroupPreparingRebalance       -- ^ Group is preparing to rebalance
   | GroupEmpty                    -- ^ Group has no more members, but lingers until all offsets have expired
   | GroupAwaitingSync             -- ^ Group is awaiting state assignment from the leader
   | GroupStable                   -- ^ Group is stable
   | GroupDead                     -- ^ Group has no more members and its metadata is being removed
-  deriving (Show, Eq, Read, Ord)
+  deriving (Show, Eq, Read, Ord, Generic)
 
 data GroupInfo = GroupInfo
   { giGroup        :: !ConsumerGroupId
@@ -117,7 +92,7 @@ data GroupInfo = GroupInfo
   , giProtocolType :: !GroupProtocolType
   , giProtocol     :: !GroupProtocol
   , giMembers      :: [GroupMemberInfo]
-  } deriving (Show, Eq)
+  } deriving (Show, Eq, Generic)
 
 -- | Returns metadata for all topics in the cluster
 allTopicsMetadata :: (MonadIO m, HasKafka k) => k -> Timeout -> m (Either KafkaError KafkaMetadata)

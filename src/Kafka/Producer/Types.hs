@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric      #-}
 module Kafka.Producer.Types
 ( KafkaProducer(..)
 , ProducerRecord(..)
@@ -7,11 +8,12 @@ module Kafka.Producer.Types
 )
 where
 
-import qualified Data.ByteString      as BS
-import           Data.Typeable        (Typeable)
-import           Kafka.Internal.Setup (HasKafka(..), HasKafkaConf(..), HasTopicConf(..), Kafka(..), KafkaConf(..), TopicConf(..))
-import           Kafka.Types          (TopicName(..), KafkaError(..))
-import           Kafka.Consumer.Types (Offset(..))
+import Data.ByteString
+import Data.Typeable        (Typeable)
+import GHC.Generics         (Generic)
+import Kafka.Consumer.Types (Offset (..))
+import Kafka.Internal.Setup (HasKafka (..), HasKafkaConf (..), HasTopicConf (..), Kafka (..), KafkaConf (..), TopicConf (..))
+import Kafka.Types          (KafkaError (..), TopicName (..))
 
 -- | Main pointer to Kafka object, which contains our brokers
 data KafkaProducer = KafkaProducer
@@ -36,33 +38,17 @@ instance HasTopicConf KafkaProducer where
 data ProducerRecord = ProducerRecord
   { prTopic     :: !TopicName
   , prPartition :: !ProducePartition
-  , prKey       :: Maybe BS.ByteString
-  , prValue     :: Maybe BS.ByteString
-  } deriving (Eq, Show, Typeable)
+  , prKey       :: Maybe ByteString
+  , prValue     :: Maybe ByteString
+  } deriving (Eq, Show, Typeable, Generic)
 
 data ProducePartition =
     SpecifiedPartition {-# UNPACK #-} !Int  -- the partition number of the topic
   | UnassignedPartition
-  deriving (Show, Eq, Ord, Typeable)
+  deriving (Show, Eq, Ord, Typeable, Generic)
 
 data DeliveryReport
   = DeliverySuccess ProducerRecord Offset
   | DeliveryFailure ProducerRecord KafkaError
   | NoMessageError KafkaError
-  deriving (Show, Eq)
-
--- -- | Represents the report of a successfully delivered message.
--- data ProducerSuccess = ProducerSuccess
---   { psTopic     :: !TopicName    -- ^ Kafka topic this message was received from
---   , psPartition :: !PartitionId  -- ^ Kafka partition this message was received from
---   , psOffset    :: !Offset       -- ^ Offset within the 'crPartition' Kafka partition
---   , psKey       :: !(Maybe BS.ByteString)
---   , psValue     :: !(Maybe BS.ByteString)
---   }
---   deriving (Eq, Show, Read, Typeable)
-
--- -- | Represents the failure to deliver a message.
--- data ProducerError = ProducerError
---   { peValue :: !(Maybe BS.ByteString)  -- ^ The message that failed.
---   , peError :: KafkaError              -- ^ The reason for the failure.
---   } deriving (Eq, Show)
+  deriving (Show, Eq, Generic)

@@ -1,9 +1,3 @@
--- This file has been generated from package.yaml by hpack version 0.28.2.
---
--- see: https://github.com/sol/hpack
---
--- hash: c01d07e897b9cf5d0f6237227a00230ec841fe4a3a22766142dc015f4f703ba1
-
 name:           hw-kafka-client
 version:        2.5.0
 synopsis:       Kafka bindings for Haskell
@@ -53,7 +47,7 @@ library
     , bifunctors
     , bytestring
     , containers
-    , text 
+    , text
     , transformers
     , unix
   build-tools:
@@ -125,6 +119,7 @@ test-suite integration-tests
     , hw-kafka-client
     , monad-loops
     , text
+    , transformers
   other-modules:
       Kafka.IntegrationSpec
       Kafka.TestEnv
