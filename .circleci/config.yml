@@ -1,13 +1,17 @@
 version: 2.1
 
 orbs:
-  haskell: haskell-works/haskell-build@1.4.0
+  haskell: haskell-works/haskell-build@1.4.1
   github: haskell-works/github-release@1.2.1
 
 executors:
-  build-executor:
+  cabal-build:
+    parameters:
+      ghc-version:
+        description: GHC Version
+        type: string
     docker:
-      - image: quay.io/haskell_works/ghc-8.4.4
+      - image: quay.io/haskell_works/ghc-<< parameters.ghc-version >>
       - image: confluentinc/cp-zookeeper:5.1.0
         environment:
           ZOOKEEPER_CLIENT_PORT: 2181
@@ -29,19 +33,23 @@ commands:
           command: ./scripts/build-librdkafka
       - save_cache:
           key: cache--{{ .Environment.CACHE_VERSION }}--librdkafka--{{ checksum "scripts/build-librdkafka" }}
-          paths: ~/project/.librdkafka
+          paths: .librdkafka
 
 workflows:
   build-app-pipelines:
     jobs:
       - haskell/build:
           name: GHC 8.4.4
-          executor: build-executor
+          executor:
+            name: cabal-build
+            ghc-version: 8.4.4
           before-build: [build-librdkafka]
 
       - haskell/build:
           name: GHC 8.6.3
-          executor: build-executor
+          executor:
+            name: cabal-build
+            ghc-version: 8.6.3
           before-build: [build-librdkafka]
 
       - github/release-cabal:

@@ -4,10 +4,10 @@ module Kafka.Consumer.ConsumerRecordMapSpec
 ) where
 
 import Data.Bitraversable
+import Data.Text
 import Kafka.Consumer.Types
 import Kafka.Types
 import Test.Hspec
-import Data.Text
 
 testKey, testValue :: Text
 testKey   = "some-key"
@@ -26,7 +26,7 @@ testRecord = ConsumerRecord
 spec :: Spec
 spec = describe "Kafka.Consumer.ConsumerRecordSpec" $ do
     it "should exract key" $
-      sequenceFirst testRecord `shouldBe` Just (crMapKey (const testKey) testRecord)
+      bitraverse id pure testRecord `shouldBe` Just (crMapKey (const testKey) testRecord)
 
     it "should extract value" $
       sequence testRecord `shouldBe` Just (crMapValue (const testValue) testRecord)

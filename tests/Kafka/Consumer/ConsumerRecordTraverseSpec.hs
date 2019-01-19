@@ -6,10 +6,10 @@ module Kafka.Consumer.ConsumerRecordTraverseSpec
 
 import Data.Bifunctor
 import Data.Bitraversable
+import Data.Text
 import Kafka.Consumer.Types
 import Kafka.Types
 import Test.Hspec
-import Data.Text
 
 testKey, testValue :: Text
 testKey   = "some-key"
@@ -30,18 +30,6 @@ liftValue = Just
 
 liftNothing :: a -> Maybe a
 liftNothing _ = Nothing
-
-liftValueM :: a -> Maybe (Either String a)
-liftValueM = pure . pure
-
-liftNothingM :: a -> Maybe (Either String a)
-liftNothingM _ = Nothing
-
-testError :: Either String a
-testError = Left "test error"
-
-liftErrorM :: a -> Maybe (Either String a)
-liftErrorM _ = Just testError
 
 spec :: Spec
 spec = describe "Kafka.Consumer.ConsumerRecordTraverseSpec" $ do
@@ -67,23 +55,3 @@ spec = describe "Kafka.Consumer.ConsumerRecordTraverseSpec" $ do
     bitraverse liftNothing liftValue testRecord `shouldBe` Nothing
     bitraverse liftValue liftNothing testRecord `shouldBe` Nothing
 
-  it "should traverse key (monadic)" $
-    traverseFirstM liftValueM testRecord `shouldBe` Just (Right testRecord)
-
-  it "should traverse value (monadic)" $
-    traverseM liftValueM testRecord `shouldBe` Just (Right testRecord)
-
-  it "should traverse KV (monadic)" $
-    bitraverseM liftValueM liftValueM testRecord `shouldBe` Just (Right testRecord)
-
-  it "should traverse and report error (monadic)" $ do
-    traverseFirstM liftErrorM testRecord `shouldBe` Just testError
-    traverseM liftErrorM testRecord `shouldBe` Just testError
-    bitraverseM liftValueM liftErrorM testRecord `shouldBe` Just testError
-    bitraverseM liftErrorM liftValueM testRecord `shouldBe` Just testError
-
-  it "should traverse and report empty container (monadic)" $ do
-    traverseFirstM liftNothingM testRecord `shouldBe` Nothing
-    traverseM liftNothingM testRecord `shouldBe` Nothing
-    bitraverseM liftValueM liftNothingM testRecord `shouldBe` Nothing
-    bitraverseM liftNothingM liftValueM testRecord `shouldBe` Nothing
