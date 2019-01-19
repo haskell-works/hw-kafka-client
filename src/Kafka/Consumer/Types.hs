@@ -18,6 +18,8 @@ module Kafka.Consumer.Types
 , crMapValue
 , crMapKV
 -- why are these here?
+
+-- * Deprecated
 , sequenceFirst
 , traverseFirst
 , traverseFirstM
@@ -158,10 +160,12 @@ crMapKV :: (k -> k') -> (v -> v') -> ConsumerRecord k v -> ConsumerRecord k' v'
 crMapKV = bimap
 {-# INLINE crMapKV #-}
 
+{-# DEPRECATED sequenceFirst "Isn't concern of this library. Use 'bitraverse id pure'" #-}
 sequenceFirst :: (Bitraversable t, Applicative f) => t (f k) v -> f (t k v)
 sequenceFirst = bitraverse id pure
 {-# INLINE sequenceFirst #-}
 
+{-# DEPRECATED traverseFirst "Isn't concern of this library. Use 'bitraverse f pure'"  #-}
 traverseFirst :: (Bitraversable t, Applicative f)
               => (k -> f k')
               -> t k v
@@ -169,6 +173,7 @@ traverseFirst :: (Bitraversable t, Applicative f)
 traverseFirst f = bitraverse f pure
 {-# INLINE traverseFirst #-}
 
+{-# DEPRECATED traverseFirstM "Isn't concern of this library. Use 'bitraverse id pure <$> bitraverse f pure r'"  #-}
 traverseFirstM :: (Bitraversable t, Applicative f, Monad m)
                => (k -> m (f k'))
                -> t k v
@@ -176,6 +181,7 @@ traverseFirstM :: (Bitraversable t, Applicative f, Monad m)
 traverseFirstM f r = bitraverse id pure <$> bitraverse f pure r
 {-# INLINE traverseFirstM #-}
 
+{-# DEPRECATED traverseM "Isn't concern of this library. Use 'sequenceA <$> traverse f r'"  #-}
 traverseM :: (Traversable t, Applicative f, Monad m)
           => (v -> m (f v'))
           -> t v
@@ -183,6 +189,7 @@ traverseM :: (Traversable t, Applicative f, Monad m)
 traverseM f r = sequenceA <$> traverse f r
 {-# INLINE traverseM #-}
 
+{-# DEPRECATED bitraverseM "Isn't concern of this library. Use 'bisequenceA <$> bimapM f g r'"  #-}
 bitraverseM :: (Bitraversable t, Applicative f, Monad m)
             => (k -> m (f k'))
             -> (v -> m (f v'))
