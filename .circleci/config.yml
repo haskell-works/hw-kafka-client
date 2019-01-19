@@ -3,6 +3,7 @@ version: 2.1
 orbs:
   haskell: haskell-works/haskell-build@1.4.1
   github: haskell-works/github-release@1.2.1
+  hackage: haskell-works/hackage@1.0.0
 
 executors:
   cabal-build:
@@ -56,6 +57,16 @@ workflows:
           name: GitHub Release
           requires: [GHC 8.4.4, GHC 8.6.3]
           checkout: true
+          filters:
+            branches:
+              only: master
+
+      - hackage/upload:
+          publish: true
+          requires:
+            - GitHub Release
+          username: ${HACKAGE_USER}
+          password: ${HACKAGE_PASS}
           filters:
             branches:
               only: master
