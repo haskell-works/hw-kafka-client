@@ -4,6 +4,7 @@
 module Kafka.IntegrationSpec
 where
 
+import           Control.Concurrent  (forkIO, threadDelay)
 import           Control.Monad       (forM, forM_)
 import           Control.Monad.Loops
 import qualified Data.ByteString     as BS
@@ -260,5 +261,6 @@ sendMessages msgs prod =
   Right <$> (forM_ msgs (produceMessage prod) >> flushProducer prod)
 
 sendMessagesSync :: [ProducerRecord] -> KafkaProducer -> IO (Either KafkaError ())
-sendMessagesSync msgs prod =
-  Right <$> (forM_ msgs (produceMessageSync prod) >> flushProducer prod)
+sendMessagesSync msgs prod = do
+  _ <- forkIO $ threadDelay (2 * 1000 * 1000) >> flushProducer prod
+  Right <$> (forM_ msgs (produceMessageSync prod) >> pure ())
