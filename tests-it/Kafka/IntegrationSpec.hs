@@ -113,6 +113,10 @@ spec = do
                 res    <- sendMessages (testMessages testTopic) prod
                 res `shouldBe` Right ()
 
+            it "sends messages to test topic synchronously" $ \prod -> do
+                res <- sendMessagesSync (testMessages testTopic) prod
+                res `shouldBe` Right ()
+
         specWithConsumer "Run consumer" consumerProps $ do
             it "should get committed" $ \k -> do
                 res <- committed k (Timeout 1000) [(testTopic, PartitionId 0)]
@@ -254,3 +258,7 @@ testMessages t =
 sendMessages :: [ProducerRecord] -> KafkaProducer -> IO (Either KafkaError ())
 sendMessages msgs prod =
   Right <$> (forM_ msgs (produceMessage prod) >> flushProducer prod)
+
+sendMessagesSync :: [ProducerRecord] -> KafkaProducer -> IO (Either KafkaError ())
+sendMessagesSync msgs prod =
+  Right <$> (forM_ msgs (produceMessageSync prod) >> flushProducer prod)

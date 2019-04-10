@@ -3,7 +3,7 @@ module Kafka.Producer
 ( module X
 , runProducer
 , newProducer
-, produceMessage, produceMessageBatch
+, produceMessage, produceMessageBatch, produceMessageSync
 , flushProducer
 , closeProducer
 , KafkaProducer
@@ -21,9 +21,11 @@ import           Data.Function                    (on)
 import           Data.List                        (groupBy, sortBy)
 import           Data.Ord                         (comparing)
 import qualified Data.Text                        as Text
+import           Foreign.C.Error                  (getErrno)
 import           Foreign.ForeignPtr               (withForeignPtr, newForeignPtr_)
 import           Foreign.Marshal.Array            (withArrayLen)
-import           Foreign.Ptr                      (Ptr, nullPtr, plusPtr)
+import           Foreign.Marshal.Alloc
+import           Foreign.Ptr                      (Ptr, castPtr, nullPtr, plusPtr)
 import           Foreign.Storable                 (Storable(..))
 import           Kafka.Internal.CancellationToken as CToken
 import           Kafka.Internal.RdKafka
@@ -37,6 +39,7 @@ import           Kafka.Internal.RdKafka
   , rdKafkaSetLogLevel
   , rdKafkaProduceBatch
   , rdKafkaOutqLen
+  , rdKafkaErrno2err
   )
 import           Kafka.Internal.Setup             (KafkaConf(..), Kafka(..), TopicConf(..), kafkaConf, KafkaProps(..), topicConf, TopicProps(..))
 import           Kafka.Internal.Shared            (pollEvents)
@@ -46,6 +49,7 @@ import           Kafka.Producer.Types             (KafkaProducer(..))
 import Kafka.Producer.ProducerProperties as X
 import Kafka.Producer.Types              as X hiding (KafkaProducer)
 import Kafka.Types                       as X
+import Kafka.Internal.Shared             (kafkaRespErr)
 
 -- | Runs Kafka Producer.
 -- The callback provided is expected to call 'produceMessage'
@@ -106,6 +110,61 @@ produceMessage kp@(KafkaProducer (Kafka k) _ (TopicConf tc)) m = liftIO $ do
               rdKafkaProduce t (producePartitionCInt (prPartition m))
                 copyMsgFlags payloadPtr (fromIntegral payloadLength)
                 keyPtr (fromIntegral keyLength) nullPtr
+
+
+-- | Sends a single message synchronously
+--
+--   This function implements a simple synchronous production of a message by
+--   passing along an error pointer. Once this pointer has been set to an error
+--   the message can be considered sent. If the message is sent with
+--   'RdKafkaRespErrNoError', then this returns a `Nothing`
+--
+--   Example C-solution used: https://github.com/edenhill/librdkafka/wiki/Sync-producer
+produceMessageSync :: MonadIO m
+                   => KafkaProducer
+                   -> ProducerRecord
+                   -> m (Either KafkaError ())
+produceMessageSync (KafkaProducer (Kafka k) _ (TopicConf tc)) m = liftIO $ do
+  bracket (mkTopic $ prTopic m) clTopic withTopic
+    where
+      mkTopic (TopicName tn) = newUnmanagedRdKafkaTopicT k (Text.unpack tn) (Just tc)
+
+      clTopic = either (return . const ()) destroyUnmanagedRdKafkaTopic
+
+      withTopic (Left err) = pure . Left . KafkaError $ Text.pack err
+      withTopic (Right t) =
+        withBS (prValue m) $ \payloadPtr payloadLength ->
+          withBS (prKey m) $ \keyPtr keyLength ->
+            withPtr $ \resPtr ->
+              let
+                produce =
+                  rdKafkaProduce t (producePartitionCInt (prPartition m))
+                    copyMsgFlags payloadPtr (fromIntegral payloadLength)
+                    keyPtr (fromIntegral keyLength) resPtr
+              in do
+                res <- produce
+                if res == (-1 :: Int) then
+                  (Left . kafkaRespErr) <$> getErrno
+                else
+                  waitForAck resPtr
+
+      initialError :: Int
+      initialError = -12345
+
+      withPtr :: (Ptr RdKafkaRespErrT -> IO (Either KafkaError ())) -> IO (Either KafkaError ())
+      withPtr f = alloca $ \ptr -> do
+        poke ptr initialError
+        f $ castPtr ptr
+
+      waitForAck :: Ptr RdKafkaRespErrT -> IO (Either KafkaError ())
+      waitForAck ptr = do
+        currentVal <- peek $ castPtr ptr
+        if currentVal == initialError then do
+          waitForAck ptr
+        else
+          pure $ case rdKafkaErrno2err currentVal of
+            RdKafkaRespErrNoError -> Right ()
+            err -> Left (KafkaResponseError err)
 
 
 -- | Sends a batch of messages.
