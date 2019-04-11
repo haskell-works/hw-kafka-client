@@ -322,9 +322,15 @@ foreign import ccall safe "rd_kafka.h rd_kafka_conf_set_dr_msg_cb"
 
 rdKafkaConfSetDrMsgCb :: RdKafkaConfTPtr -> DeliveryCallback -> IO ()
 rdKafkaConfSetDrMsgCb conf cb = do
-    cb' <- mkDeliveryCallback (\k m _ -> cb k m)
+    cb' <- mkDeliveryCallback cb''
     withForeignPtr conf $ \c -> rdKafkaConfSetDrMsgCb' c cb'
     return ()
+    where
+      cb'' :: Ptr RdKafkaT -> Ptr RdKafkaMessageT -> Word8Ptr -> IO ()
+      cb'' k m w8 = do
+        _ <- peek w8
+        print w8
+        cb k m
 
 ---- Consume Callback
 type ConsumeCallback = Ptr RdKafkaMessageT -> Word8Ptr -> IO ()

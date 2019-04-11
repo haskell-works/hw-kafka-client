@@ -146,7 +146,7 @@ produceMessageSync (KafkaProducer (Kafka k) _ (TopicConf tc)) m = liftIO $ do
                 if res == (-1 :: Int) then
                   (Left . kafkaRespErr) <$> getErrno
                 else
-                  waitForAck resPtr
+                  waitForAck 100 resPtr
 
       initialError :: Int
       initialError = -12345
@@ -156,11 +156,12 @@ produceMessageSync (KafkaProducer (Kafka k) _ (TopicConf tc)) m = liftIO $ do
         poke ptr initialError
         f $ castPtr ptr
 
-      waitForAck :: Ptr RdKafkaRespErrT -> IO (Either KafkaError ())
-      waitForAck ptr = do
+      waitForAck :: Int -> Ptr RdKafkaRespErrT -> IO (Either KafkaError ())
+      waitForAck i ptr = do
         currentVal <- peek $ castPtr ptr
         if currentVal == initialError then do
-          waitForAck ptr
+          if i == 0 then undefined
+                    else waitForAck (i - 1) ptr
         else
           pure $ case rdKafkaErrno2err currentVal of
             RdKafkaRespErrNoError -> Right ()
