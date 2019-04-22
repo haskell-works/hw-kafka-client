@@ -327,10 +327,7 @@ rdKafkaConfSetDrMsgCb conf cb = do
     return ()
     where
       cb'' :: Ptr RdKafkaT -> Ptr RdKafkaMessageT -> Word8Ptr -> IO ()
-      cb'' k m w8 = do
-        _ <- peek w8
-        print w8
-        cb k m
+      cb'' k m _ = cb k m
 
 ---- Consume Callback
 type ConsumeCallback = Ptr RdKafkaMessageT -> Word8Ptr -> IO ()

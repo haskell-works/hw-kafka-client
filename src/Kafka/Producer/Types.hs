@@ -5,10 +5,12 @@ module Kafka.Producer.Types
 , ProducerRecord(..)
 , ProducePartition(..)
 , DeliveryReport(..)
+, DeliveryCallback(..)
 )
 where
 
 import Data.ByteString
+import Data.Semigroup       as Sem
 import Data.Typeable        (Typeable)
 import GHC.Generics         (Generic)
 import Kafka.Consumer.Types (Offset (..))
@@ -20,7 +22,20 @@ data KafkaProducer = KafkaProducer
   { kpKafkaPtr  :: !Kafka
   , kpKafkaConf :: !KafkaConf
   , kpTopicConf :: !TopicConf
+  , kpDeliveryCallback :: !DeliveryCallback
   }
+
+data DeliveryCallback
+  = DeliveryCallback (DeliveryReport -> IO ())
+  | NoCallback
+
+instance Sem.Semigroup DeliveryCallback where
+  NoCallback <> other = other
+  other <> NoCallback = other
+  _ <> right = right
+
+instance Monoid DeliveryCallback where
+  mempty = NoCallback
 
 instance HasKafka KafkaProducer where
   getKafka = kpKafkaPtr

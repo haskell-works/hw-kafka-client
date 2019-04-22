@@ -23,9 +23,10 @@ import           Data.Map                 (Map)
 import qualified Data.Map                 as M
 import           Data.Semigroup           as Sem
 import           Kafka.Internal.Setup     (KafkaConf(..))
-import           Kafka.Types              (KafkaDebug(..), Timeout(..), KafkaCompressionCodec(..), KafkaLogLevel(..), BrokerAddress(..), kafkaDebugToText, kafkaCompressionCodecToText)  
+import           Kafka.Types              (KafkaDebug(..), Timeout(..), KafkaCompressionCodec(..), KafkaLogLevel(..), BrokerAddress(..), kafkaDebugToText, kafkaCompressionCodecToText)
 
 import           Kafka.Producer.Callbacks
+import           Kafka.Producer.Types (DeliveryCallback)
 
 -- | Properties to create 'KafkaProducer'.
 data ProducerProperties = ProducerProperties
@@ -33,11 +34,12 @@ data ProducerProperties = ProducerProperties
   , ppTopicProps :: Map Text Text
   , ppLogLevel   :: Maybe KafkaLogLevel
   , ppCallbacks  :: [KafkaConf -> IO ()]
+  , ppDeliveryCallback :: DeliveryCallback
   }
 
 instance Sem.Semigroup ProducerProperties where
-  (ProducerProperties k1 t1 ll1 cb1) <> (ProducerProperties k2 t2 ll2 cb2) =
-    ProducerProperties (M.union k2 k1) (M.union t2 t1) (ll2 `mplus` ll1) (cb1 `mplus` cb2)
+  (ProducerProperties k1 t1 ll1 cb1 dCb1) <> (ProducerProperties k2 t2 ll2 cb2 dCb2) =
+    ProducerProperties (M.union k2 k1) (M.union t2 t1) (ll2 `mplus` ll1) (cb1 `mplus` cb2) (dCb1 <> dCb2)
   {-# INLINE (<>) #-}
 
 -- | /Right biased/ so we prefer newer properties over older ones.
@@ -47,6 +49,7 @@ instance Monoid ProducerProperties where
     , ppTopicProps     = M.empty
     , ppLogLevel       = Nothing
     , ppCallbacks      = []
+    , ppDeliveryCallback = mempty
     }
   {-# INLINE mempty #-}
   mappend = (Sem.<>)

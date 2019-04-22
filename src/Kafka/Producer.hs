@@ -27,22 +27,28 @@ import           Foreign.Marshal.Array            (withArrayLen)
 import           Foreign.Marshal.Alloc
 import           Foreign.Ptr                      (Ptr, castPtr, nullPtr, plusPtr)
 import           Foreign.Storable                 (Storable(..))
+import           Kafka.Consumer.Types   (Offset(..))
 import           Kafka.Internal.CancellationToken as CToken
 import           Kafka.Internal.RdKafka
   ( RdKafkaMessageT(..)
   , RdKafkaTypeT(..)
+  , RdKafkaT
   , RdKafkaRespErrT(..)
+  , Word8Ptr
+  , enumToCInt
   , newRdKafkaT
   , newUnmanagedRdKafkaTopicT
   , destroyUnmanagedRdKafkaTopic
   , rdKafkaProduce
+  , mkDeliveryCallback
+  , rdKafkaConfSetDrMsgCb'
   , rdKafkaSetLogLevel
   , rdKafkaProduceBatch
   , rdKafkaOutqLen
   , rdKafkaErrno2err
   )
-import           Kafka.Internal.Setup             (KafkaConf(..), Kafka(..), TopicConf(..), kafkaConf, KafkaProps(..), topicConf, TopicProps(..))
-import           Kafka.Internal.Shared            (pollEvents)
+import           Kafka.Internal.Setup             (KafkaConf(..), Kafka(..), TopicConf(..), kafkaConf, KafkaProps(..), topicConf, TopicProps(..), getRdKafkaConf)
+import           Kafka.Internal.Shared            (pollEvents, kafkaRespErr, readTopic, readKey, readPayload)
 import           Kafka.Producer.Convert           (copyMsgFlags, producePartitionCInt, producePartitionInt, handleProduceErr)
 import           Kafka.Producer.Types             (KafkaProducer(..))
 
@@ -84,7 +90,7 @@ newProducer pps = liftIO $ do
     Left err    -> return . Left $ KafkaError err
     Right kafka -> do
       forM_ (ppLogLevel pps) (rdKafkaSetLogLevel kafka . fromEnum)
-      let prod = KafkaProducer (Kafka kafka) kc tc
+      let prod = KafkaProducer (Kafka kafka) kc tc (ppDeliveryCallback pps)
       return (Right prod)
 
 -- | Sends a single message.
@@ -94,7 +100,7 @@ produceMessage :: MonadIO m
                => KafkaProducer
                -> ProducerRecord
                -> m (Maybe KafkaError)
-produceMessage kp@(KafkaProducer (Kafka k) _ (TopicConf tc)) m = liftIO $ do
+produceMessage kp@(KafkaProducer (Kafka k) _ (TopicConf tc) _) m = liftIO $ do
   pollEvents kp (Just $ Timeout 0) -- fire callbacks if any exist (handle delivery reports)
   bracket (mkTopic $ prTopic m) clTopic withTopic
     where
@@ -124,7 +130,7 @@ produceMessageSync :: MonadIO m
                    => KafkaProducer
                    -> ProducerRecord
                    -> m (Either KafkaError ())
-produceMessageSync (KafkaProducer (Kafka k) _ (TopicConf tc)) m = liftIO $ do
+produceMessageSync (KafkaProducer (Kafka k) kc (TopicConf tc) deliveryCallback) m = liftIO $ do
   bracket (mkTopic $ prTopic m) clTopic withTopic
     where
       mkTopic (TopicName tn) = newUnmanagedRdKafkaTopicT k (Text.unpack tn) (Just tc)
@@ -137,7 +143,8 @@ produceMessageSync (KafkaProducer (Kafka k) _ (TopicConf tc)) m = liftIO $ do
           withBS (prKey m) $ \keyPtr keyLength ->
             withPtr $ \resPtr ->
               let
-                produce =
+                produce = do
+                  setDeliveryCb
                   rdKafkaProduce t (producePartitionCInt (prPartition m))
                     copyMsgFlags payloadPtr (fromIntegral payloadLength)
                     keyPtr (fromIntegral keyLength) resPtr
@@ -146,22 +153,64 @@ produceMessageSync (KafkaProducer (Kafka k) _ (TopicConf tc)) m = liftIO $ do
                 if res == (-1 :: Int) then
                   (Left . kafkaRespErr) <$> getErrno
                 else
-                  waitForAck 100 resPtr
+                  waitForAck resPtr
 
       initialError :: Int
       initialError = -12345
+
+      actualDeliveryCb :: DeliveryReport -> IO ()
+      actualDeliveryCb = case deliveryCallback of
+        NoCallback -> const $ pure ()
+        DeliveryCallback cb -> cb
+
+      setDeliveryCb :: IO ()
+      setDeliveryCb = do
+        cb <- mkDeliveryCallback realCb
+        withForeignPtr (getRdKafkaConf kc) $ \c -> rdKafkaConfSetDrMsgCb' c cb
+
+      realCb :: Ptr RdKafkaT -> Ptr RdKafkaMessageT -> Word8Ptr -> IO ()
+      realCb _ mptr cbPtr = do
+        if mptr == nullPtr
+           then getErrno >>= (actualDeliveryCb . NoMessageError . kafkaRespErr)
+           else do
+             s <- peek mptr
+             poke (castPtr cbPtr) (enumToCInt $ err'RdKafkaMessageT s)
+             if err'RdKafkaMessageT s /= RdKafkaRespErrNoError
+               then mkErrorReport s   >>= actualDeliveryCb
+               else mkSuccessReport s >>= actualDeliveryCb
+
+      mkErrorReport :: RdKafkaMessageT -> IO DeliveryReport
+      mkErrorReport msg = do
+        prodRec <- mkProdRec msg
+        pure $ DeliveryFailure prodRec (KafkaResponseError (err'RdKafkaMessageT msg))
+
+      mkSuccessReport :: RdKafkaMessageT -> IO DeliveryReport
+      mkSuccessReport msg = do
+        prodRec <- mkProdRec msg
+        pure $ DeliverySuccess prodRec (Offset $ offset'RdKafkaMessageT msg)
 
       withPtr :: (Ptr RdKafkaRespErrT -> IO (Either KafkaError ())) -> IO (Either KafkaError ())
       withPtr f = alloca $ \ptr -> do
         poke ptr initialError
         f $ castPtr ptr
 
-      waitForAck :: Int -> Ptr RdKafkaRespErrT -> IO (Either KafkaError ())
-      waitForAck i ptr = do
+      mkProdRec :: RdKafkaMessageT -> IO ProducerRecord
+      mkProdRec msg = do
+        topic     <- readTopic msg
+        key       <- readKey msg
+        payload   <- readPayload msg
+        pure ProducerRecord
+          { prTopic = TopicName topic
+          , prPartition = SpecifiedPartition (partition'RdKafkaMessageT msg)
+          , prKey = key
+          , prValue = payload
+          }
+
+      waitForAck :: Ptr RdKafkaRespErrT -> IO (Either KafkaError ())
+      waitForAck ptr = do
         currentVal <- peek $ castPtr ptr
         if currentVal == initialError then do
-          if i == 0 then undefined
-                    else waitForAck (i - 1) ptr
+          waitForAck ptr
         else
           pure $ case rdKafkaErrno2err currentVal of
             RdKafkaRespErrNoError -> Right ()
@@ -178,7 +227,7 @@ produceMessageBatch :: MonadIO m
                     -> m [(ProducerRecord, KafkaError)]
                     -- ^ An empty list when the operation is successful,
                     -- otherwise a list of "failed" messages with corresponsing errors.
-produceMessageBatch kp@(KafkaProducer (Kafka k) _ (TopicConf tc)) messages = liftIO $ do
+produceMessageBatch kp@(KafkaProducer (Kafka k) _ (TopicConf tc) _) messages = liftIO $ do
   pollEvents kp (Just $ Timeout 0) -- fire callbacks if any exist (handle delivery reports)
   concat <$> forM (mkBatches messages) sendBatch
   where
