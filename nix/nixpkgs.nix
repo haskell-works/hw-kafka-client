@@ -5,7 +5,7 @@ with rec {
 
   _nixpkgs = fetchNixpkgs {
     rev = "da0c385a691d38b56b17eb18b852c4cec2050c24";
-    sha256 = "0svhqn139cy2nlgv4kqv1bsxza2dcm0yylrhnmanw4p73gv85caf"; 
+    sha256 = "0svhqn139cy2nlgv4kqv1bsxza2dcm0yylrhnmanw4p73gv85caf";
   };
 };
 
