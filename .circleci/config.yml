@@ -1,7 +1,7 @@
 version: 2.1
 
 orbs:
-  haskell: haskell-works/haskell-build@1.6.3
+  haskell: haskell-works/haskell-build-2@1.6.16
   github: haskell-works/github-release@1.2.1
   hackage: haskell-works/hackage@1.0.0
 
@@ -45,6 +45,7 @@ workflows:
             name: cabal-build
             ghc-version: 8.4.4
           before-build: [build-librdkafka]
+          context: haskell-ci
 
       - haskell/build:
           name: GHC 8.6.3
@@ -52,6 +53,7 @@ workflows:
             name: cabal-build
             ghc-version: 8.6.3
           before-build: [build-librdkafka]
+          context: haskell-ci
 
       - github/release-cabal:
           name: GitHub Release
