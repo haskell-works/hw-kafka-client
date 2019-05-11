@@ -1,7 +1,7 @@
 version: 2.1
 
 orbs:
-  haskell: haskell-works/haskell-build-2@1.6.16
+  haskell: haskell-works/haskell-build-2@1.6.17
   github: haskell-works/github-release@1.2.1
   hackage: haskell-works/hackage@1.0.0
 
@@ -46,6 +46,7 @@ workflows:
             ghc-version: 8.4.4
           before-build: [build-librdkafka]
           context: haskell-ci
+          binary-cache-uri: ${BINARY_CACHE_URI-"http://hw-binary-cache-us-west-2-a.s3-website-us-west-2.amazonaws.com/archive"}
 
       - haskell/build:
           name: GHC 8.6.3
@@ -54,6 +55,7 @@ workflows:
             ghc-version: 8.6.3
           before-build: [build-librdkafka]
           context: haskell-ci
+          binary-cache-uri: ${BINARY_CACHE_URI-"http://hw-binary-cache-us-west-2-a.s3-website-us-west-2.amazonaws.com/archive"}
 
       - github/release-cabal:
           name: GitHub Release
