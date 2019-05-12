@@ -1,7 +1,7 @@
 version: 2.1
 
 orbs:
-  haskell: haskell-works/haskell-build-2@1.6.17
+  haskell: haskell-works/haskell-build@2.0.2
   github: haskell-works/github-release@1.2.1
   hackage: haskell-works/hackage@1.0.0
 
@@ -39,7 +39,7 @@ commands:
 workflows:
   build-app-pipelines:
     jobs:
-      - haskell/build:
+      - haskell/build-with-binary-cache:
           name: GHC 8.4.4
           executor:
             name: cabal-build
@@ -48,7 +48,7 @@ workflows:
           context: haskell-ci
           binary-cache-uri: ${BINARY_CACHE_URI-"http://hw-binary-cache-us-west-2-a.s3-website-us-west-2.amazonaws.com/archive"}
 
-      - haskell/build:
+      - haskell/build-with-binary-cache:
           name: GHC 8.6.3
           executor:
             name: cabal-build
