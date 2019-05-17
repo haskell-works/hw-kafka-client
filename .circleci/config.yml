@@ -49,17 +49,17 @@ workflows:
           binary-cache-uri: ${BINARY_CACHE_URI-"http://hw-binary-cache-us-west-2-a.s3-website-us-west-2.amazonaws.com/archive"}
 
       - haskell/build-with-binary-cache:
-          name: GHC 8.6.3
+          name: GHC 8.6.5
           executor:
             name: cabal-build
-            ghc-version: 8.6.3
+            ghc-version: 8.6.5
           before-build: [build-librdkafka]
           context: haskell-ci
           binary-cache-uri: ${BINARY_CACHE_URI-"http://hw-binary-cache-us-west-2-a.s3-website-us-west-2.amazonaws.com/archive"}
 
       - github/release-cabal:
           name: GitHub Release
-          requires: [GHC 8.4.4, GHC 8.6.3]
+          requires: [GHC 8.4.4, GHC 8.6.5]
           checkout: true
           filters:
             branches:
