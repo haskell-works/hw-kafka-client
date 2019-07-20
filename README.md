@@ -180,6 +180,15 @@ Sometimes it is helpful to specify openssl includes explicitly:
 
     LDFLAGS=-L/usr/local/opt/openssl/lib CPPFLAGS=-I/usr/local/opt/openssl/include ./configure
 
+If you are using Stack with Nix, don't forget to declare `rdkafka` as extra package:
+```yaml
+# stack.yaml
+nix:
+  enable: true
+  packages:
+    - rdkafka
+```
+
 ## Installing Kafka
 
 The full Kafka guide is at http://kafka.apache.org/documentation.html#quickstart
