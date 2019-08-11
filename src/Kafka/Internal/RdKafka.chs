@@ -827,7 +827,7 @@ newRdKafkaTopicConfT = do
     {enumToCInt `RdKafkaTypeT', `RdKafkaConfTPtr', id `CCharBufPointer', cIntConv `CSize'}
     -> `RdKafkaTPtr' #}
 
-foreign import ccall unsafe "rdkafka.h &rd_kafka_destroy"
+foreign import ccall safe "rdkafka.h &rd_kafka_destroy"
     rdKafkaDestroy :: FunPtr (Ptr RdKafkaT -> IO ())
 
 newRdKafkaT :: RdKafkaTypeT -> RdKafkaConfTPtr -> IO (Either Text RdKafkaTPtr)
