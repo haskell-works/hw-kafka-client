@@ -77,19 +77,13 @@ setRebalanceCallback f k e pls = do
   let assignment = (tpTopicName &&& tpPartition) <$> ps
   case e of
     KafkaResponseError RdKafkaRespErrAssignPartitions -> do
+        f k (RebalanceBeforeAssign assignment)
+        void $ assign' k pls -- pass as pointer to avoid possible serialisation issues
         mbq <- getRdMsgQueue $ getKafkaConf k
         case mbq of
           Nothing -> pure ()
           Just mq -> do
             forM_ ps (\tp -> redirectPartitionQueue (getKafka k) (tpTopicName tp) (tpPartition tp) mq)
-            -- sleep for 1 second.
-            -- it looks like without it there is not enough time for redirect to happen
-            -- or something similarly strange. I don't understand it.
-            -- If you know WTH is going on PLEASE let me know because the current "fix" is ugly
-            -- and is completely unreasonable :(
-            threadDelay 1000000
-        f k (RebalanceBeforeAssign assignment)
-        void $ assign' k pls -- pass as pointer to avoid possible serialisation issues
         f k (RebalanceAssign assignment)
     KafkaResponseError RdKafkaRespErrRevokePartitions -> do
         f k (RebalanceBeforeRevoke assignment)
