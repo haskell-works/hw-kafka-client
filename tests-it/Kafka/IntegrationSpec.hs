@@ -113,103 +113,9 @@ spec = do
                 res    <- sendMessages (testMessages testTopic) prod
                 res `shouldBe` Right ()
 
-        specWithConsumer "Run consumer" consumerProps $ do
-            it "should get committed" $ \k -> do
-                res <- committed k (Timeout 1000) [(testTopic, PartitionId 0)]
-                res `shouldSatisfy` isRight
+        specWithConsumer "Run consumer" consumerProps runConsumerSpec
 
-            it "should get position" $ \k -> do
-                res <- position k [(testTopic, PartitionId 0)]
-                res `shouldSatisfy` isRight
-
-            it "should receive messages" $ \k -> do
-                res <- receiveMessages k
-                length <$> res `shouldBe` Right 2
-
-                let timestamps = crTimestamp <$> either (const []) id res
-                forM_ timestamps $ \ts ->
-                    ts `shouldNotBe` NoTimestamp
-
-                comRes <- commitAllOffsets OffsetCommit k
-                comRes `shouldBe` Nothing
-
-            it "should get watermark offsets" $ \k -> do
-                res <- sequence <$> watermarkOffsets k (Timeout 1000) testTopic
-                res `shouldSatisfy` isRight
-                length <$> res `shouldBe` (Right 1)
-
-            it "should return subscription" $ \k -> do
-                res <- subscription k
-                res `shouldSatisfy` isRight
-                length <$> res `shouldBe` Right 1
-
-            it "should return assignment" $ \k -> do
-                res <- assignment k
-                res `shouldSatisfy` isRight
-                res `shouldBe` Right (fromList [(testTopic, [PartitionId 0])])
-
-            it "should return all topics metadata" $ \k -> do
-                res <- allTopicsMetadata k (Timeout 1000)
-                res `shouldSatisfy` isRight
-                let filterUserTopics m = m { kmTopics = filter (\t -> topicType (tmTopicName t) == User) (kmTopics m) }
-                let res' = fmap filterUserTopics res
-                length . kmBrokers <$> res' `shouldBe` Right 1
-                length . kmTopics  <$> res' `shouldBe` Right 1
-
-            it "should return topic metadata" $ \k -> do
-                res <- topicMetadata k (Timeout 1000) testTopic
-                res `shouldSatisfy` isRight
-                (length . kmBrokers) <$> res `shouldBe` Right 1
-                (length . kmTopics) <$> res `shouldBe` Right 1
-
-            it "should describe all consumer groups" $ \k -> do
-                res <- allConsumerGroupsInfo k (Timeout 1000)
-                fmap giGroup <$> res `shouldBe` Right [testGroupId]
-
-            it "should describe a given consumer group" $ \k -> do
-                res <- consumerGroupInfo k (Timeout 1000) testGroupId
-                fmap giGroup <$> res `shouldBe` Right [testGroupId]
-
-            it "should describe non-existent consumer group" $ \k -> do
-                res <- consumerGroupInfo k (Timeout 1000) (ConsumerGroupId "does-not-exist")
-                res `shouldBe` Right []
-
-            it "should read topic offsets for time" $ \k -> do
-                res <- topicOffsetsForTime k (Timeout 1000) (Millis 1904057189508) testTopic
-                res `shouldSatisfy` isRight
-                fmap tpOffset <$> res `shouldBe` Right [PartitionOffsetEnd]
-
-            it "should seek and return no error" $ \k -> do
-                res <- seek k (Timeout 1000) [TopicPartition testTopic (PartitionId 0) (PartitionOffset 1)]
-                res `shouldBe` Nothing
-                msg <- pollMessage k (Timeout 1000)
-                crOffset <$> msg `shouldBe` Right (Offset 1)
-
-            it "should seek to the beginning" $ \k -> do
-                res <- seek k (Timeout 1000) [TopicPartition testTopic (PartitionId 0) PartitionOffsetBeginning]
-                res `shouldBe` Nothing
-                msg <- pollMessage k (Timeout 1000)
-                crOffset <$> msg `shouldBe` Right (Offset 0)
-
-            it "should seek to the end" $ \k -> do
-                res <- seek k (Timeout 1000) [TopicPartition testTopic (PartitionId 0) PartitionOffsetEnd]
-                res `shouldBe` Nothing
-                msg <- pollMessage k (Timeout 1000)
-                crOffset <$> msg `shouldSatisfy` (\x ->
-                        x == Left (KafkaResponseError RdKafkaRespErrPartitionEof)
-                    ||  x == Left (KafkaResponseError RdKafkaRespErrTimedOut))
-
-            it "should respect out-of-bound offsets (invalid offset)" $ \k -> do
-                res <- seek k (Timeout 1000) [TopicPartition testTopic (PartitionId 0) PartitionOffsetInvalid]
-                res `shouldBe` Nothing
-                msg <- pollMessage k (Timeout 1000)
-                crOffset <$> msg `shouldBe` Right (Offset 0)
-
-            it "should respect out-of-bound offsets (huge offset)" $ \k -> do
-                res <- seek k (Timeout 1000) [TopicPartition testTopic (PartitionId 0) (PartitionOffset 123456)]
-                res `shouldBe` Nothing
-                msg <- pollMessage k (Timeout 1000)
-                crOffset <$> msg `shouldBe` Right (Offset 0)
+        specWithConsumer "Run consumer with user polling" (consumerProps <> userPolls) runConsumerSpec
 
     describe "Kafka.Consumer.BatchSpec" $ do
         specWithConsumer "Batch consumer" (consumerProps <> groupId (ConsumerGroupId "batch-consumer")) $ do
@@ -254,3 +160,102 @@ testMessages t =
 sendMessages :: [ProducerRecord] -> KafkaProducer -> IO (Either KafkaError ())
 sendMessages msgs prod =
   Right <$> (forM_ msgs (produceMessage prod) >> flushProducer prod)
+
+runConsumerSpec :: SpecWith KafkaConsumer
+runConsumerSpec = do
+  it "should get committed" $ \k -> do
+    res <- committed k (Timeout 1000) [(testTopic, PartitionId 0)]
+    res `shouldSatisfy` isRight
+
+  it "should get position" $ \k -> do
+    res <- position k [(testTopic, PartitionId 0)]
+    res `shouldSatisfy` isRight
+
+  it "should receive messages" $ \k -> do
+    res <- receiveMessages k
+    length <$> res `shouldBe` Right 2
+
+    let timestamps = crTimestamp <$> either (const []) id res
+    forM_ timestamps $ \ts ->
+      ts `shouldNotBe` NoTimestamp
+
+    comRes <- commitAllOffsets OffsetCommit k
+    comRes `shouldBe` Nothing
+
+  it "should get watermark offsets" $ \k -> do
+    res <- sequence <$> watermarkOffsets k (Timeout 1000) testTopic
+    res `shouldSatisfy` isRight
+    length <$> res `shouldBe` (Right 1)
+
+  it "should return subscription" $ \k -> do
+    res <- subscription k
+    res `shouldSatisfy` isRight
+    length <$> res `shouldBe` Right 1
+
+  it "should return assignment" $ \k -> do
+    res <- assignment k
+    res `shouldSatisfy` isRight
+    res `shouldBe` Right (fromList [(testTopic, [PartitionId 0])])
+
+  it "should return all topics metadata" $ \k -> do
+    res <- allTopicsMetadata k (Timeout 1000)
+    res `shouldSatisfy` isRight
+    let filterUserTopics m = m { kmTopics = filter (\t -> topicType (tmTopicName t) == User) (kmTopics m) }
+    let res' = fmap filterUserTopics res
+    length . kmBrokers <$> res' `shouldBe` Right 1
+    length . kmTopics  <$> res' `shouldBe` Right 1
+
+  it "should return topic metadata" $ \k -> do
+    res <- topicMetadata k (Timeout 1000) testTopic
+    res `shouldSatisfy` isRight
+    (length . kmBrokers) <$> res `shouldBe` Right 1
+    (length . kmTopics) <$> res `shouldBe` Right 1
+
+  it "should describe all consumer groups" $ \k -> do
+    res <- allConsumerGroupsInfo k (Timeout 1000)
+    fmap giGroup <$> res `shouldBe` Right [testGroupId]
+
+  it "should describe a given consumer group" $ \k -> do
+    res <- consumerGroupInfo k (Timeout 1000) testGroupId
+    fmap giGroup <$> res `shouldBe` Right [testGroupId]
+
+  it "should describe non-existent consumer group" $ \k -> do
+    res <- consumerGroupInfo k (Timeout 1000) (ConsumerGroupId "does-not-exist")
+    res `shouldBe` Right []
+
+  it "should read topic offsets for time" $ \k -> do
+    res <- topicOffsetsForTime k (Timeout 1000) (Millis 1904057189508) testTopic
+    res `shouldSatisfy` isRight
+    fmap tpOffset <$> res `shouldBe` Right [PartitionOffsetEnd]
+
+  it "should seek and return no error" $ \k -> do
+    res <- seek k (Timeout 1000) [TopicPartition testTopic (PartitionId 0) (PartitionOffset 1)]
+    res `shouldBe` Nothing
+    msg <- pollMessage k (Timeout 1000)
+    crOffset <$> msg `shouldBe` Right (Offset 1)
+
+  it "should seek to the beginning" $ \k -> do
+    res <- seek k (Timeout 1000) [TopicPartition testTopic (PartitionId 0) PartitionOffsetBeginning]
+    res `shouldBe` Nothing
+    msg <- pollMessage k (Timeout 1000)
+    crOffset <$> msg `shouldBe` Right (Offset 0)
+
+  it "should seek to the end" $ \k -> do
+    res <- seek k (Timeout 1000) [TopicPartition testTopic (PartitionId 0) PartitionOffsetEnd]
+    res `shouldBe` Nothing
+    msg <- pollMessage k (Timeout 1000)
+    crOffset <$> msg `shouldSatisfy` (\x ->
+            x == Left (KafkaResponseError RdKafkaRespErrPartitionEof)
+        ||  x == Left (KafkaResponseError RdKafkaRespErrTimedOut))
+
+  it "should respect out-of-bound offsets (invalid offset)" $ \k -> do
+    res <- seek k (Timeout 1000) [TopicPartition testTopic (PartitionId 0) PartitionOffsetInvalid]
+    res `shouldBe` Nothing
+    msg <- pollMessage k (Timeout 1000)
+    crOffset <$> msg `shouldBe` Right (Offset 0)
+
+  it "should respect out-of-bound offsets (huge offset)" $ \k -> do
+    res <- seek k (Timeout 1000) [TopicPartition testTopic (PartitionId 0) (PartitionOffset 123456)]
+    res `shouldBe` Nothing
+    msg <- pollMessage k (Timeout 1000)
+    crOffset <$> msg `shouldBe` Right (Offset 0)
