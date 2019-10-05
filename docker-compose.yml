@@ -9,7 +9,7 @@ zookeeper:
 
 kafka:
   image: confluentinc/cp-kafka:latest
-  hostname: kafka
+  hostname: localhost
   ports:
     - 9092:9092
   links:

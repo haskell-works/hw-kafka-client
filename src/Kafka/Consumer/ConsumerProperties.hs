@@ -2,6 +2,7 @@
 
 module Kafka.Consumer.ConsumerProperties
 ( ConsumerProperties(..)
+, CallbackMode(..)
 , brokersList
 , noAutoCommit
 , noAutoOffsetStore
@@ -15,35 +16,36 @@ module Kafka.Consumer.ConsumerProperties
 , extraProp
 , debugOptions
 , queuedMaxMessagesKBytes
-, userPolls
+, callbackPollMode
 , module X
 )
 where
 
-import           Control.Monad        (MonadPlus(mplus))
+import           Control.Monad        (MonadPlus (mplus))
 import           Data.Map             (Map)
-import           Data.Monoid          (Any)
 import qualified Data.Map             as M
 import           Data.Semigroup       as Sem
 import           Data.Text            (Text)
 import qualified Data.Text            as Text
-import           Kafka.Consumer.Types (ConsumerGroupId(..))
-import           Kafka.Internal.Setup (KafkaConf(..))
-import           Kafka.Types          (KafkaDebug(..), KafkaCompressionCodec(..), KafkaLogLevel(..), ClientId(..), BrokerAddress(..), kafkaDebugToText, kafkaCompressionCodecToText)
+import           Kafka.Consumer.Types (ConsumerGroupId (..))
+import           Kafka.Internal.Setup (KafkaConf (..))
+import           Kafka.Types          (BrokerAddress (..), ClientId (..), KafkaCompressionCodec (..), KafkaDebug (..), KafkaLogLevel (..), kafkaCompressionCodecToText, kafkaDebugToText)
 
 import Kafka.Consumer.Callbacks as X
+
+data CallbackMode = CallbackModeSync | CallbackModeAsync deriving (Show, Eq)
 
 -- | Properties to create 'KafkaConsumer'.
 data ConsumerProperties = ConsumerProperties
   { cpProps     :: Map Text Text
   , cpLogLevel  :: Maybe KafkaLogLevel
   , cpCallbacks :: [KafkaConf -> IO ()]
-  , cpUserPolls :: Any
+  , cpUserPolls :: CallbackMode
   }
 
 instance Sem.Semigroup ConsumerProperties where
-  (ConsumerProperties m1 ll1 cb1 cup1) <> (ConsumerProperties m2 ll2 cb2 cup2) =
-    ConsumerProperties (M.union m2 m1) (ll2 `mplus` ll1) (cb1 `mplus` cb2) (cup1 <> cup2)
+  (ConsumerProperties m1 ll1 cb1 _) <> (ConsumerProperties m2 ll2 cb2 cup2) =
+    ConsumerProperties (M.union m2 m1) (ll2 `mplus` ll1) (cb1 `mplus` cb2) cup2
   {-# INLINE (<>) #-}
 
 -- | /Right biased/ so we prefer newer properties over older ones.
@@ -52,7 +54,7 @@ instance Monoid ConsumerProperties where
     { cpProps          = M.empty
     , cpLogLevel       = Nothing
     , cpCallbacks      = []
-    , cpUserPolls      = Any False
+    , cpUserPolls      = CallbackModeAsync
     }
   {-# INLINE mempty #-}
   mappend = (Sem.<>)
@@ -128,12 +130,16 @@ queuedMaxMessagesKBytes kBytes =
   extraProp "queued.max.messages.kbytes" (Text.pack $ show kBytes)
 {-# INLINE queuedMaxMessagesKBytes #-}
 
--- | The user will poll the consumer frequently to handle both new
--- messages and rebalance events.
+-- | Sets the callback poll mode.
 --
--- By default hw-kafka-client handles polling rebalance events for you
--- in a background thread, with this property set you can simplify
+-- The default 'CallbackModeAsync' mode handles polling rebalance
+-- and keep alive events for you
+-- in a background thread.
+--
+-- With 'CalalcacModeSync' the user will poll the consumer
+-- frequently to handle new messages as well as rebalance and keep alive events.
+-- 'CalalcacModeSync' lets you can simplify
 -- hw-kafka-client's footprint and have full control over when polling
 -- happens at the cost of having to manage this yourself.
-userPolls :: ConsumerProperties
-userPolls = mempty { cpUserPolls = Any True }
+callbackPollMode :: CallbackMode -> ConsumerProperties
+callbackPollMode mode = mempty { cpUserPolls = mode }
