@@ -15,12 +15,14 @@ module Kafka.Consumer.ConsumerProperties
 , extraProp
 , debugOptions
 , queuedMaxMessagesKBytes
+, userPolls
 , module X
 )
 where
 
 import           Control.Monad        (MonadPlus(mplus))
 import           Data.Map             (Map)
+import           Data.Monoid          (Any)
 import qualified Data.Map             as M
 import           Data.Semigroup       as Sem
 import           Data.Text            (Text)
@@ -36,11 +38,12 @@ data ConsumerProperties = ConsumerProperties
   { cpProps     :: Map Text Text
   , cpLogLevel  :: Maybe KafkaLogLevel
   , cpCallbacks :: [KafkaConf -> IO ()]
+  , cpUserPolls :: Any
   }
 
 instance Sem.Semigroup ConsumerProperties where
-  (ConsumerProperties m1 ll1 cb1) <> (ConsumerProperties m2 ll2 cb2) =
-    ConsumerProperties (M.union m2 m1) (ll2 `mplus` ll1) (cb1 `mplus` cb2)
+  (ConsumerProperties m1 ll1 cb1 cup1) <> (ConsumerProperties m2 ll2 cb2 cup2) =
+    ConsumerProperties (M.union m2 m1) (ll2 `mplus` ll1) (cb1 `mplus` cb2) (cup1 <> cup2)
   {-# INLINE (<>) #-}
 
 -- | /Right biased/ so we prefer newer properties over older ones.
@@ -49,6 +52,7 @@ instance Monoid ConsumerProperties where
     { cpProps          = M.empty
     , cpLogLevel       = Nothing
     , cpCallbacks      = []
+    , cpUserPolls      = Any False
     }
   {-# INLINE mempty #-}
   mappend = (Sem.<>)
@@ -123,3 +127,13 @@ queuedMaxMessagesKBytes :: Int -> ConsumerProperties
 queuedMaxMessagesKBytes kBytes =
   extraProp "queued.max.messages.kbytes" (Text.pack $ show kBytes)
 {-# INLINE queuedMaxMessagesKBytes #-}
+
+-- | The user will poll the consumer frequently to handle both new
+-- messages and rebalance events.
+--
+-- By default hw-kafka-client handles polling rebalance events for you
+-- in a background thread, with this property set you can simplify
+-- hw-kafka-client's footprint and have full control over when polling
+-- happens at the cost of having to manage this yourself.
+userPolls :: ConsumerProperties
+userPolls = mempty { cpUserPolls = Any True }

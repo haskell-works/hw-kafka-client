@@ -32,7 +32,7 @@ import qualified Data.ByteString                  as BS
 import           Data.IORef                       (writeIORef, readIORef)
 import qualified Data.Map                         as M
 import           Data.Maybe                       (fromMaybe)
-import           Data.Monoid                      ((<>))
+import           Data.Monoid                      ((<>), Any(Any))
 import           Foreign                          hiding (void)
 import           Kafka.Consumer.Convert
   (fromMessagePtr, toNativeTopicPartitionList, topicPartitionFromMessageForCommit
@@ -113,8 +113,10 @@ newConsumer :: MonadIO m
             => ConsumerProperties
             -> Subscription
             -> m (Either KafkaError KafkaConsumer)
-newConsumer props (Subscription ts tp) = liftIO $ do
-  let cp = setCallback (rebalanceCallback (\_ _ -> return ())) <> props
+newConsumer props@ConsumerProperties { cpUserPolls = Any cup } (Subscription ts tp) = liftIO $ do
+  let cp = case cup of
+        False -> setCallback (rebalanceCallback (\_ _ -> return ())) <> props
+        True  -> props
   kc@(KafkaConf kc' qref ct) <- newConsumerConf cp
   tp' <- topicConf (TopicProps tp)
   _   <- setDefaultTopicConf kc tp'
@@ -122,8 +124,9 @@ newConsumer props (Subscription ts tp) = liftIO $ do
   case rdk of
     Left err   -> return . Left $ KafkaError err
     Right rdk' -> do
-      msgq <- rdKafkaQueueNew rdk'
-      writeIORef qref (Just msgq)
+      when (not cup) $ do
+        msgq <- rdKafkaQueueNew rdk'
+        writeIORef qref (Just msgq)
       let kafka = KafkaConsumer (Kafka rdk') kc
       redErr <- redirectCallbacksPoll kafka
       case redErr of
@@ -132,7 +135,7 @@ newConsumer props (Subscription ts tp) = liftIO $ do
           forM_ (cpLogLevel cp) (setConsumerLogLevel kafka)
           sub <- subscribe kafka ts
           case sub of
-            Nothing  -> runConsumerLoop kafka ct (Just $ Timeout 100) >> return (Right kafka)
+            Nothing  -> (when (not cup) $ runConsumerLoop kafka ct (Just $ Timeout 100)) >> return (Right kafka)
             Just err -> closeConsumer kafka >> return (Left err)
 
 pollMessage :: MonadIO m
@@ -140,15 +143,18 @@ pollMessage :: MonadIO m
             -> Timeout -- ^ the timeout, in milliseconds
             -> m (Either KafkaError (ConsumerRecord (Maybe BS.ByteString) (Maybe BS.ByteString))) -- ^ Left on error or timeout, right for success
 pollMessage c@(KafkaConsumer _ (KafkaConf _ qr _)) (Timeout ms) = liftIO $ do
-  pollConsumerEvents c Nothing
   mbq <- readIORef qr
   case mbq of
-    Nothing -> return . Left $ KafkaBadSpecification "Messages queue is not configured, internal error, fatal."
-    Just q  -> rdKafkaConsumeQueue q (fromIntegral ms) >>= fromMessagePtr
+    Nothing -> rdKafkaConsumerPoll (getRdKafka c) ms >>= fromMessagePtr
+    Just q -> do
+      pollConsumerEvents c Nothing
+      rdKafkaConsumeQueue q (fromIntegral ms) >>= fromMessagePtr
 
 -- | Polls up to BatchSize messages.
 -- Unlike 'pollMessage' this function does not return usual "timeout" errors.
 -- An empty batch is returned when there are no messages available.
+--
+-- This API is not available when 'userPolls' is set.
 pollMessageBatch :: MonadIO m
                  => KafkaConsumer
                  -> Timeout
@@ -158,7 +164,7 @@ pollMessageBatch c@(KafkaConsumer _ (KafkaConf _ qr _)) (Timeout ms) (BatchSize 
   pollConsumerEvents c Nothing
   mbq <- readIORef qr
   case mbq of
-    Nothing -> return [Left $ KafkaBadSpecification "Messages queue is not configured, internal error, fatal."]
+    Nothing -> return [Left $ KafkaBadSpecification "userPolls is set when calling pollMessageBatch."]
     Just q  -> rdKafkaConsumeBatchQueue q ms b >>= traverse fromMessagePtr
 
 -- | Commit message's offset on broker for the message's partition.
