@@ -3,12 +3,14 @@
 
 module Kafka.TestEnv where
 
-import Control.Exception
-import Control.Monad      (void)
-import Data.Monoid        ((<>))
-import System.Environment
-import System.IO.Unsafe
-import qualified Data.Text as Text
+import           Control.Exception
+import           Control.Monad      (void)
+import           Data.Monoid        ((<>))
+import qualified Data.Text          as Text
+import           System.Environment
+import           System.IO.Unsafe
+
+import qualified System.Random as Rnd
 
 import Control.Concurrent
 import Kafka.Consumer     as C
@@ -16,24 +18,35 @@ import Kafka.Producer     as P
 
 import Test.Hspec
 
+testPrefix :: String
+testPrefix = unsafePerformIO $ take 10 . Rnd.randomRs ('a','z') <$> Rnd.newStdGen
+{-# NOINLINE testPrefix #-}
+
 brokerAddress :: BrokerAddress
-brokerAddress = unsafePerformIO $ do
-  (BrokerAddress . Text.pack) <$> getEnv "KAFKA_TEST_BROKER" `catch` \(_ :: SomeException) -> (return "localhost:9092")
+brokerAddress = unsafePerformIO $
+  (BrokerAddress . Text.pack) <$> getEnv "KAFKA_TEST_BROKER" `catch` \(_ :: SomeException) -> return "localhost:9092"
 {-# NOINLINE brokerAddress #-}
 
 testTopic :: TopicName
-testTopic = unsafePerformIO $ do
-  (TopicName . Text.pack) <$> getEnv "KAFKA_TEST_TOPIC" `catch` \(_ :: SomeException) -> (return "kafka-client_tests")
+testTopic = unsafePerformIO $
+  (TopicName . Text.pack) <$> getEnv "KAFKA_TEST_TOPIC" `catch` \(_ :: SomeException) -> return $ testPrefix <> "-topic"
 {-# NOINLINE testTopic #-}
 
 testGroupId :: ConsumerGroupId
-testGroupId = ConsumerGroupId "it_spec_03"
+testGroupId = ConsumerGroupId (Text.pack testPrefix)
+
+makeGroupId :: String -> ConsumerGroupId
+makeGroupId suffix =
+  ConsumerGroupId . Text.pack $ testPrefix <> "-" <> suffix
+
+isTestGroupId :: ConsumerGroupId -> Bool
+isTestGroupId (ConsumerGroupId group) = Text.pack testPrefix `Text.isPrefixOf` group
 
 consumerProps :: ConsumerProperties
 consumerProps =  C.brokersList [brokerAddress]
               <> groupId testGroupId
-              <> C.setCallback (logCallback (\l s1 s2 -> print $ show l <> ": " <> s1 <> ", " <> s2))
-              <> C.setCallback (errorCallback (\e r -> print $ show e <> ": " <> r))
+              <> C.setCallback (logCallback (\l s1 s2 -> print $ "[Consumer] " <> show l <> ": " <> s1 <> ", " <> s2))
+              <> C.setCallback (errorCallback (\e r -> print $ "[Consumer] " <> show e <> ": " <> r))
               <> noAutoCommit
 
 consumerPropsNoStore :: ConsumerProperties
@@ -41,8 +54,8 @@ consumerPropsNoStore = consumerProps <> noAutoOffsetStore
 
 producerProps :: ProducerProperties
 producerProps =  P.brokersList [brokerAddress]
-              <> P.setCallback (logCallback (\l s1 s2 -> print $ show l <> ": " <> s1 <> ", " <> s2))
-              <> P.setCallback (errorCallback (\e r -> print $ show e <> ": " <> r))
+              <> P.setCallback (logCallback (\l s1 s2 -> print $ "[Producer] " <> show l <> ": " <> s1 <> ", " <> s2))
+              <> P.setCallback (errorCallback (\e r -> print $ "[Producer] " <> show e <> ": " <> r))
 
 testSubscription :: TopicName -> Subscription
 testSubscription t = topics [t]
@@ -65,7 +78,10 @@ mkConsumerWith props = do
 
 
 specWithConsumer :: String -> ConsumerProperties -> SpecWith KafkaConsumer -> Spec
-specWithConsumer s p f = beforeAll (mkConsumerWith p) $ afterAll (void . closeConsumer) $ describe s f
+specWithConsumer s p f =
+  beforeAll (mkConsumerWith p)
+  $ afterAll (void . closeConsumer)
+  $ describe s f
 
 specWithProducer :: String -> SpecWith KafkaProducer -> Spec
 specWithProducer s f = beforeAll mkProducer $ afterAll (void . closeProducer) $ describe s f

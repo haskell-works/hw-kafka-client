@@ -107,6 +107,7 @@ test-suite integration-tests
     , hspec
     , hw-kafka-client
     , monad-loops
+    , random
     , text
     , transformers
   other-modules:

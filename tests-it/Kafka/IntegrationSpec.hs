@@ -113,9 +113,8 @@ spec = do
                 res    <- sendMessages (testMessages testTopic) prod
                 res `shouldBe` Right ()
 
-        specWithConsumer "Run consumer" consumerProps runConsumerSpec
-
-        specWithConsumer "Run consumer with user polling" (consumerProps <> userPolls) runConsumerSpec
+        specWithConsumer "Run consumer with async polling" (consumerProps <> groupId (makeGroupId "async")) runConsumerSpec
+        specWithConsumer "Run consumer with sync polling" (consumerProps <> groupId (makeGroupId "sync") <> callbackPollMode CallbackModeSync) runConsumerSpec
 
     describe "Kafka.Consumer.BatchSpec" $ do
         specWithConsumer "Batch consumer" (consumerProps <> groupId (ConsumerGroupId "batch-consumer")) $ do
@@ -163,17 +162,10 @@ sendMessages msgs prod =
 
 runConsumerSpec :: SpecWith KafkaConsumer
 runConsumerSpec = do
-  it "should get committed" $ \k -> do
-    res <- committed k (Timeout 1000) [(testTopic, PartitionId 0)]
-    res `shouldSatisfy` isRight
-
-  it "should get position" $ \k -> do
-    res <- position k [(testTopic, PartitionId 0)]
-    res `shouldSatisfy` isRight
-
   it "should receive messages" $ \k -> do
     res <- receiveMessages k
-    length <$> res `shouldBe` Right 2
+    let msgsLen = either (const 0) length res
+    msgsLen `shouldSatisfy` (> 0)
 
     let timestamps = crTimestamp <$> either (const []) id res
     forM_ timestamps $ \ts ->
@@ -181,6 +173,14 @@ runConsumerSpec = do
 
     comRes <- commitAllOffsets OffsetCommit k
     comRes `shouldBe` Nothing
+
+  it "should get committed" $ \k -> do
+    res <- committed k (Timeout 1000) [(testTopic, PartitionId 0)]
+    res `shouldSatisfy` isRight
+
+  it "should get position" $ \k -> do
+    res <- position k [(testTopic, PartitionId 0)]
+    res `shouldSatisfy` isRight
 
   it "should get watermark offsets" $ \k -> do
     res <- sequence <$> watermarkOffsets k (Timeout 1000) testTopic
@@ -203,7 +203,12 @@ runConsumerSpec = do
     let filterUserTopics m = m { kmTopics = filter (\t -> topicType (tmTopicName t) == User) (kmTopics m) }
     let res' = fmap filterUserTopics res
     length . kmBrokers <$> res' `shouldBe` Right 1
-    length . kmTopics  <$> res' `shouldBe` Right 1
+
+    let topicsLen = either (const 0) (length . kmTopics) res'
+    let hasTopic = either (const False) (any (\t -> tmTopicName t == testTopic) . kmTopics) res'
+
+    topicsLen `shouldSatisfy` (>0)
+    hasTopic `shouldBe` True
 
   it "should return topic metadata" $ \k -> do
     res <- topicMetadata k (Timeout 1000) testTopic
@@ -213,7 +218,11 @@ runConsumerSpec = do
 
   it "should describe all consumer groups" $ \k -> do
     res <- allConsumerGroupsInfo k (Timeout 1000)
-    fmap giGroup <$> res `shouldBe` Right [testGroupId]
+    let groups = either (const []) (fmap giGroup) res
+    let prefixedGroups = filter isTestGroupId groups
+    let resLen = length prefixedGroups
+    resLen `shouldSatisfy` (>0)
+    -- fmap giGroup <$> res `shouldBe` Right [testGroupId]
 
   it "should describe a given consumer group" $ \k -> do
     res <- consumerGroupInfo k (Timeout 1000) testGroupId
