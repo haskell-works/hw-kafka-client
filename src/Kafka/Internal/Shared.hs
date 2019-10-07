@@ -17,24 +17,24 @@ module Kafka.Internal.Shared
 )
 where
 
-import           Data.Text                        (Text)
-import qualified Data.Text                        as Text
 import           Control.Concurrent               (forkIO, rtsSupportsBoundThreads)
 import           Control.Exception                (throw)
 import           Control.Monad                    (void, when)
 import qualified Data.ByteString                  as BS
 import qualified Data.ByteString.Internal         as BSI
+import           Data.Text                        (Text)
+import qualified Data.Text                        as Text
 import           Data.Word                        (Word8)
-import           Foreign.Ptr                      (Ptr, nullPtr)
-import           Foreign.Marshal.Alloc            (alloca)
+import           Foreign.C.Error                  (Errno (..))
 import           Foreign.ForeignPtr               (newForeignPtr_)
-import           Foreign.Storable                 (Storable(peek))
-import           Foreign.C.Error                  (Errno(..))
-import           Kafka.Consumer.Types             (Timestamp(..))
+import           Foreign.Marshal.Alloc            (alloca)
+import           Foreign.Ptr                      (Ptr, nullPtr)
+import           Foreign.Storable                 (Storable (peek))
+import           Kafka.Consumer.Types             (Timestamp (..))
 import           Kafka.Internal.CancellationToken as CToken
-import           Kafka.Internal.RdKafka           (RdKafkaTimestampTypeT(..), RdKafkaMessageTPtr, RdKafkaMessageT(..), RdKafkaRespErrT(..), Word8Ptr, rdKafkaPoll, rdKafkaErrno2err, rdKafkaTopicName, rdKafkaMessageTimestamp)
-import           Kafka.Internal.Setup             (HasKafka(..), Kafka(..))
-import           Kafka.Types                      (KafkaError(..), Timeout(..), Millis(..))
+import           Kafka.Internal.RdKafka           (RdKafkaMessageT (..), RdKafkaMessageTPtr, RdKafkaRespErrT (..), RdKafkaTimestampTypeT (..), Word8Ptr, rdKafkaErrno2err, rdKafkaMessageTimestamp, rdKafkaPoll, rdKafkaTopicName)
+import           Kafka.Internal.Setup             (HasKafka (..), Kafka (..))
+import           Kafka.Types                      (KafkaError (..), Millis (..), Timeout (..))
 
 runEventLoop :: HasKafka a => a -> CancellationToken -> Maybe Timeout -> IO ()
 runEventLoop k ct timeout =
