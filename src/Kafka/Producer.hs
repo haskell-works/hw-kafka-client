@@ -11,37 +11,25 @@ module Kafka.Producer
 )
 where
 
-import           Control.Arrow                    ((&&&))
-import           Control.Exception                (bracket)
-import           Control.Monad                    (forM, forM_, (<=<))
-import           Control.Monad.IO.Class           (MonadIO(liftIO))
-import qualified Data.ByteString                  as BS
-import qualified Data.ByteString.Internal         as BSI
-import           Data.Function                    (on)
-import           Data.List                        (groupBy, sortBy)
-import           Data.Ord                         (comparing)
-import qualified Data.Text                        as Text
-import           Foreign.ForeignPtr               (withForeignPtr, newForeignPtr_)
-import           Foreign.Marshal.Array            (withArrayLen)
-import           Foreign.Ptr                      (Ptr, nullPtr, plusPtr)
-import           Foreign.Storable                 (Storable(..))
-import           Kafka.Internal.CancellationToken as CToken
-import           Kafka.Internal.RdKafka
-  ( RdKafkaMessageT(..)
-  , RdKafkaTypeT(..)
-  , RdKafkaRespErrT(..)
-  , newRdKafkaT
-  , newUnmanagedRdKafkaTopicT
-  , destroyUnmanagedRdKafkaTopic
-  , rdKafkaProduce
-  , rdKafkaSetLogLevel
-  , rdKafkaProduceBatch
-  , rdKafkaOutqLen
-  )
-import           Kafka.Internal.Setup             (KafkaConf(..), Kafka(..), TopicConf(..), kafkaConf, KafkaProps(..), topicConf, TopicProps(..))
-import           Kafka.Internal.Shared            (pollEvents)
-import           Kafka.Producer.Convert           (copyMsgFlags, producePartitionCInt, producePartitionInt, handleProduceErr)
-import           Kafka.Producer.Types             (KafkaProducer(..))
+import           Control.Arrow            ((&&&))
+import           Control.Exception        (bracket)
+import           Control.Monad            (forM, forM_, (<=<))
+import           Control.Monad.IO.Class   (MonadIO (liftIO))
+import qualified Data.ByteString          as BS
+import qualified Data.ByteString.Internal as BSI
+import           Data.Function            (on)
+import           Data.List                (groupBy, sortBy)
+import           Data.Ord                 (comparing)
+import qualified Data.Text                as Text
+import           Foreign.ForeignPtr       (newForeignPtr_, withForeignPtr)
+import           Foreign.Marshal.Array    (withArrayLen)
+import           Foreign.Ptr              (Ptr, nullPtr, plusPtr)
+import           Foreign.Storable         (Storable (..))
+import           Kafka.Internal.RdKafka   (RdKafkaMessageT (..), RdKafkaRespErrT (..), RdKafkaTypeT (..), destroyUnmanagedRdKafkaTopic, newRdKafkaT, newUnmanagedRdKafkaTopicT, rdKafkaOutqLen, rdKafkaProduce, rdKafkaProduceBatch, rdKafkaSetLogLevel)
+import           Kafka.Internal.Setup     (Kafka (..), KafkaConf (..), KafkaProps (..), TopicConf (..), TopicProps (..), kafkaConf, topicConf)
+import           Kafka.Internal.Shared    (pollEvents)
+import           Kafka.Producer.Convert   (copyMsgFlags, handleProduceErr, producePartitionCInt, producePartitionInt)
+import           Kafka.Producer.Types     (KafkaProducer (..))
 
 import Kafka.Producer.ProducerProperties as X
 import Kafka.Producer.Types              as X hiding (KafkaProducer)
@@ -163,9 +151,7 @@ produceMessageBatch kp@(KafkaProducer (Kafka k) _ (TopicConf tc)) messages = lif
 -- | Closes the producer.
 -- Will wait until the outbound queue is drained before returning the control.
 closeProducer :: MonadIO m => KafkaProducer -> m ()
-closeProducer p =
-  let (KafkaConf _ _ ct) = kpKafkaConf p
-  in liftIO (CToken.cancel ct) >> flushProducer p
+closeProducer = flushProducer
 
 -- | Drains the outbound queue for a producer.
 --  This function is also called automatically when the producer is closed

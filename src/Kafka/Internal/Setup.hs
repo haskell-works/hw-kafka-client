@@ -7,6 +7,7 @@ module Kafka.Internal.Setup
 , HasKafka(..)
 , HasKafkaConf(..)
 , HasTopicConf(..)
+, CallbackPollStatus(..)
 , getRdKafka
 , getRdKafkaConf
 , getRdMsgQueue
@@ -23,18 +24,19 @@ module Kafka.Internal.Setup
 )
 where
 
-import Kafka.Internal.RdKafka (RdKafkaConfResT(..), CCharBufPointer, RdKafkaQueueTPtr, RdKafkaTPtr, RdKafkaConfTPtr, RdKafkaTopicConfTPtr, nErrorBytes, rdKafkaTopicConfSet, newRdKafkaTopicConfT, newRdKafkaConfT, rdKafkaConfSet)
-import Kafka.Types (KafkaError(..))
+import Kafka.Internal.RdKafka (CCharBufPointer, RdKafkaConfResT (..), RdKafkaConfTPtr, RdKafkaQueueTPtr, RdKafkaTPtr, RdKafkaTopicConfTPtr, nErrorBytes, newRdKafkaConfT, newRdKafkaTopicConfT, rdKafkaConfSet, rdKafkaTopicConfSet)
+import Kafka.Types            (KafkaError (..))
 
-import Control.Exception (throw)
-import Data.IORef (IORef, newIORef, readIORef)
-import Foreign.Marshal.Alloc (allocaBytes)
-import Foreign.C.String (peekCString)
-import Kafka.Internal.CancellationToken (CancellationToken(..), newCancellationToken)
+import Control.Concurrent.MVar (MVar, newMVar)
+import Control.Exception       (throw)
+import Data.IORef              (IORef, newIORef, readIORef)
+import Data.Map                (Map)
+import Data.Text               (Text)
+import Foreign.C.String        (peekCString)
+import Foreign.Marshal.Alloc   (allocaBytes)
+
+import qualified Data.Map  as Map
 import qualified Data.Text as Text
-import Data.Map (Map)
-import Data.Text (Text)
-import qualified Data.Map as Map
 
 --
 -- Configuration
@@ -42,8 +44,21 @@ import qualified Data.Map as Map
 newtype KafkaProps = KafkaProps (Map Text Text) deriving (Show, Eq)
 newtype TopicProps = TopicProps (Map Text Text) deriving (Show, Eq)
 newtype Kafka      = Kafka RdKafkaTPtr deriving Show
-data KafkaConf     = KafkaConf RdKafkaConfTPtr (IORef (Maybe RdKafkaQueueTPtr)) CancellationToken
 newtype TopicConf  = TopicConf RdKafkaTopicConfTPtr deriving Show
+
+data CallbackPollStatus = CallbackPollEnabled | CallbackPollDisabled deriving (Show, Eq)
+
+data KafkaConf         = KafkaConf
+  { kcfgKafkaConfPtr       :: RdKafkaConfTPtr
+    -- ^ A pointer to a native Kafka configuration
+
+  , kcfgMessagesQueue      :: IORef (Maybe RdKafkaQueueTPtr)
+    -- ^ A queue for messages
+
+  , kcfgCallbackPollStatus :: MVar CallbackPollStatus
+    -- ^ A mutex to prevent handling callbacks from multiple threads
+    -- which can be dangerous in some cases.
+  }
 
 class HasKafka a where
   getKafka :: a -> Kafka
@@ -87,7 +102,7 @@ newTopicConf :: IO TopicConf
 newTopicConf = TopicConf <$> newRdKafkaTopicConfT
 
 newKafkaConf :: IO KafkaConf
-newKafkaConf = KafkaConf <$> newRdKafkaConfT <*> newIORef Nothing <*> newCancellationToken
+newKafkaConf = KafkaConf <$> newRdKafkaConfT <*> newIORef Nothing <*> newMVar CallbackPollEnabled
 
 kafkaConf :: KafkaProps -> IO KafkaConf
 kafkaConf overrides = do

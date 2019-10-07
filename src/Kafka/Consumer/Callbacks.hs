@@ -12,28 +12,15 @@ import Data.Monoid            ((<>))
 import Foreign.ForeignPtr     (newForeignPtr_)
 import Foreign.Ptr            (nullPtr)
 import Kafka.Callbacks        as X
-import Kafka.Consumer.Convert (fromNativeTopicPartitionList', fromNativeTopicPartitionList'', toNativeTopicPartitionList)
+import Kafka.Consumer.Convert (fromNativeTopicPartitionList', fromNativeTopicPartitionList'')
 import Kafka.Consumer.Types   (KafkaConsumer (..), RebalanceEvent (..), TopicPartition (..))
 import Kafka.Internal.RdKafka
 import Kafka.Internal.Setup   (HasKafka (..), HasKafkaConf (..), Kafka (..), KafkaConf (..), getRdMsgQueue)
-import Kafka.Internal.Shared  (kafkaErrorToMaybe)
 import Kafka.Types            (KafkaError (..), PartitionId (..), TopicName (..))
 
 import qualified Data.Text as Text
 
 -- | Sets a callback that is called when rebalance is needed.
---
--- Callback implementations suppose to watch for 'KafkaResponseError' 'RdKafkaRespErrAssignPartitions' and
--- for 'KafkaResponseError' 'RdKafkaRespErrRevokePartitions'. Other error codes are not expected and would indicate
--- something really bad happening in a system, or bugs in @librdkafka@ itself.
---
--- A callback is expected to call 'assign' according to the error code it receives.
---
---     * When 'RdKafkaRespErrAssignPartitions' happens 'assign' should be called with all the partitions it was called with.
---       It is OK to alter partitions offsets before calling 'assign'.
---
---     * When 'RdKafkaRespErrRevokePartitions' happens 'assign' should be called with an empty list of partitions.
--- rebalanceCallback :: (KafkaConsumer -> KafkaError -> [TopicPartition] -> IO ()) -> KafkaConf -> IO ()
 rebalanceCallback :: (KafkaConsumer -> RebalanceEvent -> IO ()) -> KafkaConf -> IO ()
 rebalanceCallback callback kc@(KafkaConf conf _ _) = rdKafkaConfSetRebalanceCb conf realCb
   where
@@ -46,8 +33,6 @@ rebalanceCallback callback kc@(KafkaConf conf _ _) = rdKafkaConfSetRebalanceCb c
 --
 -- The results of automatic or manual offset commits will be scheduled
 -- for this callback and is served by `pollMessage`.
---
--- A callback is expected to call 'assign' according to the error code it receives.
 --
 -- If no partitions had valid offsets to commit this callback will be called
 -- with `KafkaError` == `KafkaResponseError` `RdKafkaRespErrNoOffset` which is not to be considered
@@ -75,46 +60,29 @@ setRebalanceCallback :: (KafkaConsumer -> RebalanceEvent -> IO ())
 setRebalanceCallback f k e pls = do
   ps <- fromNativeTopicPartitionList'' pls
   let assignment = (tpTopicName &&& tpPartition) <$> ps
+  let (Kafka kptr) = getKafka k
+
   case e of
     KafkaResponseError RdKafkaRespErrAssignPartitions -> do
-        mbq <- getRdMsgQueue $ getKafkaConf k
         f k (RebalanceBeforeAssign assignment)
+        void $ rdKafkaAssign kptr pls
+
+        mbq <- getRdMsgQueue $ getKafkaConf k
         case mbq of
           Nothing -> pure ()
           Just mq -> do
-            let (Kafka kptr) = getKafka k
-            -- Magnus Edenhill:
-            -- If you redirect after assign() it means some messages may be forwarded to the single consumer queue,
-            -- so either do it before assign() or do: assign(); pause(); redirect; resume()
-            void $ rdKafkaAssign kptr pls
+            {- Magnus Edenhill:
+                If you redirect after assign() it means some messages may be forwarded to the single consumer queue,
+                so either do it before assign() or do: assign(); pause(); redirect; resume()
+            -}
             void $ rdKafkaPausePartitions kptr pls
             forM_ ps (\tp -> redirectPartitionQueue (getKafka k) (tpTopicName tp) (tpPartition tp) mq)
             void $ rdKafkaResumePartitions kptr pls
+
         f k (RebalanceAssign assignment)
+
     KafkaResponseError RdKafkaRespErrRevokePartitions -> do
         f k (RebalanceBeforeRevoke assignment)
-        void $ assign k []
+        void $ newForeignPtr_ nullPtr >>= rdKafkaAssign kptr
         f k (RebalanceRevoke assignment)
     x -> error $ "Rebalance: UNKNOWN response: " <> show x
-
-
--- | Assigns specified partitions to a current consumer.
--- Assigning an empty list means unassigning from all partitions that are currently assigned.
-assign :: KafkaConsumer -> [TopicPartition] -> IO (Maybe KafkaError)
-assign (KafkaConsumer (Kafka k) _) ps =
-    let pl = if null ps
-                then newForeignPtr_ nullPtr
-                else toNativeTopicPartitionList ps
-        er = KafkaResponseError <$> (pl >>= rdKafkaAssign k)
-    in kafkaErrorToMaybe <$> er
-
--- -- | Assigns specified partitions to a current consumer.
--- -- Assigning an empty list means unassigning from all partitions that are currently assigned.
--- assign' :: KafkaConsumer -> RdKafkaTopicPartitionListTPtr -> IO (Maybe KafkaError)
--- assign' (KafkaConsumer (Kafka k) _) pls = do
-
-
-
---   where
---     asExcept f = ExceptT $ rdKafkaErrorToEither <$> f
-
