@@ -4,6 +4,7 @@ module Kafka.Consumer.ConsumerProperties
 ( ConsumerProperties(..)
 , CallbackMode(..)
 , brokersList
+, autoCommit
 , noAutoCommit
 , noAutoOffsetStore
 , groupId
@@ -29,7 +30,7 @@ import           Data.Text            (Text)
 import qualified Data.Text            as Text
 import           Kafka.Consumer.Types (ConsumerGroupId (..))
 import           Kafka.Internal.Setup (KafkaConf (..))
-import           Kafka.Types          (BrokerAddress (..), ClientId (..), KafkaCompressionCodec (..), KafkaDebug (..), KafkaLogLevel (..), kafkaCompressionCodecToText, kafkaDebugToText)
+import           Kafka.Types          (BrokerAddress (..), ClientId (..), KafkaCompressionCodec (..), KafkaDebug (..), KafkaLogLevel (..), kafkaCompressionCodecToText, kafkaDebugToText, Millis(..))
 
 import Kafka.Consumer.Callbacks as X
 
@@ -64,6 +65,13 @@ brokersList :: [BrokerAddress] -> ConsumerProperties
 brokersList bs =
   let bs' = Text.intercalate "," ((\(BrokerAddress x) -> x) <$> bs)
    in extraProps $ M.fromList [("bootstrap.servers", bs')]
+
+autoCommit :: Millis -> ConsumerProperties
+autoCommit (Millis ms) = extraProps $
+  M.fromList
+    [ ("enable.auto.commit", "true")
+    , ("auto.commit.interval.ms", Text.pack $ show ms)
+    ]
 
 -- | Disables auto commit for the consumer
 noAutoCommit :: ConsumerProperties

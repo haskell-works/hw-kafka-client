@@ -4,7 +4,6 @@ module Kafka.Consumer.Subscription
 ( Subscription(..)
 , topics
 , offsetReset
-, autoCommit
 , extraSubscriptionProps
 )
 where
@@ -43,13 +42,6 @@ offsetReset o =
              Earliest -> "earliest"
              Latest   -> "latest"
    in Subscription (Set.empty) (M.fromList [("auto.offset.reset", o')])
-
-autoCommit :: Millis -> Subscription
-autoCommit (Millis ms) = Subscription (Set.empty) $
-  M.fromList
-    [ ("enable.auto.commit", "true")
-    , ("auto.commit.interval.ms", Text.pack $ show ms)
-    ]
 
 extraSubscriptionProps :: Map Text Text -> Subscription
 extraSubscriptionProps = Subscription (Set.empty)
