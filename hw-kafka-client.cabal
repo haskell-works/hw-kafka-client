@@ -1,5 +1,5 @@
 name:           hw-kafka-client
-version:        2.6.1
+version:        3.0.0
 synopsis:       Kafka bindings for Haskell
 description:    Apache Kafka bindings backed by the librdkafka C library.
                 .
@@ -52,8 +52,6 @@ library
   if impl(ghc <8.0)
     build-depends:
         semigroups
-  if os(osx)
-    cpp-options: -D__attribute__(A)= -D_Nullable= -D_Nonnull=
   exposed-modules:
       Kafka.Consumer
       Kafka.Consumer.ConsumerProperties
