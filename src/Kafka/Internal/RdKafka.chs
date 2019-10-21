@@ -838,6 +838,9 @@ newRdKafkaT kafkaType confPtr =
         withForeignPtr ret $ \realPtr -> do
             if realPtr == nullPtr then peekCText charPtr >>= return . Left
             else do
+                -- do not call 'rd_kafka_close_consumer' on destroying all Kafka.
+                -- when needed, applications should do it explicitly.
+                -- {# call rd_kafka_destroy_flags #} realPtr 0x8
                 addForeignPtrFinalizer rdKafkaDestroy ret
                 return $ Right ret
 

@@ -8,15 +8,14 @@ module Kafka.Consumer.Subscription
 )
 where
 
-import qualified Data.Text            as Text
-import           Data.Text            (Text)
 import           Data.Map             (Map)
 import qualified Data.Map             as M
 import           Data.Semigroup       as Sem
-import           Kafka.Consumer.Types (OffsetReset(..))
-import           Kafka.Types          (TopicName(..), Millis(..))
 import           Data.Set             (Set)
 import qualified Data.Set             as Set
+import           Data.Text            (Text)
+import           Kafka.Consumer.Types (OffsetReset (..))
+import           Kafka.Types          (TopicName (..))
 
 data Subscription = Subscription (Set TopicName) (Map Text Text)
 
@@ -41,7 +40,7 @@ offsetReset o =
   let o' = case o of
              Earliest -> "earliest"
              Latest   -> "latest"
-   in Subscription (Set.empty) (M.fromList [("auto.offset.reset", o')])
+   in Subscription Set.empty (M.fromList [("auto.offset.reset", o')])
 
 extraSubscriptionProps :: Map Text Text -> Subscription
-extraSubscriptionProps = Subscription (Set.empty)
+extraSubscriptionProps = Subscription Set.empty

@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
 module Kafka.Consumer
@@ -18,28 +19,27 @@ module Kafka.Consumer
 )
 where
 
-import           Control.Arrow                    (left, (&&&))
-import           Control.Concurrent               (forkIO, rtsSupportsBoundThreads)
-import           Control.Exception                (bracket)
-import           Control.Monad                    (forM_, void, when)
-import           Control.Monad.IO.Class           (MonadIO (liftIO))
-import           Control.Monad.Trans.Except       (ExceptT (ExceptT), runExceptT)
-import           Data.Bifunctor                   (bimap, first)
-import qualified Data.ByteString                  as BS
-import           Data.IORef                       (readIORef, writeIORef)
-import qualified Data.Map                         as M
-import           Data.Maybe                       (fromMaybe)
-import           Data.Monoid                      ((<>))
-import           Data.Set                         (Set)
-import qualified Data.Set                         as Set
-import qualified Data.Text                        as Text
-import           Foreign                          hiding (void)
-import           Kafka.Consumer.Convert           (fromMessagePtr, fromNativeTopicPartitionList'', offsetCommitToBool, offsetToInt64, toMap, toNativeTopicPartitionList, toNativeTopicPartitionList', toNativeTopicPartitionListNoDispose, topicPartitionFromMessageForCommit)
-import           Kafka.Consumer.Types             (KafkaConsumer (..))
-import           Kafka.Internal.CancellationToken as CToken
-import           Kafka.Internal.RdKafka           (RdKafkaRespErrT (..), RdKafkaTopicPartitionListTPtr, RdKafkaTypeT (..), newRdKafkaT, newRdKafkaTopicPartitionListT, newRdKafkaTopicT, rdKafkaAssignment, rdKafkaCommit, rdKafkaCommitted, rdKafkaConfSetDefaultTopicConf, rdKafkaConsumeBatchQueue, rdKafkaConsumeQueue, rdKafkaConsumerClose, rdKafkaConsumerPoll, rdKafkaOffsetsStore, rdKafkaPausePartitions, rdKafkaPollSetConsumer, rdKafkaPosition, rdKafkaQueueDestroy, rdKafkaQueueNew, rdKafkaResumePartitions, rdKafkaSeek, rdKafkaSetLogLevel, rdKafkaSubscribe, rdKafkaSubscription, rdKafkaTopicConfDup, rdKafkaTopicPartitionListAdd)
-import           Kafka.Internal.Setup             (Kafka (..), KafkaConf (..), KafkaProps (..), TopicConf (..), TopicProps (..), getRdKafka, kafkaConf, topicConf)
-import           Kafka.Internal.Shared            (kafkaErrorToMaybe, maybeToLeft, rdKafkaErrorToEither)
+import           Control.Arrow              (left, (&&&))
+import           Control.Concurrent         (forkIO, modifyMVar, rtsSupportsBoundThreads, withMVar)
+import           Control.Exception          (bracket)
+import           Control.Monad              (forM_, mapM_, void, when)
+import           Control.Monad.IO.Class     (MonadIO (liftIO))
+import           Control.Monad.Trans.Except (ExceptT (ExceptT), runExceptT)
+import           Data.Bifunctor             (bimap, first)
+import qualified Data.ByteString            as BS
+import           Data.IORef                 (readIORef, writeIORef)
+import qualified Data.Map                   as M
+import           Data.Maybe                 (fromMaybe)
+import           Data.Monoid                ((<>))
+import           Data.Set                   (Set)
+import qualified Data.Set                   as Set
+import qualified Data.Text                  as Text
+import           Foreign                    hiding (void)
+import           Kafka.Consumer.Convert     (fromMessagePtr, fromNativeTopicPartitionList'', offsetCommitToBool, offsetToInt64, toMap, toNativeTopicPartitionList, toNativeTopicPartitionList', toNativeTopicPartitionListNoDispose, topicPartitionFromMessageForCommit)
+import           Kafka.Consumer.Types       (KafkaConsumer (..))
+import           Kafka.Internal.RdKafka     (RdKafkaRespErrT (..), RdKafkaTopicPartitionListTPtr, RdKafkaTypeT (..), newRdKafkaT, newRdKafkaTopicPartitionListT, newRdKafkaTopicT, rdKafkaAssignment, rdKafkaCommit, rdKafkaCommitted, rdKafkaConfSetDefaultTopicConf, rdKafkaConsumeBatchQueue, rdKafkaConsumeQueue, rdKafkaConsumerClose, rdKafkaConsumerPoll, rdKafkaOffsetsStore, rdKafkaPausePartitions, rdKafkaPollSetConsumer, rdKafkaPosition, rdKafkaQueueDestroy, rdKafkaQueueNew, rdKafkaResumePartitions, rdKafkaSeek, rdKafkaSetLogLevel, rdKafkaSubscribe, rdKafkaSubscription, rdKafkaTopicConfDup, rdKafkaTopicPartitionListAdd)
+import           Kafka.Internal.Setup       (CallbackPollStatus (..), Kafka (..), KafkaConf (..), KafkaProps (..), TopicConf (..), TopicProps (..), getKafkaConf, getRdKafka, kafkaConf, topicConf)
+import           Kafka.Internal.Shared      (kafkaErrorToMaybe, maybeToLeft, rdKafkaErrorToEither)
 
 import Kafka.Consumer.ConsumerProperties as X
 import Kafka.Consumer.Subscription       as X
@@ -69,17 +69,17 @@ newConsumer :: MonadIO m
             -> Subscription
             -> m (Either KafkaError KafkaConsumer)
 newConsumer props (Subscription ts tp) = liftIO $ do
-  let cp = case cpUserPolls props of
-            CallbackModeAsync -> setCallback (rebalanceCallback (\_ _ -> return ())) <> props
-            CallbackModeSync  -> props
-  kc@(KafkaConf kc' qref ct) <- newConsumerConf cp
+  let cp = case cpCallbackPollMode props of
+            CallbackPollModeAsync -> setCallback (rebalanceCallback (\_ _ -> return ())) <> props
+            CallbackPollModeSync  -> props
+  kc@(KafkaConf kc' qref _) <- newConsumerConf cp
   tp' <- topicConf (TopicProps tp)
   _   <- setDefaultTopicConf kc tp'
   rdk <- newRdKafkaT RdKafkaConsumer kc'
   case rdk of
     Left err   -> return . Left $ KafkaError err
     Right rdk' -> do
-      when (cpUserPolls props == CallbackModeAsync) $ do
+      when (cpCallbackPollMode props == CallbackPollModeAsync) $ do
         msgq <- rdKafkaQueueNew rdk'
         writeIORef qref (Just msgq)
       let kafka = KafkaConsumer (Kafka rdk') kc
@@ -90,8 +90,8 @@ newConsumer props (Subscription ts tp) = liftIO $ do
           forM_ (cpLogLevel cp) (setConsumerLogLevel kafka)
           sub <- subscribe kafka ts
           case sub of
-            Nothing  -> (when (cpUserPolls props == CallbackModeAsync) $
-              runConsumerLoop kafka ct (Just $ Timeout 100)) >> return (Right kafka)
+            Nothing  -> (when (cpCallbackPollMode props == CallbackPollModeAsync) $
+              runConsumerLoop kafka (Just $ Timeout 100)) >> return (Right kafka)
             Just err -> closeConsumer kafka >> return (Left err)
 
 pollMessage :: MonadIO m
@@ -102,9 +102,7 @@ pollMessage c@(KafkaConsumer _ (KafkaConf _ qr _)) (Timeout ms) = liftIO $ do
   mbq <- readIORef qr
   case mbq of
     Nothing -> rdKafkaConsumerPoll (getRdKafka c) ms >>= fromMessagePtr
-    Just q -> do
-      pollConsumerEvents c Nothing
-      rdKafkaConsumeQueue q (fromIntegral ms) >>= fromMessagePtr
+    Just q  -> rdKafkaConsumeQueue q (fromIntegral ms) >>= fromMessagePtr
 
 -- | Polls up to BatchSize messages.
 -- Unlike 'pollMessage' this function does not return usual "timeout" errors.
@@ -206,8 +204,7 @@ seek (KafkaConsumer (Kafka k) _) (Timeout timeout) tps = liftIO $
   where
     seekAll = runExceptT $ do
       tr <- traverse (ExceptT . topicPair) tps
-      void $ traverse (\(kt, p, o) -> ExceptT (rdSeek kt p o)) tr
-      return ()
+      mapM_ (\(kt, p, o) -> ExceptT (rdSeek kt p o)) tr
 
     rdSeek kt (PartitionId p) o =
       rdKafkaErrorToEither <$> rdKafkaSeek kt (fromIntegral p) (offsetToInt64 o) timeout
@@ -253,17 +250,20 @@ position (KafkaConsumer (Kafka k) _) tps = liftIO $ do
 -- frequent enough.
 pollConsumerEvents :: KafkaConsumer -> Maybe Timeout -> IO ()
 pollConsumerEvents k timeout =
-  let (Timeout tm) = fromMaybe (Timeout 0) timeout
-  in void $ rdKafkaConsumerPoll (getRdKafka k) tm
+  void . withCallbackPollEnabled k $ pollConsumerEvents' k timeout
 
 -- | Closes the consumer.
 closeConsumer :: MonadIO m => KafkaConsumer -> m (Maybe KafkaError)
-closeConsumer (KafkaConsumer (Kafka k) (KafkaConf _ qr ct)) = liftIO $ do
-  CToken.cancel ct
-  mbq <- readIORef qr
-  void $ traverse rdKafkaQueueDestroy mbq
-  kafkaErrorToMaybe . KafkaResponseError <$> rdKafkaConsumerClose k
-
+closeConsumer (KafkaConsumer (Kafka k) (KafkaConf _ qr statusVar)) = liftIO $
+  -- because closing the consumer will raise callbacks,
+  -- prevent the async loop from doing it at the same time
+  modifyMVar statusVar $ \_ -> do
+    -- librdkafka says:
+    --   Prior to destroying the client instance, loose your reference to the
+    --   background queue by calling rd_kafka_queue_destroy()
+    readIORef qr >>= mapM_ rdKafkaQueueDestroy
+    res <- kafkaErrorToMaybe . KafkaResponseError <$> rdKafkaConsumerClose k
+    pure (CallbackPollDisabled, res)
 -----------------------------------------------------------------------------
 newConsumerConf :: ConsumerProperties -> IO KafkaConf
 newConsumerConf ConsumerProperties {cpProps = m, cpCallbacks = cbs} = do
@@ -304,13 +304,24 @@ redirectCallbacksPoll :: KafkaConsumer -> IO (Maybe KafkaError)
 redirectCallbacksPoll (KafkaConsumer (Kafka k) _) =
   kafkaErrorToMaybe . KafkaResponseError <$> rdKafkaPollSetConsumer k
 
-runConsumerLoop :: KafkaConsumer -> CancellationToken -> Maybe Timeout -> IO ()
-runConsumerLoop k ct timeout =
+runConsumerLoop :: KafkaConsumer -> Maybe Timeout -> IO ()
+runConsumerLoop k timeout =
   when rtsSupportsBoundThreads $ void $ forkIO go
   where
     go = do
-      token <- CToken.status ct
-      case token of
-        Running   -> pollConsumerEvents k timeout >> go
-        Cancelled -> return ()
+      st <- withCallbackPollEnabled k (pollConsumerEvents' k timeout)
+      case st of
+        CallbackPollEnabled  -> go
+        CallbackPollDisabled -> pure ()
 
+withCallbackPollEnabled :: KafkaConsumer -> IO () -> IO CallbackPollStatus
+withCallbackPollEnabled k f = do
+  let statusVar = kcfgCallbackPollStatus (getKafkaConf k)
+  withMVar statusVar $ \case
+   CallbackPollEnabled  -> f >> pure CallbackPollEnabled
+   CallbackPollDisabled -> pure CallbackPollDisabled
+
+pollConsumerEvents' :: KafkaConsumer -> Maybe Timeout -> IO ()
+pollConsumerEvents' k timeout =
+  let (Timeout tm) = fromMaybe (Timeout 0) timeout
+  in void $ rdKafkaConsumerPoll (getRdKafka k) tm

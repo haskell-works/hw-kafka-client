@@ -69,7 +69,6 @@ library
       Kafka.Callbacks
       Kafka.Consumer.Callbacks
       Kafka.Consumer.Convert
-      Kafka.Internal.CancellationToken
       Kafka.Internal.RdKafka
       Kafka.Internal.Setup
       Kafka.Internal.Shared

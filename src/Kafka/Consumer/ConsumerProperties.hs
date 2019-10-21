@@ -2,7 +2,7 @@
 
 module Kafka.Consumer.ConsumerProperties
 ( ConsumerProperties(..)
-, CallbackMode(..)
+, CallbackPollMode(..)
 , brokersList
 , autoCommit
 , noAutoCommit
@@ -30,18 +30,18 @@ import           Data.Text            (Text)
 import qualified Data.Text            as Text
 import           Kafka.Consumer.Types (ConsumerGroupId (..))
 import           Kafka.Internal.Setup (KafkaConf (..))
-import           Kafka.Types          (BrokerAddress (..), ClientId (..), KafkaCompressionCodec (..), KafkaDebug (..), KafkaLogLevel (..), kafkaCompressionCodecToText, kafkaDebugToText, Millis(..))
+import           Kafka.Types          (BrokerAddress (..), ClientId (..), KafkaCompressionCodec (..), KafkaDebug (..), KafkaLogLevel (..), Millis (..), kafkaCompressionCodecToText, kafkaDebugToText)
 
 import Kafka.Consumer.Callbacks as X
 
-data CallbackMode = CallbackModeSync | CallbackModeAsync deriving (Show, Eq)
+data CallbackPollMode = CallbackPollModeSync | CallbackPollModeAsync deriving (Show, Eq)
 
 -- | Properties to create 'KafkaConsumer'.
 data ConsumerProperties = ConsumerProperties
-  { cpProps     :: Map Text Text
-  , cpLogLevel  :: Maybe KafkaLogLevel
-  , cpCallbacks :: [KafkaConf -> IO ()]
-  , cpUserPolls :: CallbackMode
+  { cpProps            :: Map Text Text
+  , cpLogLevel         :: Maybe KafkaLogLevel
+  , cpCallbacks        :: [KafkaConf -> IO ()]
+  , cpCallbackPollMode :: CallbackPollMode
   }
 
 instance Sem.Semigroup ConsumerProperties where
@@ -52,10 +52,10 @@ instance Sem.Semigroup ConsumerProperties where
 -- | /Right biased/ so we prefer newer properties over older ones.
 instance Monoid ConsumerProperties where
   mempty = ConsumerProperties
-    { cpProps          = M.empty
-    , cpLogLevel       = Nothing
-    , cpCallbacks      = []
-    , cpUserPolls      = CallbackModeAsync
+    { cpProps             = M.empty
+    , cpLogLevel          = Nothing
+    , cpCallbacks         = []
+    , cpCallbackPollMode  = CallbackPollModeAsync
     }
   {-# INLINE mempty #-}
   mappend = (Sem.<>)
@@ -140,14 +140,14 @@ queuedMaxMessagesKBytes kBytes =
 
 -- | Sets the callback poll mode.
 --
--- The default 'CallbackModeAsync' mode handles polling rebalance
+-- The default 'CallbackPollModeAsync' mode handles polling rebalance
 -- and keep alive events for you
 -- in a background thread.
 --
--- With 'CalalcacModeSync' the user will poll the consumer
+-- With 'CallbacPollModeSync' the user will poll the consumer
 -- frequently to handle new messages as well as rebalance and keep alive events.
--- 'CalalcacModeSync' lets you can simplify
+-- 'CallbacPollModeSync' lets you can simplify
 -- hw-kafka-client's footprint and have full control over when polling
 -- happens at the cost of having to manage this yourself.
-callbackPollMode :: CallbackMode -> ConsumerProperties
-callbackPollMode mode = mempty { cpUserPolls = mode }
+callbackPollMode :: CallbackPollMode -> ConsumerProperties
+callbackPollMode mode = mempty { cpCallbackPollMode = mode }
