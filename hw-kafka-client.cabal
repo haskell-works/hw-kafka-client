@@ -107,6 +107,8 @@ test-suite integration-tests
     , random
     , text
     , transformers
+  build-tool-depends:
+    hspec-discover:hspec-discover
   other-modules:
       Kafka.IntegrationSpec
       Kafka.TestEnv
@@ -127,6 +129,8 @@ test-suite tests
     , hw-kafka-client
     , text
     , monad-loops
+  build-tool-depends:
+    hspec-discover:hspec-discover
   other-modules:
       Kafka.Consumer.ConsumerRecordMapSpec
       Kafka.Consumer.ConsumerRecordTraverseSpec
