@@ -19,20 +19,21 @@ by providing automatic rebalancing functionality. When a new consumer joins a co
 group the set of consumers attempt to "rebalance" the load to assign partitions to each consumer.
 
 ### Example:
-```
+
+```bash
 $ stack build --flag hw-kafka-client:examples
 ```
 
 or
 
-```
+```bash
 $ stack build --exec kafka-client-example --flag hw-kafka-client:examples
 ```
 
 A working consumer example can be found here: [ConsumerExample.hs](example/ConsumerExample.hs)</br>
 To run an example please compile with the `examples` flag.
 
-```Haskell
+```haskell
 import Control.Exception (bracket)
 import Data.Monoid ((<>))
 import Kafka
@@ -75,12 +76,14 @@ processMessages kafka = do
 ```
 
 # Producer
+
 `kafka-client` producer supports sending messages to multiple topics.
 Target topic name is a part of each message that is to be sent by `produceMessage`.
 
 A working producer example can be found here: [ProducerExample.hs](example/ProducerExample.hs)
 
 ### Delivery reports
+
 Kafka Producer maintains its own internal queue for outgoing messages. Calling `produceMessage`
 does not mean that the message is actually written to Kafka, it only means that the message is put
 to that outgoing queue and that the producer will (eventually) push it to Kafka.
@@ -94,26 +97,25 @@ the message is *dropped from the outgoing queue* and the *delivery report* indic
 It is possible to configure `hw-kafka-client` to set an infinite message timeout so the message is
 never dropped from the queue:
 
-```
+```haskell
 producerProps :: ProducerProperties
 producerProps = brokersList [BrokerAddress "localhost:9092"]
-             <> sendTimeout (Timeout 0)           -- for librdkafka "0" means "infinite".
+             <> sendTimeout (Timeout 0)           -- for librdkafka "0" means "infinite" (see https://github.com/edenhill/librdkafka/issues/2015)
 ```
 
 *Delivery reports* provide the way to detect when producer experiences problems sending messages
 to Kafka.
 
 Currently `hw-kafka-client` only supports delivery error callbacks:
-```
+
+```haskell
 producerProps :: ProducerProperties
 producerProps = brokersList [BrokerAddress "localhost:9092"]
-             <> setCallback (deliveryErrorsCallback print)
+             <> setCallback (deliveryCallback print)
 ```
+
 In the example above when the producer cannot deliver the message to Kafka,
 the error will be printed (and the message will be dropped).
-
-When `sendTimeout` is not configured to `Timeout 0` (infinite), no error callbacks will be delivered.
-This is because no message will ever be timing out for sending.
 
 ### Example
 
@@ -171,16 +173,21 @@ Although `librdkafka` is available on many platforms, most of
 the distribution packages are too old to support `kafka-client`.
 As such, we suggest you install from the source:
 
+```bash
     git clone https://github.com/edenhill/librdkafka
     cd librdkafka
     ./configure
     make && make install
+```
 
 Sometimes it is helpful to specify openssl includes explicitly:
 
+```
     LDFLAGS=-L/usr/local/opt/openssl/lib CPPFLAGS=-I/usr/local/opt/openssl/include ./configure
+```
 
 If you are using Stack with Nix, don't forget to declare `rdkafka` as extra package:
+
 ```yaml
 # stack.yaml
 nix:
@@ -196,6 +203,6 @@ The full Kafka guide is at http://kafka.apache.org/documentation.html#quickstart
 Alternatively `docker-compose` can be used to run Kafka locally inside a Docker container.
 To run Kafka inside Docker:
 
-```
+```bash
 $ docker-compose up
 ```
