@@ -31,10 +31,7 @@ in
       cabal-install
       vscode-with-extensions
 
-      vivaldi
-      vivaldi-widevine
-      vivaldi-ffmpeg-codecs
-      
+      rdkafka      
     ];
 
     shellHook = ''
