@@ -28,6 +28,7 @@ import qualified Data.Map                   as M
 import           Data.Maybe                 (fromMaybe)
 import           Data.Semigroup             ((<>))
 import qualified Data.Set                   as S
+import qualified Data.Text                  as Text
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.Setup
 import           Kafka.Types
@@ -57,7 +58,7 @@ newKafkaAdmin :: (MonadIO m)
                => AdminProperties
                -> m (Either KafkaError KafkaAdmin)
 newKafkaAdmin props = liftIO $ do
-  kc@(KafkaConf kc' _ _) <- kafkaConf (KafkaProps $ M.toList (apKafkaProps props)) --kafkaConf (KafkaProps [])
+  kc@(KafkaConf kc' _ _) <- kafkaConf (KafkaProps $ apKafkaProps props)
   mbKafka <- newRdKafkaT RdKafkaConsumer kc'
   case mbKafka of
     Left err    -> pure . Left $ KafkaError err
@@ -105,7 +106,7 @@ deleteTopics :: (HasKafka k)
              -> IO [Either (TopicName, KafkaError, String) TopicName]
 deleteTopics client ts =
   withAdminOperation client $ \(kafkaPtr, opts, queue) -> do
-    topics <- traverse (newRdKafkaDeleteTopic . unTopicName) ts
+    topics <- traverse (newRdKafkaDeleteTopic . Text.unpack . unTopicName) ts
     rdKafkaDeleteTopics kafkaPtr topics opts queue
     waitForAllResponses ts rdKafkaEventDeleteTopicsResult rdKafkaDeleteTopicsResultTopics queue
 
@@ -146,7 +147,7 @@ whileRight :: Monad m
 whileRight f as = runExceptT $ traverse_ (ExceptT . f) as
 
 
--- ^ Polls the provided queue until it hets all the responses
+-- ^ Polls the provided queue until it gets all the responses
 -- from all the specified topics
 waitForAllResponses :: [TopicName]
                     -> (RdKafkaEventTPtr -> IO (Maybe a))

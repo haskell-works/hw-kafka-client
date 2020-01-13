@@ -1,17 +1,20 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Kafka.Admin.AdminProperties
 where
 
 import           Control.Monad  (mplus)
-import qualified Data.List      as L
 import           Data.Map       (Map)
 import qualified Data.Map       as M
 import           Data.Monoid    (Monoid, mempty)
 import           Data.Semigroup (Semigroup, (<>))
+import           Data.Text      (Text)
+import qualified Data.Text      as Text
 import           Kafka.Types
 
 -- | Properties to create 'KafkaProducer'.
 data AdminProperties = AdminProperties
-  { apKafkaProps :: Map String String
+  { apKafkaProps :: Map Text Text
   , apLogLevel   :: Maybe KafkaLogLevel
   }
 
@@ -32,12 +35,12 @@ instance Monoid AdminProperties where
 
 brokersList :: [BrokerAddress] -> AdminProperties
 brokersList bs =
-  let bs' = L.intercalate "," ((\(BrokerAddress x) -> x) <$> bs)
+  let bs' = Text.intercalate "," ((\(BrokerAddress x) -> x) <$> bs)
    in extraProps $ M.fromList [("bootstrap.servers", bs')]
 
 -- | Any configuration options that are supported by /librdkafka/.
 -- The full list can be found <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md here>
-extraProps :: Map String String -> AdminProperties
+extraProps :: Map Text Text -> AdminProperties
 extraProps m = mempty { apKafkaProps = m }
 
 -- | Suppresses producer disconnects logs.

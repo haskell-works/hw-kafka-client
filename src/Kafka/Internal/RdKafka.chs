@@ -1019,22 +1019,22 @@ rdKafkaNewTopicDestroyArray ts = do
   withForeignPtrsArrayLen ts $ \llen ptrs ->
     {#call rd_kafka_NewTopic_destroy_array#} ptrs (fromIntegral llen)
 
-newRdKafkaNewTopic :: String -> Int -> Int -> IO (Either String RdKafkaNewTopicTPtr)
+newRdKafkaNewTopic :: Text -> Int -> Int -> IO (Either Text RdKafkaNewTopicTPtr)
 newRdKafkaNewTopic name partitions repFactor = do
     allocaBytes nErrorBytes $ \strPtr -> do
-        ret <- rdKafkaNewTopicNew name partitions repFactor strPtr (fromIntegral nErrorBytes)
+        ret <- rdKafkaNewTopicNew (Text.unpack name) partitions repFactor strPtr (fromIntegral nErrorBytes)
         withForeignPtr ret $ \realPtr -> do
             if realPtr == nullPtr
-                then peekCString strPtr >>= pure . Left
+                then peekCText strPtr >>= pure . Left
                 else addForeignPtrFinalizer rdKafkaNewTopicDestroy ret >> pure (Right ret)
 
-newRdKafkaNewTopicUnsafe :: String -> Int -> Int -> IO (Either String RdKafkaNewTopicTPtr)
+newRdKafkaNewTopicUnsafe :: Text -> Int -> Int -> IO (Either Text RdKafkaNewTopicTPtr)
 newRdKafkaNewTopicUnsafe name partitions repFactor = do
     allocaBytes nErrorBytes $ \strPtr -> do
-        ret <- rdKafkaNewTopicNew name partitions repFactor strPtr (fromIntegral nErrorBytes)
+        ret <- rdKafkaNewTopicNew (Text.unpack name) partitions repFactor strPtr (fromIntegral nErrorBytes)
         withForeignPtr ret $ \realPtr -> do
             if realPtr == nullPtr
-                then peekCString strPtr >>= pure . Left
+                then peekCText strPtr >>= pure . Left
                 else pure (Right ret)
 
 {#fun rd_kafka_NewTopic_set_config as ^
