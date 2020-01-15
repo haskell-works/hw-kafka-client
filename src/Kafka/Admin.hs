@@ -28,6 +28,7 @@ import qualified Data.Map                   as M
 import           Data.Maybe                 (fromMaybe)
 import           Data.Semigroup             ((<>))
 import qualified Data.Set                   as S
+import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.Setup
@@ -50,7 +51,7 @@ data NewTopic = NewTopic
   { ntName              :: TopicName
   , ntPartitions        :: PartitionsCount
   , ntReplicationFactor :: ReplicationFactor
-  , ntConfig            :: M.Map String String
+  , ntConfig            :: M.Map Text Text
   } deriving (Show)
 
 {-# DEPRECATED newKafkaAdmin "Do we even need a special KafkaAdmin now when all the functions accept HasKafka?" #-}
@@ -72,14 +73,14 @@ closeKafkaAdmin k = void $ rdKafkaConsumerClose (getRdKafka k)
 createTopics :: (HasKafka k)
              => k
              -> [NewTopic]
-             -> IO [Either (KafkaError, String) TopicName]
+             -> IO [Either (KafkaError, Text) TopicName]
 createTopics client ts =
   withAdminOperation client $ \(kafkaPtr, opts, queue) -> do
     let topicNames = ntName <$> ts
     crRes <- withNewTopics ts $ \topics ->
               rdKafkaCreateTopics kafkaPtr topics opts queue
     case crRes of
-      Left es -> pure $ (\e -> Left (e, displayException e)) <$> NEL.toList es
+      Left es -> pure $ (\e -> Left (e, Text.pack $ displayException e)) <$> NEL.toList es
       Right _ -> do
         res <- waitForAllResponses topicNames rdKafkaEventCreateTopicsResult rdKafkaCreateTopicsResultTopics queue
         pure $ first (\(_, a, b) -> (a, b)) <$> res
@@ -91,7 +92,7 @@ withNewTopics ts =
 mkNewTopicUnsafe :: NewTopic -> IO (Either KafkaError RdKafkaNewTopicTPtr)
 mkNewTopicUnsafe NewTopic{..} = runExceptT $ do
   t <- withStrErr $ newRdKafkaNewTopicUnsafe (unTopicName ntName) (unPartitionsCount ntPartitions) (unReplicationFactor ntReplicationFactor)
-  _ <- withKafkaErr $ whileRight (uncurry $ rdKafkaNewTopicSetConfig undefined) (M.toList ntConfig)
+  _ <- withKafkaErr $ whileRight (uncurry $ rdKafkaNewTopicSetConfig undefined) (bimap Text.unpack Text.unpack <$> M.toList ntConfig)
   pure t
   where
     withStrErr   = withExceptT KafkaError . ExceptT
@@ -103,7 +104,7 @@ mkNewTopicUnsafe NewTopic{..} = runExceptT $ do
 deleteTopics :: (HasKafka k)
              => k
              -> [TopicName]
-             -> IO [Either (TopicName, KafkaError, String) TopicName]
+             -> IO [Either (TopicName, KafkaError, Text) TopicName]
 deleteTopics client ts =
   withAdminOperation client $ \(kafkaPtr, opts, queue) -> do
     topics <- traverse (newRdKafkaDeleteTopic . Text.unpack . unTopicName) ts
@@ -151,9 +152,9 @@ whileRight f as = runExceptT $ traverse_ (ExceptT . f) as
 -- from all the specified topics
 waitForAllResponses :: [TopicName]
                     -> (RdKafkaEventTPtr -> IO (Maybe a))
-                    -> (a -> IO [Either (String, RdKafkaRespErrT, String) String])
+                    -> (a -> IO [Either (Text, RdKafkaRespErrT, Text) Text])
                     -> RdKafkaQueueTPtr
-                    -> IO [Either (TopicName, KafkaError, String) TopicName]
+                    -> IO [Either (TopicName, KafkaError, Text) TopicName]
 waitForAllResponses ts fromEvent toResults q =
   fromMaybe [] <$> runMaybeT (go (S.fromList ts) [])
   where

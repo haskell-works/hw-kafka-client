@@ -1059,7 +1059,7 @@ rdKafkaEventCreateTopicsResult evtPtr =
       else Just <$> newForeignPtr_ (castPtr res)
 
 rdKafkaCreateTopicsResultTopics :: RdKafkaCreateTopicsResultTPtr
-                                -> IO [Either (String, RdKafkaRespErrT, String) String]
+                                -> IO [Either (Text, RdKafkaRespErrT, Text) Text]
 rdKafkaCreateTopicsResultTopics tRes =
   withForeignPtr tRes $ \tRes' ->
     alloca $ \sPtr -> do
@@ -1103,8 +1103,7 @@ rdKafkaEventDeleteTopicsResult evtPtr =
       then pure Nothing
       else Just <$> newForeignPtr_ (castPtr res)
 
-rdKafkaDeleteTopicsResultTopics :: RdKafkaDeleteTopicsResultTPtr
-                                -> IO [Either (String, RdKafkaRespErrT, String) String]
+rdKafkaDeleteTopicsResultTopics :: RdKafkaDeleteTopicsResultTPtr -> IO [Either (Text, RdKafkaRespErrT, Text) Text]
 rdKafkaDeleteTopicsResultTopics tRes =
   withForeignPtr tRes $ \tRes' ->
     alloca $ \sPtr -> do
@@ -1117,15 +1116,15 @@ rdKafkaDeleteTopicsResultTopics tRes =
 -- | Unpacks raw result into
 -- 'Either (topicName, errorType, errorMsg) topicName'
 unpackRdKafkaTopicResult :: Ptr RdKafkaTopicResultT
-                         -> IO (Either (String, RdKafkaRespErrT, String) String)
+                         -> IO (Either (Text, RdKafkaRespErrT, Text) Text)
 unpackRdKafkaTopicResult resPtr = do
   name <- {#call rd_kafka_topic_result_name#} resPtr >>= peekCString
   err <- {#call rd_kafka_topic_result_error#} resPtr
   case cIntToEnum err of
-    RdKafkaRespErrNoError -> pure $ Right name
+    RdKafkaRespErrNoError -> pure . Right $ Text.pack name
     respErr -> do
       errMsg <- {#call rd_kafka_topic_result_error_string#} resPtr >>= peekCString
-      pure $ Left (name, respErr, errMsg)
+      pure $ Left (Text.pack name, respErr, Text.pack errMsg)
 
 
 ---------------------------------------------------------------------------------------------------
