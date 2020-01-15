@@ -28,6 +28,7 @@ import qualified Data.Map                   as M
 import           Data.Maybe                 (fromMaybe)
 import           Data.Semigroup             ((<>))
 import qualified Data.Set                   as S
+import qualified Data.Text                  as T
 import           Kafka.Internal.RdKafka
 import           Kafka.Internal.Setup
 import           Kafka.Types
@@ -57,7 +58,7 @@ newKafkaAdmin :: (MonadIO m)
                => AdminProperties
                -> m (Either KafkaError KafkaAdmin)
 newKafkaAdmin props = liftIO $ do
-  kc@(KafkaConf kc' _ _) <- kafkaConf (KafkaProps $ M.toList (apKafkaProps props)) --kafkaConf (KafkaProps [])
+  kc@(KafkaConf kc' _ _) <- kafkaConf (KafkaProps $ apKafkaProps props) --kafkaConf (KafkaProps [])
   mbKafka <- newRdKafkaT RdKafkaConsumer kc'
   case mbKafka of
     Left err    -> pure . Left $ KafkaError err
@@ -89,11 +90,11 @@ withNewTopics ts =
 
 mkNewTopicUnsafe :: NewTopic -> IO (Either KafkaError RdKafkaNewTopicTPtr)
 mkNewTopicUnsafe NewTopic{..} = runExceptT $ do
-  t <- withStrErr $ newRdKafkaNewTopicUnsafe (unTopicName ntName) (unPartitionsCount ntPartitions) (unReplicationFactor ntReplicationFactor)
+  t <- withStrErr $ newRdKafkaNewTopicUnsafe (T.unpack $ unTopicName ntName) (unPartitionsCount ntPartitions) (unReplicationFactor ntReplicationFactor)
   _ <- withKafkaErr $ whileRight (uncurry $ rdKafkaNewTopicSetConfig undefined) (M.toList ntConfig)
   pure t
   where
-    withStrErr   = withExceptT KafkaError . ExceptT
+    withStrErr   = withExceptT (KafkaError . T.pack) . ExceptT
     withKafkaErr = withExceptT KafkaResponseError . ExceptT
 
 
@@ -105,7 +106,7 @@ deleteTopics :: (HasKafka k)
              -> IO [Either (TopicName, KafkaError, String) TopicName]
 deleteTopics client ts =
   withAdminOperation client $ \(kafkaPtr, opts, queue) -> do
-    topics <- traverse (newRdKafkaDeleteTopic . unTopicName) ts
+    topics <- traverse (newRdKafkaDeleteTopic . T.unpack . unTopicName) ts
     rdKafkaDeleteTopics kafkaPtr topics opts queue
     waitForAllResponses ts rdKafkaEventDeleteTopicsResult rdKafkaDeleteTopicsResultTopics queue
 
@@ -169,5 +170,5 @@ waitForAllResponses ts fromEvent toResults q =
         else go remaining newRes
 
     getTopicName = either (\(t,_,_) -> t) id
-    wrapTopicName = bimap (\(t,e,s) -> (TopicName t, KafkaResponseError e, s)) TopicName
+    wrapTopicName = bimap (\(t,e,s) -> (TopicName . T.pack $ t, KafkaResponseError e, s)) (TopicName . T.pack)
 
