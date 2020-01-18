@@ -1,10 +1,13 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveGeneric      #-}
+{-# LANGUAGE DeriveDataTypeable         #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE DerivingStrategies         #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Kafka.Producer.Types
 ( KafkaProducer(..)
 , ProducerRecord(..)
 , ProducePartition(..)
 , DeliveryReport(..)
+, ImmediateError(..)
 )
 where
 
@@ -46,6 +49,10 @@ data ProducePartition =
     SpecifiedPartition {-# UNPACK #-} !Int  -- the partition number of the topic
   | UnassignedPartition
   deriving (Show, Eq, Ord, Typeable, Generic)
+
+-- | Data type representing an error that is caused by pre-flight conditions not being met
+newtype ImmediateError = ImmediateError KafkaError
+  deriving newtype (Eq, Show)
 
 data DeliveryReport
   = DeliverySuccess ProducerRecord Offset
