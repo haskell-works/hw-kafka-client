@@ -62,10 +62,10 @@ workflows:
           cabal-test-extra: --test-show-details=direct
 
       - haskell/build-with-binary-cache:
-          name: GHC 8.8.1
+          name: GHC 8.8.2
           executor:
             name: cabal-build
-            ghc-version: 8.8.1
+            ghc-version: 8.8.2
           before-build: [build-librdkafka]
           context: haskell-ci
           binary-cache-uri: ${BINARY_CACHE_URI-"http://hw-binary-cache-us-west-2-a.s3-website-us-west-2.amazonaws.com/archive"}
