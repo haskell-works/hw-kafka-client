@@ -1,9 +1,9 @@
 version: 2.1
 
 orbs:
-  haskell: haskell-works/haskell-build@4.0.2
+  haskell: haskell-works/haskell-build@4.0.5
   github: haskell-works/github-release@1.2.1
-  hackage: haskell-works/hackage@1.0.0
+  hackage: haskell-works/hackage@1.3.0
 
 executors:
   cabal-build:
@@ -62,10 +62,10 @@ workflows:
           cabal-test-extra: --test-show-details=direct
 
       - haskell/build-with-binary-cache:
-          name: GHC 8.8.1
+          name: GHC 8.8.2
           executor:
             name: cabal-build
-            ghc-version: 8.8.1
+            ghc-version: 8.8.2
           before-build: [build-librdkafka]
           context: haskell-ci
           binary-cache-uri: ${BINARY_CACHE_URI-"http://hw-binary-cache-us-west-2-a.s3-website-us-west-2.amazonaws.com/archive"}
