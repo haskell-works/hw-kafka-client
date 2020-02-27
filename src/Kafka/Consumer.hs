@@ -5,7 +5,7 @@ module Kafka.Consumer
 ( module X
 , runConsumer
 , newConsumer
-, assignment, subscription
+, assign, assignment, subscription
 , pausePartitions, resumePartitions
 , committed, position, seek
 , pollMessage, pollConsumerEvents
@@ -37,7 +37,7 @@ import qualified Data.Text                  as Text
 import           Foreign                    hiding (void)
 import           Kafka.Consumer.Convert     (fromMessagePtr, fromNativeTopicPartitionList'', offsetCommitToBool, offsetToInt64, toMap, toNativeTopicPartitionList, toNativeTopicPartitionList', toNativeTopicPartitionListNoDispose, topicPartitionFromMessageForCommit)
 import           Kafka.Consumer.Types       (KafkaConsumer (..))
-import           Kafka.Internal.RdKafka     (RdKafkaRespErrT (..), RdKafkaTopicPartitionListTPtr, RdKafkaTypeT (..), newRdKafkaT, newRdKafkaTopicPartitionListT, newRdKafkaTopicT, rdKafkaAssignment, rdKafkaCommit, rdKafkaCommitted, rdKafkaConfSetDefaultTopicConf, rdKafkaConsumeBatchQueue, rdKafkaConsumeQueue, rdKafkaConsumerClose, rdKafkaConsumerPoll, rdKafkaOffsetsStore, rdKafkaPausePartitions, rdKafkaPollSetConsumer, rdKafkaPosition, rdKafkaQueueDestroy, rdKafkaQueueNew, rdKafkaResumePartitions, rdKafkaSeek, rdKafkaSetLogLevel, rdKafkaSubscribe, rdKafkaSubscription, rdKafkaTopicConfDup, rdKafkaTopicPartitionListAdd)
+import           Kafka.Internal.RdKafka     (RdKafkaRespErrT (..), RdKafkaTopicPartitionListTPtr, RdKafkaTypeT (..), newRdKafkaT, newRdKafkaTopicPartitionListT, newRdKafkaTopicT, rdKafkaAssign, rdKafkaAssignment, rdKafkaCommit, rdKafkaCommitted, rdKafkaConfSetDefaultTopicConf, rdKafkaConsumeBatchQueue, rdKafkaConsumeQueue, rdKafkaConsumerClose, rdKafkaConsumerPoll, rdKafkaOffsetsStore, rdKafkaPausePartitions, rdKafkaPollSetConsumer, rdKafkaPosition, rdKafkaQueueDestroy, rdKafkaQueueNew, rdKafkaResumePartitions, rdKafkaSeek, rdKafkaSetLogLevel, rdKafkaSubscribe, rdKafkaSubscription, rdKafkaTopicConfDup, rdKafkaTopicPartitionListAdd)
 import           Kafka.Internal.Setup       (CallbackPollStatus (..), Kafka (..), KafkaConf (..), KafkaProps (..), TopicConf (..), TopicProps (..), getKafkaConf, getRdKafka, kafkaConf, topicConf)
 import           Kafka.Internal.Shared      (kafkaErrorToMaybe, maybeToLeft, rdKafkaErrorToEither)
 
@@ -162,6 +162,13 @@ commitPartitionsOffsets :: MonadIO m
                  -> m (Maybe KafkaError)
 commitPartitionsOffsets o k ps =
   liftIO $ toNativeTopicPartitionList ps >>= commitOffsets o k
+
+-- | Assigns the consumer to consume from the given topics, partitions,
+-- and offsets.
+assign :: MonadIO m => KafkaConsumer -> [TopicPartition] -> m (Maybe KafkaError)
+assign (KafkaConsumer (Kafka k) _) ps = liftIO $ do
+  tps <- toNativeTopicPartitionList ps
+  kafkaErrorToMaybe . KafkaResponseError <$> rdKafkaAssign k tps
 
 -- | Returns current consumer's assignment
 assignment :: MonadIO m => KafkaConsumer -> m (Either KafkaError (M.Map TopicName [PartitionId]))
