@@ -165,6 +165,56 @@ mkMessage k v = ProducerRecord
                   }
 ```
 
+### Synchronous sending of messages
+Because of the asynchronous nature of librdkafka. It there is no API to provide
+synchronous production of messages. It is, however, possible to combine the
+delivery reports feature with that of callbacks. This can be done using the
+`Kafka.Producer.produceMessage'` function.
+
+```haskell
+produceMessage' :: MonadIO m
+                => KafkaProducer
+                -> ProducerRecord
+                -> (DeliveryReport -> IO ())
+                -> m (Either ImmediateError ())
+```
+
+Using this function, you can provide a callback which will be invoked upon the
+produced message's delivery report. With a little help of `MVar`s or similar,
+you can in fact, create a synchronous-like interface.
+
+```haskell
+sendMessageSync :: MonadIO m
+                => KafkaProducer
+                -> ProducerRecord
+                -> m (Either KafkaError Offset)
+sendMessageSync producer record = liftIO $ do
+  -- Create an empty MVar:
+  var <- newEmptyMVar
+
+  -- Produce the message and use the callback to put the delivery report in the
+  -- MVar:
+  res <- produceMessage' producer record (putMVar var)
+
+  case res of
+    Left (ImmediateError err) ->
+      pure (Left err)
+    Right () -> do
+      -- Flush producer queue to make sure you don't get stuck waiting for the
+      -- message to send:
+      flushProducer producer
+
+      -- Wait for the message's delivery report and map accordingly:
+      takeMVar var >>= return . \case
+        DeliverySuccess _ offset -> Right offset
+        DeliveryFailure _ err    -> Left err
+        NoMessageError err       -> Left err
+```
+
+_Note:_ this is a semi-naive solution as this waits forever (or until
+librdkafka times out). You should make sure that your configuration reflects
+the behavior you want out of this functionality.
+
 # Installation
 
 ## Installing librdkafka
