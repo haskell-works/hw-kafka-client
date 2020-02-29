@@ -1,9 +1,11 @@
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE LambdaCase                 #-}
 module Kafka.Producer
 ( module X
 , runProducer
 , newProducer
 , produceMessage, produceMessageBatch
+, produceMessage'
 , flushProducer
 , closeProducer
 , KafkaProducer
@@ -25,11 +27,12 @@ import           Foreign.ForeignPtr       (newForeignPtr_, withForeignPtr)
 import           Foreign.Marshal.Array    (withArrayLen)
 import           Foreign.Ptr              (Ptr, nullPtr, plusPtr)
 import           Foreign.Storable         (Storable (..))
+import           Foreign.StablePtr        (newStablePtr, castStablePtrToPtr)
 import           Kafka.Internal.RdKafka   (RdKafkaMessageT (..), RdKafkaRespErrT (..), RdKafkaTypeT (..), destroyUnmanagedRdKafkaTopic, newRdKafkaT, newUnmanagedRdKafkaTopicT, rdKafkaOutqLen, rdKafkaProduce, rdKafkaProduceBatch, rdKafkaSetLogLevel)
 import           Kafka.Internal.Setup     (Kafka (..), KafkaConf (..), KafkaProps (..), TopicConf (..), TopicProps (..), kafkaConf, topicConf)
 import           Kafka.Internal.Shared    (pollEvents)
-import           Kafka.Producer.Convert   (copyMsgFlags, handleProduceErr, producePartitionCInt, producePartitionInt)
-import           Kafka.Producer.Types     (KafkaProducer (..))
+import           Kafka.Producer.Convert   (copyMsgFlags, handleProduceErr', producePartitionCInt, producePartitionInt)
+import           Kafka.Producer.Types     (KafkaProducer (..), ImmediateError(..))
 
 import Kafka.Producer.ProducerProperties as X
 import Kafka.Producer.Types              as X hiding (KafkaProducer)
@@ -60,6 +63,9 @@ newProducer pps = liftIO $ do
   kc@(KafkaConf kc' _ _) <- kafkaConf (KafkaProps $ (ppKafkaProps pps))
   tc <- topicConf (TopicProps $ (ppTopicProps pps))
 
+  -- add default delivery report callback
+  deliveryCallback (const mempty) kc
+
   -- set callbacks
   forM_ (ppCallbacks pps) (\setCb -> setCb kc)
 
@@ -78,23 +84,51 @@ produceMessage :: MonadIO m
                => KafkaProducer
                -> ProducerRecord
                -> m (Maybe KafkaError)
-produceMessage kp@(KafkaProducer (Kafka k) _ (TopicConf tc)) m = liftIO $ do
-  pollEvents kp (Just $ Timeout 0) -- fire callbacks if any exist (handle delivery reports)
-  bracket (mkTopic $ prTopic m) clTopic withTopic
-    where
-      mkTopic (TopicName tn) = newUnmanagedRdKafkaTopicT k (Text.unpack tn) (Just tc)
+produceMessage kp m = produceMessage' kp m (pure . mempty) >>= adjustRes
+  where
+    adjustRes = \case
+      Right () -> pure Nothing
+      Left (ImmediateError err) -> pure (Just err)
 
-      clTopic = either (return . const ()) destroyUnmanagedRdKafkaTopic
+-- | Sends a single message with a registered callback.
+--
+--   The callback can be a long running process, as it is forked by the thread
+--   that handles the delivery reports.
+--
+produceMessage' :: MonadIO m
+                => KafkaProducer
+                -> ProducerRecord
+                -> (DeliveryReport -> IO ())
+                -> m (Either ImmediateError ())
+produceMessage' kp@(KafkaProducer (Kafka k) _ (TopicConf tc)) msg cb = liftIO $
+  fireCallbacks >> bracket (mkTopic . prTopic $ msg) closeTopic withTopic
+  where
+    fireCallbacks =
+      pollEvents kp . Just . Timeout $ 0
 
-      withTopic (Left err) = return . Just . KafkaError $ Text.pack err
-      withTopic (Right t) =
-        withBS (prValue m) $ \payloadPtr payloadLength ->
-          withBS (prKey m) $ \keyPtr keyLength ->
-            handleProduceErr =<<
-              rdKafkaProduce t (producePartitionCInt (prPartition m))
-                copyMsgFlags payloadPtr (fromIntegral payloadLength)
-                keyPtr (fromIntegral keyLength) nullPtr
+    mkTopic (TopicName tn) =
+      newUnmanagedRdKafkaTopicT k (Text.unpack tn) (Just tc)
 
+    closeTopic = either mempty destroyUnmanagedRdKafkaTopic
+
+    withTopic (Left err) = return . Left . ImmediateError . KafkaError . Text.pack $ err
+    withTopic (Right topic) =
+      withBS (prValue msg) $ \payloadPtr payloadLength ->
+        withBS (prKey msg) $ \keyPtr keyLength -> do
+          callbackPtr <- newStablePtr cb
+          res <- handleProduceErr' =<< rdKafkaProduce
+            topic
+            (producePartitionCInt (prPartition msg))
+            copyMsgFlags
+            payloadPtr
+            (fromIntegral payloadLength)
+            keyPtr
+            (fromIntegral keyLength)
+            (castStablePtrToPtr callbackPtr)
+
+          pure $ case res of
+            Left err -> Left . ImmediateError $ err
+            Right () -> Right ()
 
 -- | Sends a batch of messages.
 -- Returns a list of messages which it was unable to send with corresponding errors.
@@ -146,6 +180,7 @@ produceMessageBatch kp@(KafkaProducer (Kafka k) _ (TopicConf tc)) messages = lif
             , offset'RdKafkaMessageT    = 0
             , keyLen'RdKafkaMessageT    = keyLength
             , key'RdKafkaMessageT       = keyPtr
+            , opaque'RdKafkaMessageT    = nullPtr
             }
 
 -- | Closes the producer.

@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -6,6 +7,7 @@ where
 
 import           Control.Monad       (forM, forM_)
 import           Control.Monad.Loops
+import           Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 import qualified Data.ByteString     as BS
 import           Data.Either
 import           Data.Map            (fromList)
@@ -112,6 +114,24 @@ spec = do
             it "sends messages to test topic" $ \prod -> do
                 res    <- sendMessages (testMessages testTopic) prod
                 res `shouldBe` Right ()
+
+            it "sends messages with callback to test topic" $ \prod -> do
+                var <- newEmptyMVar
+                let
+                  msg = ProducerRecord
+                    { prTopic = TopicName "callback-topic"
+                    , prPartition = UnassignedPartition
+                    , prKey = Nothing
+                    , prValue = Just "test from producer"
+                    }
+
+                res <- produceMessage' prod msg (putMVar var)
+                res `shouldBe` Right ()
+                callbackRes <- flushProducer prod *> takeMVar var
+                callbackRes `shouldSatisfy` \case
+                  DeliverySuccess _ _ -> True
+                  DeliveryFailure _ _ -> False
+                  NoMessageError _    -> False
 
         specWithConsumer "Run consumer with async polling" (consumerProps <> groupId (makeGroupId "async")) runConsumerSpec
         specWithConsumer "Run consumer with sync polling" (consumerProps <> groupId (makeGroupId "sync") <> callbackPollMode CallbackPollModeSync) runConsumerSpec
