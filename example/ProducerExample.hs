@@ -1,15 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
 
 module ProducerExample
 where
 
-import Control.Exception     (bracket)
-import Control.Monad         (forM_)
-import Data.ByteString       (ByteString)
-import Data.ByteString.Char8 (pack)
+import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
+import Control.Exception       (bracket)
+import Control.Monad           (forM_)
+import Control.Monad.IO.Class  (MonadIO(..))
+import Data.ByteString         (ByteString)
+import Data.ByteString.Char8   (pack)
 import Data.Monoid
+import Kafka.Consumer          (Offset)
 import Kafka.Producer
-import Data.Text             (Text)
+import Data.Text               (Text)
 
 -- Global producer properties
 producerProps :: ProducerProperties
@@ -69,3 +73,32 @@ sendMessages prod = do
 
   putStrLn "Thank you."
   return $ Right ()
+
+-- | An example for sending messages synchronously using the 'produceMessage''
+--   function
+--
+sendMessageSync :: MonadIO m
+                => KafkaProducer
+                -> ProducerRecord
+                -> m (Either KafkaError Offset)
+sendMessageSync producer record = liftIO $ do
+  -- Create an empty MVar:
+  var <- newEmptyMVar
+
+  -- Produce the message and use the callback to put the delivery report in the
+  -- MVar:
+  res <- produceMessage' producer record (putMVar var)
+
+  case res of
+    Left (ImmediateError err) ->
+      pure (Left err)
+    Right () -> do
+      -- Flush producer queue to make sure you don't get stuck waiting for the
+      -- message to send:
+      flushProducer producer
+
+      -- Wait for the message's delivery report and map accordingly:
+      takeMVar var >>= return . \case
+        DeliverySuccess _ offset -> Right offset
+        DeliveryFailure _ err    -> Left err
+        NoMessageError err       -> Left err
