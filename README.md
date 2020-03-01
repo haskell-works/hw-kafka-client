@@ -166,7 +166,7 @@ mkMessage k v = ProducerRecord
 ```
 
 ### Synchronous sending of messages
-Because of the asynchronous nature of librdkafka. It there is no API to provide
+Because of the asynchronous nature of librdkafka, there is no API to provide
 synchronous production of messages. It is, however, possible to combine the
 delivery reports feature with that of callbacks. This can be done using the
 `Kafka.Producer.produceMessage'` function.
