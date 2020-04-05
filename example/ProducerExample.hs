@@ -10,7 +10,6 @@ import Control.Monad           (forM_)
 import Control.Monad.IO.Class  (MonadIO(..))
 import Data.ByteString         (ByteString)
 import Data.ByteString.Char8   (pack)
-import Data.Monoid
 import Kafka.Consumer          (Offset)
 import Kafka.Producer
 import Data.Text               (Text)
