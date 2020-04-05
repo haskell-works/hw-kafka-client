@@ -8,7 +8,6 @@ where
 
 import Control.Arrow          ((&&&))
 import Control.Monad          (forM_, void)
-import Data.Monoid            ((<>))
 import Foreign.ForeignPtr     (newForeignPtr_)
 import Foreign.Ptr            (nullPtr)
 import Kafka.Callbacks        as X
