@@ -73,12 +73,24 @@ workflows:
           cabal-build-extra: --write-ghc-environment-files=ghc8.4.4+
           cabal-test-extra: --test-show-details=direct
 
+      - haskell/build-with-binary-cache:
+          name: GHC 8.10.1
+          executor:
+            name: cabal-build
+            ghc-version: 8.10.1
+          before-build: [build-librdkafka]
+          context: haskell-ci
+          binary-cache-uri: ${BINARY_CACHE_URI-"http://hw-binary-cache-us-west-2-a.s3-website-us-west-2.amazonaws.com/archive"}
+          cabal-build-extra: --write-ghc-environment-files=ghc8.4.4+
+          cabal-test-extra: --test-show-details=direct
+
       - merge-point/merge-point:
           name: Build Ok
           requires:
             - GHC 8.4.4
             - GHC 8.6.5
             - GHC 8.8.3
+            - GHC 8.10.1
 
       - github/release-cabal:
           name: GitHub Release
