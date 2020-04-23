@@ -215,44 +215,22 @@ _Note:_ this is a semi-naive solution as this waits forever (or until
 librdkafka times out). You should make sure that your configuration reflects
 the behavior you want out of this functionality.
 
-# Installation
+## Running integration tests locally
 
-## Installing librdkafka
+[shell.nix](./shell.nix) can be used to provide a working environment that is enough to build and test `hw-kafka-client`.
 
-Although `librdkafka` is available on many platforms, most of
-the distribution packages are too old to support `kafka-client`.
-As such, we suggest you install from the source:
+To be able to run tests locally, `$KAFKA_TEST_BROKER` environment variable is expected to be set (use [shell.nix](./shell.nix) or export manually).
 
-```bash
-    git clone https://github.com/edenhill/librdkafka
-    cd librdkafka
-    ./configure
-    make && make install
-```
+`$KAFKA_TEST_BROKER` should contain an IP address of an accessible Kafka broker that will be used to run integration tests against.
 
-Sometimes it is helpful to specify openssl includes explicitly:
+With [Docker Compose](./docker-compose.yml) this variable is used to configure Kafka broker to listen on this address:
 
 ```
-    LDFLAGS=-L/usr/local/opt/openssl/lib CPPFLAGS=-I/usr/local/opt/openssl/include ./configure
-```
-
-If you are using Stack with Nix, don't forget to declare `rdkafka` as extra package:
-
-```yaml
-# stack.yaml
-nix:
-  enable: true
-  packages:
-    - rdkafka
-```
-
-## Installing Kafka
-
-The full Kafka guide is at http://kafka.apache.org/documentation.html#quickstart
-
-Alternatively `docker-compose` can be used to run Kafka locally inside a Docker container.
-To run Kafka inside Docker:
-
-```bash
 $ docker-compose up
+```
+
+After that, tests can be run as usual:
+
+```
+$ cabal test --test-show-details=direct
 ```

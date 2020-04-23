@@ -23,6 +23,7 @@ Icon
 ### Haskell ###
 dist
 dist-newstyle
+dist-docs*
 cabal-dev
 *.o
 *.hi
