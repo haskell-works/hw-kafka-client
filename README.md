@@ -1,33 +1,34 @@
 # hw-kafka-client
+
 [![CircleCI](https://circleci.com/gh/haskell-works/hw-kafka-client.svg?style=svg&circle-token=5f3ada2650dd600bc0fd4787143024867b2afc4e)](https://circleci.com/gh/haskell-works/hw-kafka-client)
 
 Kafka bindings for Haskell backed by the
 [librdkafka C module](https://github.com/edenhill/librdkafka).
 
-## Credits
-This project is inspired by [Haskakafka](https://github.com/cosbynator/haskakafka)
-which unfortunately doesn't seem to be actively maintained.
-
 ## Ecosystem
-HaskellWorks Kafka ecosystem is described here: https://github.com/haskell-works/hw-kafka
 
-# Consumer
+HaskellWorks Kafka ecosystem is described here: <https://github.com/haskell-works/hw-kafka>
+
+## Consumer
+
 High level consumers are supported by `librdkafka` starting from version 0.9.
 High-level consumers provide an abstraction for consuming messages from multiple
 partitions and topics. They are also address scalability (up to a number of partitions)
 by providing automatic rebalancing functionality. When a new consumer joins a consumer
 group the set of consumers attempt to "rebalance" the load to assign partitions to each consumer.
 
-### Example:
+### Consumer example
+
+See [Running integration tests locally](#running-integration-tests-locally) to learn how to configure a local environment.
 
 ```bash
-$ stack build --flag hw-kafka-client:examples
+cabal build --flag examples
 ```
 
 or
 
 ```bash
-$ stack build --exec kafka-client-example --flag hw-kafka-client:examples
+cabal run kafka-client-example --flag examples
 ```
 
 A working consumer example can be found here: [ConsumerExample.hs](example/ConsumerExample.hs)</br>
@@ -75,7 +76,7 @@ processMessages kafka = do
     return $ Right ()
 ```
 
-# Producer
+## Producer
 
 `kafka-client` producer supports sending messages to multiple topics.
 Target topic name is a part of each message that is to be sent by `produceMessage`.
@@ -117,9 +118,9 @@ producerProps = brokersList [BrokerAddress "localhost:9092"]
 In the example above when the producer cannot deliver the message to Kafka,
 the error will be printed (and the message will be dropped).
 
-### Example
+### Producer example
 
-```Haskell
+```haskell
 {-# LANGUAGE OverloadedStrings #-}
 import Control.Exception (bracket)
 import Control.Monad (forM_)
@@ -166,6 +167,7 @@ mkMessage k v = ProducerRecord
 ```
 
 ### Synchronous sending of messages
+
 Because of the asynchronous nature of librdkafka, there is no API to provide
 synchronous production of messages. It is, however, possible to combine the
 delivery reports feature with that of callbacks. This can be done using the
@@ -234,3 +236,8 @@ After that, tests can be run as usual:
 ```
 $ cabal test --test-show-details=direct
 ```
+
+## Credits
+
+This project is inspired by [Haskakafka](https://github.com/cosbynator/haskakafka)
+which unfortunately doesn't seem to be actively maintained.
