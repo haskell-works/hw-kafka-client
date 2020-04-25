@@ -1,8 +1,58 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
+
+-----------------------------------------------------------------------------
+-- |
+-- Module to consume messages from Kafka topics.
+-- 
+-- Here's an example of code to consume messages from a topic:
+-- 
+-- @
+-- import Control.Exception (bracket)
+-- import Data.Monoid ((<>))
+-- import Kafka
+-- import Kafka.Consumer
+-- 
+-- -- Global consumer properties
+-- consumerProps :: 'ConsumerProperties'
+-- consumerProps = 'brokersList' ['BrokerAddress' "localhost:9092"]
+--              <> 'groupId' ('ConsumerGroupId' "consumer_example_group")
+--              <> 'noAutoCommit'
+--              <> 'logLevel' 'KafkaLogInfo'
+-- 
+-- -- Subscription to topics
+-- consumerSub :: 'Subscription'
+-- consumerSub = 'topics' ['TopicName' "kafka-client-example-topic"]
+--            <> 'offsetReset' 'Earliest'
+-- 
+-- -- Running an example
+-- runConsumerExample :: IO ()
+-- runConsumerExample = do
+--     res <- bracket mkConsumer clConsumer runHandler
+--     print res
+--     where
+--       mkConsumer = 'newConsumer' consumerProps consumerSub
+--       clConsumer (Left err) = return (Left err)
+--       clConsumer (Right kc) = (maybe (Right ()) Left) \<$\> 'closeConsumer' kc
+--       runHandler (Left err) = return (Left err)
+--       runHandler (Right kc) = processMessages kc
+-- 
+-- -- Example polling 10 times before stopping
+-- processMessages :: 'KafkaConsumer' -> IO (Either 'KafkaError' ())
+-- processMessages kafka = do
+--     mapM_ (\_ -> do
+--                    msg1 <- 'pollMessage' kafka ('Timeout' 1000)
+--                    putStrLn $ "Message: " <> show msg1
+--                    err <- 'commitAllOffsets' 'OffsetCommit' kafka
+--                    putStrLn $ "Offsets: " <> maybe "Committed." show err
+--           ) [0 .. 10]
+--     return $ Right ()
+-- @
+-----------------------------------------------------------------------------
 module Kafka.Consumer
-( module X
+( KafkaConsumer
+, module X
 , runConsumer
 , newConsumer
 , assign, assignment, subscription
@@ -14,7 +64,6 @@ module Kafka.Consumer
 , storeOffsets, storeOffsetMessage
 , closeConsumer
 -- ReExport Types
-, KafkaConsumer
 , RdKafkaRespErrT (..)
 )
 where
@@ -48,7 +97,7 @@ import Kafka.Types                       as X
 
 -- | Runs high-level kafka consumer.
 -- A callback provided is expected to call 'pollMessage' when convenient.
-{-# DEPRECATED runConsumer "Use newConsumer/closeConsumer instead" #-}
+{-# DEPRECATED runConsumer "Use 'newConsumer'/'closeConsumer' instead" #-}
 runConsumer :: ConsumerProperties
             -> Subscription
             -> (KafkaConsumer -> IO (Either KafkaError a))  -- ^ A callback function to poll and handle messages
@@ -64,6 +113,7 @@ runConsumer cp sub f =
     runHandler (Left err) = return (Left err)
     runHandler (Right kc) = f kc
 
+-- | Create a `KafkaConsumer`. This consumer must be correctly released using 'closeConsumer'.
 newConsumer :: MonadIO m
             => ConsumerProperties
             -> Subscription
@@ -94,6 +144,7 @@ newConsumer props (Subscription ts tp) = liftIO $ do
               runConsumerLoop kafka (Just $ Timeout 100)) >> return (Right kafka)
             Just err -> closeConsumer kafka >> return (Left err)
 
+-- | Polls a single message
 pollMessage :: MonadIO m
             => KafkaConsumer
             -> Timeout -- ^ the timeout, in milliseconds
@@ -104,7 +155,7 @@ pollMessage c@(KafkaConsumer _ (KafkaConf _ qr _)) (Timeout ms) = liftIO $ do
     Nothing -> rdKafkaConsumerPoll (getRdKafka c) ms >>= fromMessagePtr
     Just q  -> rdKafkaConsumeQueue q (fromIntegral ms) >>= fromMessagePtr
 
--- | Polls up to BatchSize messages.
+-- | Polls up to 'BatchSize' messages.
 -- Unlike 'pollMessage' this function does not return usual "timeout" errors.
 -- An empty batch is returned when there are no messages available.
 --
@@ -205,6 +256,7 @@ resumePartitions (KafkaConsumer (Kafka k) _) ps = liftIO $ do
   mapM_ (\(TopicName topicName, PartitionId partitionId) -> rdKafkaTopicPartitionListAdd pl (Text.unpack topicName) partitionId) ps
   KafkaResponseError <$> rdKafkaResumePartitions k pl
 
+-- | Seek a particular offset for each provided 'TopicPartition'
 seek :: MonadIO m => KafkaConsumer -> Timeout -> [TopicPartition] -> m (Maybe KafkaError)
 seek (KafkaConsumer (Kafka k) _) (Timeout timeout) tps = liftIO $
   either Just (const Nothing) <$> seekAll
@@ -244,7 +296,7 @@ position (KafkaConsumer (Kafka k) _) tps = liftIO $ do
 --
 -- Events will cause application provided callbacks to be called.
 --
--- The \p timeout_ms argument specifies the maximum amount of time
+-- The 'Timeout' argument specifies the maximum amount of time
 -- (in milliseconds) that the call will block waiting for events.
 --
 -- This function is called on each 'pollMessage' and, if runtime allows
@@ -260,6 +312,8 @@ pollConsumerEvents k timeout =
   void . withCallbackPollEnabled k $ pollConsumerEvents' k timeout
 
 -- | Closes the consumer.
+-- 
+-- See 'newConsumer'
 closeConsumer :: MonadIO m => KafkaConsumer -> m (Maybe KafkaError)
 closeConsumer (KafkaConsumer (Kafka k) (KafkaConf _ qr statusVar)) = liftIO $
   -- because closing the consumer will raise callbacks,
@@ -280,7 +334,7 @@ newConsumerConf ConsumerProperties {cpProps = m, cpCallbacks = cbs} = do
 
 -- | Subscribes to a given list of topics.
 --
--- Wildcard (regex) topics are supported by the librdkafka assignor:
+-- Wildcard (regex) topics are supported by the /librdkafka/ assignor:
 -- any topic name in the topics list that is prefixed with @^@ will
 -- be regex-matched to the full list of topics in the cluster and matching
 -- topics will be added to the subscription list.
