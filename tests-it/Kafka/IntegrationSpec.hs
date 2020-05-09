@@ -5,22 +5,21 @@
 module Kafka.IntegrationSpec
 where
 
-import           Control.Monad       (forM, forM_)
-import           Control.Monad.Loops
-import           Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
-import qualified Data.ByteString     as BS
-import           Data.Either
-import           Data.Map            (fromList)
-import           Data.Monoid         ((<>))
-
-import Kafka.Consumer as C
-import Kafka.Metadata as M
-import Kafka.Producer as P
-
+import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
+import Control.Monad           (forM, forM_)
+import Control.Monad.Loops
+import Data.Either
+import Data.Map                (fromList)
+import Data.Monoid             ((<>))
+import Kafka.Consumer
+import Kafka.Metadata
+import Kafka.Producer
 import Kafka.TestEnv
 import Test.Hspec
 
-{-# ANN module ("HLint: ignore Redundant do"  :: String) #-}
+import qualified Data.ByteString as BS
+
+{- HLINT ignore "Redundant do"  -}
 
 spec :: Spec
 spec = do
