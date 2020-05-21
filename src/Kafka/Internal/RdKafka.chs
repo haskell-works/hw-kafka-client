@@ -8,11 +8,12 @@ import qualified Data.Text as Text
 import Control.Monad (liftM)
 import Data.Int (Int32, Int64)
 import Data.Word (Word8)
+import Foreign.Concurrent (newForeignPtr)
 import Foreign.Marshal.Alloc (alloca, allocaBytes)
 import Foreign.Marshal.Array (peekArray, allocaArray)
 import Foreign.Storable (Storable(..))
 import Foreign.Ptr (Ptr, FunPtr, castPtr, nullPtr)
-import Foreign.ForeignPtr (FinalizerPtr, addForeignPtrFinalizer, withForeignPtr, newForeignPtr, newForeignPtr_)
+import Foreign.ForeignPtr (FinalizerPtr, addForeignPtrFinalizer, newForeignPtr_, withForeignPtr)
 import Foreign.C.Error (Errno(..), getErrno)
 import Foreign.C.String (CString, newCString, withCAString, peekCAString, peekCAStringLen, peekCString)
 import Foreign.C.Types (CFile, CInt(..), CSize, CChar)
@@ -267,12 +268,14 @@ instance Storable RdKafkaMetadataT where
     {`Int'} -> `RdKafkaTopicPartitionListTPtr' #}
 
 foreign import ccall unsafe "rdkafka.h &rd_kafka_topic_partition_list_destroy"
-    rdKafkaTopicPartitionListDestroy :: FinalizerPtr RdKafkaTopicPartitionListT
+    rdKafkaTopicPartitionListDestroyF :: FinalizerPtr RdKafkaTopicPartitionListT
+foreign import ccall unsafe "rdkafka.h rd_kafka_topic_partition_list_destroy"
+    rdKafkaTopicPartitionListDestroy :: Ptr RdKafkaTopicPartitionListT -> IO ()
 
 newRdKafkaTopicPartitionListT :: Int -> IO RdKafkaTopicPartitionListTPtr
 newRdKafkaTopicPartitionListT size = do
     ret <- rdKafkaTopicPartitionListNew size
-    addForeignPtrFinalizer rdKafkaTopicPartitionListDestroy ret
+    addForeignPtrFinalizer rdKafkaTopicPartitionListDestroyF ret
     return ret
 
 {# fun rd_kafka_topic_partition_list_add as ^
@@ -287,7 +290,7 @@ newRdKafkaTopicPartitionListT size = do
 copyRdKafkaTopicPartitionList :: RdKafkaTopicPartitionListTPtr -> IO RdKafkaTopicPartitionListTPtr
 copyRdKafkaTopicPartitionList pl = do
     cp <- rdKafkaTopicPartitionListCopy pl
-    addForeignPtrFinalizer rdKafkaTopicPartitionListDestroy cp
+    addForeignPtrFinalizer rdKafkaTopicPartitionListDestroyF cp
     return cp
 
 {# fun rd_kafka_topic_partition_list_set_offset as ^
@@ -560,7 +563,7 @@ rdKafkaConsumeBatchQueue :: RdKafkaQueueTPtr -> Int -> Int -> IO [RdKafkaMessage
 rdKafkaConsumeBatchQueue qptr timeout batchSize = do
   allocaArray batchSize $ \pArr -> do
     rSize <- rdKafkaConsumeBatchQueue' qptr timeout pArr (fromIntegral batchSize)
-    peekArray (fromIntegral rSize) pArr >>= traverse newForeignPtr_
+    peekArray (fromIntegral rSize) pArr >>= traverse (flip newForeignPtr (return ()))
 
 -------------------------------------------------------------------------------------------------
 ---- High-level KafkaConsumer
@@ -582,7 +585,7 @@ rdKafkaSubscription k = do
     (err, sub) <- rdKafkaSubscription' k
     case err of
         RdKafkaRespErrNoError ->
-            Right <$> newForeignPtr rdKafkaTopicPartitionListDestroy sub
+            Right <$> newForeignPtr sub (rdKafkaTopicPartitionListDestroy sub)
         e -> return (Left e)
 
 {#fun rd_kafka_consumer_poll as ^
@@ -614,7 +617,7 @@ rdKafkaAssignment k = do
     (err, ass) <- rdKafkaAssignment' k
     case err of
         RdKafkaRespErrNoError ->
-            Right <$> newForeignPtr rdKafkaTopicPartitionListDestroy ass
+            Right <$> newForeignPtr ass (rdKafkaTopicPartitionListDestroy ass)
         e -> return (Left e)
 
 {#fun rd_kafka_commit as ^
@@ -721,7 +724,10 @@ instance Storable RdKafkaGroupListT where
     -> `RdKafkaRespErrT' cIntToEnum #}
 
 foreign import ccall "rdkafka.h &rd_kafka_group_list_destroy"
-    rdKafkaGroupListDestroy :: FinalizerPtr RdKafkaGroupListT
+    rdKafkaGroupListDestroyF :: FinalizerPtr RdKafkaGroupListT
+
+foreign import ccall "rdkafka.h rd_kafka_group_list_destroy"
+    rdKafkaGroupListDestroy :: Ptr RdKafkaGroupListT -> IO ()
 
 rdKafkaListGroups :: RdKafkaTPtr -> Maybe String -> Int -> IO (Either RdKafkaRespErrT RdKafkaGroupListTPtr)
 rdKafkaListGroups k g t = case g of
@@ -731,7 +737,7 @@ rdKafkaListGroups k g t = case g of
         listGroups grp = do
             (err, res) <- rdKafkaListGroups' k grp t
             case err of
-                RdKafkaRespErrNoError -> Right <$> newForeignPtr rdKafkaGroupListDestroy res
+                RdKafkaRespErrNoError -> Right <$> newForeignPtr res (rdKafkaGroupListDestroy res)
                 e -> return $ Left e
 -------------------------------------------------------------------------------------------------
 
@@ -910,15 +916,15 @@ rdKafkaConsumeStop topicPtr partition = do
     alloca- `Ptr RdKafkaMetadataT' peekPtr*, `Int'}
    -> `RdKafkaRespErrT' cIntToEnum #}
 
-foreign import ccall unsafe "rdkafka.h &rd_kafka_metadata_destroy"
-    rdKafkaMetadataDestroy :: FinalizerPtr RdKafkaMetadataT
+foreign import ccall unsafe "rdkafka.h rd_kafka_metadata_destroy"
+    rdKafkaMetadataDestroy :: Ptr RdKafkaMetadataT -> IO ()
 
 rdKafkaMetadata :: RdKafkaTPtr -> Bool -> Maybe RdKafkaTopicTPtr -> Int -> IO (Either RdKafkaRespErrT RdKafkaMetadataTPtr)
 rdKafkaMetadata k allTopics mt timeout = do
     tptr <- maybe (newForeignPtr_ nullPtr) pure mt
     (err, res) <- rdKafkaMetadata' k allTopics tptr timeout
     case err of
-        RdKafkaRespErrNoError -> Right <$> newForeignPtr rdKafkaMetadataDestroy res
+        RdKafkaRespErrNoError -> Right <$> newForeignPtr res (rdKafkaMetadataDestroy res)
         e -> return (Left e)
 
 {#fun rd_kafka_poll as ^
