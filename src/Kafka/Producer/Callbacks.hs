@@ -6,11 +6,12 @@ module Kafka.Producer.Callbacks
 where
 
 import           Control.Monad          (void)
+import           Control.Exception      (bracket)
 import           Control.Concurrent     (forkIO)
 import           Foreign.C.Error        (getErrno)
 import           Foreign.Ptr            (Ptr, nullPtr)
 import           Foreign.Storable       (Storable(peek))
-import           Foreign.StablePtr      (castPtrToStablePtr, deRefStablePtr)
+import           Foreign.StablePtr      (castPtrToStablePtr, deRefStablePtr, freeStablePtr)
 import           Kafka.Callbacks        as X
 import           Kafka.Consumer.Types   (Offset(..))
 import           Kafka.Internal.RdKafka (RdKafkaMessageT(..), RdKafkaRespErrT(..), rdKafkaConfSetDrMsgCb)
@@ -44,8 +45,8 @@ deliveryCallback callback kc = rdKafkaConfSetDrMsgCb (getRdKafkaConf kc) realCb
       callback rep
       if cbPtr == nullPtr then
         pure ()
-      else do
-        msgCb <- deRefStablePtr @(DeliveryReport -> IO ()) $ castPtrToStablePtr $ cbPtr
+      else bracket (pure $ castPtrToStablePtr cbPtr) freeStablePtr $ \stablePtr -> do
+        msgCb <- deRefStablePtr @(DeliveryReport -> IO ()) stablePtr
         -- Here we fork the callback since it might be a longer action and
         -- blocking here would block librdkafka from continuing its execution
         void . forkIO $ msgCb rep
