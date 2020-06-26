@@ -4,6 +4,7 @@ pkgs.mkShell {
   buildInputs = with pkgs; [
     zlib
     rdkafka
+    nettools
   ];
 
   shellHook = ''
