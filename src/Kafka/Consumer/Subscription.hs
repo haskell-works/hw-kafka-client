@@ -1,5 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+-----------------------------------------------------------------------------
+-- |
+-- Module with subscription types and functions.
+-----------------------------------------------------------------------------
 module Kafka.Consumer.Subscription
 ( Subscription(..)
 , topics
@@ -26,8 +30,8 @@ import           Kafka.Types          (TopicName (..))
 -- @
 -- consumerSub :: 'Subscription'
 -- consumerSub = 'topics' ['TopicName' "kafka-client-example-topic"]
---         <> 'offsetReset' 'Earliest'
---         <> 'extraSubscriptionProps' (fromList [("prop1", "value 1"), ("prop2", "value 2")])
+--            <> 'offsetReset' 'Earliest'
+--            <> 'extraSubscriptionProps' (fromList [("prop1", "value 1"), ("prop2", "value 2")])
 -- @
 data Subscription = Subscription (Set TopicName) (Map Text Text)
 

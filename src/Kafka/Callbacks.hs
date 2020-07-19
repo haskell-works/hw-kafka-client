@@ -15,9 +15,9 @@ import Kafka.Types (KafkaError(..), KafkaLogLevel(..))
 --
 -- Basic usage:
 --
--- > setCallback (errorCallback myErrorCallback)
+-- > 'setCallback' ('errorCallback' myErrorCallback)
 -- >
--- > myErrorCallback :: KafkaError -> String -> IO ()
+-- > myErrorCallback :: 'KafkaError' -> String -> IO ()
 -- > myErrorCallback kafkaError message = print $ show kafkaError <> "|" <> message
 errorCallback :: HasKafkaConf k => (KafkaError -> String -> IO ()) -> k -> IO ()
 errorCallback callback k =
@@ -30,9 +30,9 @@ errorCallback callback k =
 --
 -- Basic usage:
 --
--- > setCallback (logCallback myLogCallback)
+-- > 'setCallback' ('logCallback' myLogCallback)
 -- >
--- > myLogCallback :: KafkaLogLevel -> String -> String -> IO ()
+-- > myLogCallback :: 'KafkaLogLevel' -> String -> String -> IO ()
 -- > myLogCallback level facility message = print $ show level <> "|" <> facility <> "|" <> message
 logCallback :: HasKafkaConf k => (KafkaLogLevel -> String -> String -> IO ()) -> k -> IO ()
 logCallback callback k =
@@ -45,7 +45,7 @@ logCallback callback k =
 --
 -- Basic usage:
 --
--- > setCallback (statsCallback myStatsCallback)
+-- > 'setCallback' ('statsCallback' myStatsCallback)
 -- >
 -- > myStatsCallback :: String -> IO ()
 -- > myStatsCallback stats = print $ show stats

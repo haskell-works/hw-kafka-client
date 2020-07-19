@@ -1,5 +1,10 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric      #-}
+
+-----------------------------------------------------------------------------
+-- |
+-- Module holding consumer types.
+-----------------------------------------------------------------------------
 module Kafka.Consumer.Types
 ( KafkaConsumer(..)
 , ConsumerGroupId(..)
@@ -40,7 +45,7 @@ import Kafka.Types          (Millis (..), PartitionId (..), TopicName (..))
 
 -- | The main type for Kafka consumption, used e.g. to poll and commit messages.
 -- 
--- Its constructor is intentionally not exposed, instead, one should used 'newConsumer' to acquire such a value.
+-- Its constructor is intentionally not exposed, instead, one should use 'Kafka.Consumer.newConsumer' to acquire such a value.
 data KafkaConsumer = KafkaConsumer
   { kcKafkaPtr  :: !Kafka
   , kcKafkaConf :: !KafkaConf
@@ -207,7 +212,7 @@ traverseM :: (Traversable t, Applicative f, Monad m)
 traverseM f r = sequenceA <$> traverse f r
 {-# INLINE traverseM #-}
 
-{-# DEPRECATED bitraverseM "Isn't concern of this library. Use @'bisequenceA' '<$>' 'bimapM' f g r@"  #-}
+{-# DEPRECATED bitraverseM "Isn't concern of this library. Use @'Data.Bitraversable.bisequenceA' '<$>' 'bimapM' f g r@"  #-}
 bitraverseM :: (Bitraversable t, Applicative f, Monad m)
             => (k -> m (f k'))
             -> (v -> m (f v'))

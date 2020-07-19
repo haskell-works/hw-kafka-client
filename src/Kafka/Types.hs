@@ -2,6 +2,11 @@
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
+
+-----------------------------------------------------------------------------
+-- |
+-- Module holding types shared by consumer and producer modules.
+-----------------------------------------------------------------------------
 module Kafka.Types
 ( BrokerId(..)
 , PartitionId(..)
@@ -52,7 +57,7 @@ data TopicType =
   | System  -- ^ Topics starting with a double underscore "\__" (@__consumer_offsets@, @__confluent.support.metrics@, etc.) are considered "system" topics
   deriving (Show, Read, Eq, Ord, Generic)
 
--- | Topic name to be consumed
+-- | Topic name to consume/produce messages
 --
 -- Wildcard (regex) topics are supported by the /librdkafka/ assignor:
 -- any topic name in the topics list that is prefixed with @^@ will

@@ -31,10 +31,10 @@ rebalanceCallback callback kc@(KafkaConf conf _ _) = rdKafkaConfSetRebalanceCb c
 -- | Sets a callback that is called when rebalance is needed.
 --
 -- The results of automatic or manual offset commits will be scheduled
--- for this callback and is served by `pollMessage`.
+-- for this callback and is served by 'Kafka.Consumer.pollMessage'.
 --
 -- If no partitions had valid offsets to commit this callback will be called
--- with `KafkaError` == `KafkaResponseError` `RdKafkaRespErrNoOffset` which is not to be considered
+-- with 'KafkaResponseError' 'RdKafkaRespErrNoOffset' which is not to be considered
 -- an error.
 offsetCommitCallback :: (KafkaConsumer -> KafkaError -> [TopicPartition] -> IO ()) -> KafkaConf -> IO ()
 offsetCommitCallback callback kc@(KafkaConf conf _ _) = rdKafkaConfSetOffsetCommitCb conf realCb

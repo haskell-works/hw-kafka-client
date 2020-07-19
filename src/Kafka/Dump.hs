@@ -1,3 +1,8 @@
+-----------------------------------------------------------------------------
+-- |
+-- Module providing various functions to dump information. These may be useful for 
+-- debug/investigation but should probably not be used on production applications.
+-----------------------------------------------------------------------------
 module Kafka.Dump
 ( hPrintSupportedKafkaConf
 , hPrintKafka

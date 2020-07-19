@@ -1,5 +1,10 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
+
+-----------------------------------------------------------------------------
+-- |
+-- Module with metadata types and functions.
+-----------------------------------------------------------------------------
 module Kafka.Metadata
 ( KafkaMetadata(..), BrokerMetadata(..), TopicMetadata(..), PartitionMetadata(..)
 , WatermarkOffsets(..)

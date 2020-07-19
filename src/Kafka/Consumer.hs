@@ -10,8 +10,7 @@
 -- 
 -- @
 -- import Control.Exception (bracket)
--- import Data.Monoid ((<>))
--- import Kafka
+-- import Control.Monad (replicateM_)
 -- import Kafka.Consumer
 -- 
 -- -- Global consumer properties
@@ -33,21 +32,20 @@
 --     print res
 --     where
 --       mkConsumer = 'newConsumer' consumerProps consumerSub
---       clConsumer (Left err) = return (Left err)
+--       clConsumer (Left err) = pure (Left err)
 --       clConsumer (Right kc) = (maybe (Right ()) Left) \<$\> 'closeConsumer' kc
---       runHandler (Left err) = return (Left err)
+--       runHandler (Left err) = pure (Left err)
 --       runHandler (Right kc) = processMessages kc
 -- 
 -- -- Example polling 10 times before stopping
 -- processMessages :: 'KafkaConsumer' -> IO (Either 'KafkaError' ())
 -- processMessages kafka = do
---     mapM_ (\_ -> do
---                    msg1 <- 'pollMessage' kafka ('Timeout' 1000)
---                    putStrLn $ "Message: " <> show msg1
---                    err <- 'commitAllOffsets' 'OffsetCommit' kafka
---                    putStrLn $ "Offsets: " <> maybe "Committed." show err
---           ) [0 .. 10]
---     return $ Right ()
+--     replicateM_ 10 $ do
+--       msg <- 'pollMessage' kafka ('Timeout' 1000)
+--       putStrLn $ "Message: " <> show msg
+--       err <- 'commitAllOffsets' 'OffsetCommit' kafka
+--       putStrLn $ "Offsets: " <> maybe "Committed." show err
+--     pure $ Right ()
 -- @
 -----------------------------------------------------------------------------
 module Kafka.Consumer
@@ -159,7 +157,7 @@ pollMessage c@(KafkaConsumer _ (KafkaConf _ qr _)) (Timeout ms) = liftIO $ do
 -- Unlike 'pollMessage' this function does not return usual "timeout" errors.
 -- An empty batch is returned when there are no messages available.
 --
--- This API is not available when 'userPolls' is set.
+-- This API is not available when 'CallbackPollMode' is set to 'CallbackPollModeSync'.
 pollMessageBatch :: MonadIO m
                  => KafkaConsumer
                  -> Timeout
@@ -169,7 +167,7 @@ pollMessageBatch c@(KafkaConsumer _ (KafkaConf _ qr _)) (Timeout ms) (BatchSize 
   pollConsumerEvents c Nothing
   mbq <- readIORef qr
   case mbq of
-    Nothing -> return [Left $ KafkaBadSpecification "userPolls is set when calling pollMessageBatch."]
+    Nothing -> return [Left $ KafkaBadSpecification "Calling pollMessageBatch while CallbackPollMode is set to CallbackPollModeSync."]
     Just q  -> rdKafkaConsumeBatchQueue q ms b >>= traverse fromMessagePtr
 
 -- | Commit message's offset on broker for the message's partition.
