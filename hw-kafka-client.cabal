@@ -32,6 +32,11 @@ flag examples
   manual: True
   default: False
 
+flag it
+  description: Run integration tests
+  manual: True
+  default: False
+
 library
   hs-source-dirs:       src
   ghc-options:          -Wall
@@ -103,6 +108,8 @@ test-suite integration-tests
                       , text
                       , transformers
   build-tool-depends:   hspec-discover:hspec-discover
+  if !(flag(it))
+    buildable:          False
   other-modules:        Kafka.IntegrationSpec
                         Kafka.TestEnv
   default-language:     Haskell2010
