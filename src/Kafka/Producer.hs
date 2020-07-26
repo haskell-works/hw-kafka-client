@@ -1,14 +1,67 @@
 {-# LANGUAGE TupleSections              #-}
 {-# LANGUAGE LambdaCase                 #-}
+
+-----------------------------------------------------------------------------
+-- |
+-- Module to produce messages to Kafka topics.
+-- 
+-- Here's an example of code to produce messages to a topic:
+-- 
+-- @
+-- import Control.Exception (bracket)
+-- import Control.Monad (forM_)
+-- import Data.ByteString (ByteString)
+-- import Kafka.Producer
+-- 
+-- -- Global producer properties
+-- producerProps :: 'ProducerProperties'
+-- producerProps = 'brokersList' ['BrokerAddress' "localhost:9092"]
+--              <> 'logLevel' 'KafkaLogDebug'
+-- 
+-- -- Topic to send messages to
+-- targetTopic :: 'TopicName'
+-- targetTopic = 'TopicName' "kafka-client-example-topic"
+-- 
+-- -- Run an example
+-- runProducerExample :: IO ()
+-- runProducerExample =
+--     bracket mkProducer clProducer runHandler >>= print
+--     where
+--       mkProducer = 'newProducer' producerProps
+--       clProducer (Left _)     = pure ()
+--       clProducer (Right prod) = 'closeProducer' prod
+--       runHandler (Left err)   = pure $ Left err
+--       runHandler (Right prod) = sendMessages prod
+-- 
+-- -- Example sending 2 messages and printing the response from Kafka
+-- sendMessages :: 'KafkaProducer' -> IO (Either 'KafkaError' ())
+-- sendMessages prod = do
+--   err1 <- 'produceMessage' prod (mkMessage Nothing (Just "test from producer") )
+--   forM_ err1 print
+-- 
+--   err2 <- 'produceMessage' prod (mkMessage (Just "key") (Just "test from producer (with key)"))
+--   forM_ err2 print
+-- 
+--   pure $ Right ()
+-- 
+-- mkMessage :: Maybe ByteString -> Maybe ByteString -> 'ProducerRecord'
+-- mkMessage k v = 'ProducerRecord'
+--                   { 'prTopic' = targetTopic
+--                   , 'prPartition' = 'UnassignedPartition'
+--                   , 'prKey' = k
+--                   , 'prValue' = v
+--                   }
+-- @
+-----------------------------------------------------------------------------
 module Kafka.Producer
-( module X
+( KafkaProducer
+, module X
 , runProducer
 , newProducer
 , produceMessage, produceMessageBatch
 , produceMessage'
 , flushProducer
 , closeProducer
-, KafkaProducer
 , RdKafkaRespErrT (..)
 )
 where

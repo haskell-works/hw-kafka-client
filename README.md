@@ -13,9 +13,9 @@ HaskellWorks Kafka ecosystem is described here: <https://github.com/haskell-work
 
 High level consumers are supported by `librdkafka` starting from version 0.9.
 High-level consumers provide an abstraction for consuming messages from multiple
-partitions and topics. They are also address scalability (up to a number of partitions)
+partitions and topics. They also address scalability (up to a number of partitions)
 by providing automatic rebalancing functionality. When a new consumer joins a consumer
-group the set of consumers attempt to "rebalance" the load to assign partitions to each consumer.
+group the set of consumers attempts to "rebalance" the load to assign partitions to each consumer.
 
 ### Consumer example
 
@@ -36,8 +36,6 @@ To run an example please compile with the `examples` flag.
 
 ```haskell
 import Control.Exception (bracket)
-import Data.Monoid ((<>))
-import Kafka
 import Kafka.Consumer
 
 -- Global consumer properties
@@ -67,12 +65,11 @@ runConsumerExample = do
 -------------------------------------------------------------------
 processMessages :: KafkaConsumer -> IO (Either KafkaError ())
 processMessages kafka = do
-    mapM_ (\_ -> do
-                   msg1 <- pollMessage kafka (Timeout 1000)
-                   putStrLn $ "Message: " <> show msg1
-                   err <- commitAllOffsets OffsetCommit kafka
-                   putStrLn $ "Offsets: " <> maybe "Committed." show err
-          ) [0 .. 10]
+    replicateM_ 10 $ do
+      msg <- pollMessage kafka (Timeout 1000)
+      putStrLn $ "Message: " <> show msg
+      err <- commitAllOffsets OffsetCommit kafka
+      putStrLn $ "Offsets: " <> maybe "Committed." show err
     return $ Right ()
 ```
 
