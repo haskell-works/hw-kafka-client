@@ -228,10 +228,10 @@ With [Docker Compose](./docker-compose.yml) this variable is used to configure K
 $ docker-compose up
 ```
 
-After that, tests can be run as usual:
+After that, integration tests can switched on with using 'it' flag:
 
 ```
-$ cabal test --test-show-details=direct
+$ cabal test --test-show-details=direct --flag it
 ```
 
 ## Credits

@@ -49,7 +49,7 @@ workflows:
           context: haskell-ci
           binary-cache-uri: ${BINARY_CACHE_URI-"http://hw-binary-cache-us-west-2-a.s3-website-us-west-2.amazonaws.com/archive"}
           cabal-build-extra: --write-ghc-environment-files=ghc8.4.4+
-          cabal-test-extra: --test-show-details=direct --test-options='+RTS -g1'
+          cabal-test-extra: --test-show-details=direct --flag it --test-options='+RTS -g1'
 
       - haskell/build-with-binary-cache:
           name: GHC 8.6.5
@@ -60,7 +60,7 @@ workflows:
           context: haskell-ci
           binary-cache-uri: ${BINARY_CACHE_URI-"http://hw-binary-cache-us-west-2-a.s3-website-us-west-2.amazonaws.com/archive"}
           cabal-build-extra: --write-ghc-environment-files=ghc8.4.4+
-          cabal-test-extra: --test-show-details=direct --test-options='+RTS -g1'
+          cabal-test-extra: --test-show-details=direct --flag it --test-options='+RTS -g1'
 
       - haskell/build-with-binary-cache:
           name: GHC 8.8.3
@@ -71,7 +71,7 @@ workflows:
           context: haskell-ci
           binary-cache-uri: ${BINARY_CACHE_URI-"http://hw-binary-cache-us-west-2-a.s3-website-us-west-2.amazonaws.com/archive"}
           cabal-build-extra: --write-ghc-environment-files=ghc8.4.4+
-          cabal-test-extra: --test-show-details=direct --test-options='+RTS -g1'
+          cabal-test-extra: --test-show-details=direct --flag it --test-options='+RTS -g1'
 
       - haskell/build-with-binary-cache:
           name: GHC 8.10.1
@@ -82,7 +82,7 @@ workflows:
           context: haskell-ci
           binary-cache-uri: ${BINARY_CACHE_URI-"http://hw-binary-cache-us-west-2-a.s3-website-us-west-2.amazonaws.com/archive"}
           cabal-build-extra: --write-ghc-environment-files=ghc8.4.4+
-          cabal-test-extra: --test-show-details=direct --test-options='+RTS -g1'
+          cabal-test-extra: --test-show-details=direct --flag it --test-options='+RTS -g1'
 
       - merge-point/merge-point:
           name: Build Ok
