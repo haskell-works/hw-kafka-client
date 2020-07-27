@@ -1,7 +1,7 @@
 cabal-version: 2.2
 
 name:                   hw-kafka-client
-version:                3.1.1
+version:                3.1.2
 synopsis:               Kafka bindings for Haskell
 description:            Apache Kafka bindings backed by the librdkafka C library.
                         .
