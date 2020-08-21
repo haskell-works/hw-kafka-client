@@ -1,7 +1,7 @@
 version: 2.1
 
 orbs:
-  haskell: haskell-works/haskell-build@4.1.7
+  haskell: haskell-works/haskell-build@4.1.8
   github: haskell-works/github-release@1.3.3
   hackage: haskell-works/hackage@1.4.2
   merge-point: haskell-works/merge-point@1.0.0
