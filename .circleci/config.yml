@@ -74,10 +74,10 @@ workflows:
           cabal-test-extra: --test-show-details=direct --flag it --test-options='+RTS -g1'
 
       - haskell/build-with-binary-cache:
-          name: GHC 8.10.1
+          name: GHC 8.10.2
           executor:
             name: cabal-build
-            ghc-version: 8.10.1
+            ghc-version: 8.10.2
           before-build: [build-librdkafka]
           context: haskell-ci
           binary-cache-uri: ${BINARY_CACHE_URI-"http://hw-binary-cache-us-west-2-a.s3-website-us-west-2.amazonaws.com/archive"}
@@ -90,7 +90,7 @@ workflows:
             - GHC 8.4.4
             - GHC 8.6.5
             - GHC 8.8.3
-            - GHC 8.10.1
+            - GHC 8.10.2
 
       - github/release-cabal:
           name: GitHub Release
