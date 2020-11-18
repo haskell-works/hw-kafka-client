@@ -14,16 +14,17 @@ import Kafka.Callbacks        as X
 import Kafka.Consumer.Convert (fromNativeTopicPartitionList', fromNativeTopicPartitionList'')
 import Kafka.Consumer.Types   (KafkaConsumer (..), RebalanceEvent (..), TopicPartition (..))
 import Kafka.Internal.RdKafka
-import Kafka.Internal.Setup   (HasKafka (..), HasKafkaConf (..), Kafka (..), KafkaConf (..), getRdMsgQueue)
+import Kafka.Internal.Setup   (HasKafka (..), HasKafkaConf (..), Kafka (..), KafkaConf (..), getRdMsgQueue, Callback (..))
 import Kafka.Types            (KafkaError (..), PartitionId (..), TopicName (..))
 
 import qualified Data.Text as Text
 
 -- | Sets a callback that is called when rebalance is needed.
-rebalanceCallback :: (KafkaConsumer -> RebalanceEvent -> IO ()) -> KafkaConf -> IO ()
-rebalanceCallback callback kc@(KafkaConf conf _ _) = rdKafkaConfSetRebalanceCb conf realCb
+rebalanceCallback :: (KafkaConsumer -> RebalanceEvent -> IO ()) -> Callback
+rebalanceCallback callback =
+  Callback $ \kc@(KafkaConf con _ _) -> rdKafkaConfSetRebalanceCb con (realCb kc)
   where
-    realCb k err pl = do
+    realCb kc k err pl = do
       k' <- newForeignPtr_ k
       pls <- newForeignPtr_ pl
       setRebalanceCallback callback (KafkaConsumer (Kafka k') kc) (KafkaResponseError err) pls
@@ -36,10 +37,11 @@ rebalanceCallback callback kc@(KafkaConf conf _ _) = rdKafkaConfSetRebalanceCb c
 -- If no partitions had valid offsets to commit this callback will be called
 -- with 'KafkaResponseError' 'RdKafkaRespErrNoOffset' which is not to be considered
 -- an error.
-offsetCommitCallback :: (KafkaConsumer -> KafkaError -> [TopicPartition] -> IO ()) -> KafkaConf -> IO ()
-offsetCommitCallback callback kc@(KafkaConf conf _ _) = rdKafkaConfSetOffsetCommitCb conf realCb
+offsetCommitCallback :: (KafkaConsumer -> KafkaError -> [TopicPartition] -> IO ()) -> Callback
+offsetCommitCallback callback =
+  Callback $ \kc@(KafkaConf conf _ _) -> rdKafkaConfSetOffsetCommitCb conf (realCb kc)
   where
-    realCb k err pl = do
+    realCb kc k err pl = do
       k' <- newForeignPtr_ k
       pls <- fromNativeTopicPartitionList' pl
       callback (KafkaConsumer (Kafka k') kc) (KafkaResponseError err) pls

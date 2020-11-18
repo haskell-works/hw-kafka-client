@@ -82,7 +82,7 @@ import           Foreign.Ptr              (Ptr, nullPtr, plusPtr)
 import           Foreign.Storable         (Storable (..))
 import           Foreign.StablePtr        (newStablePtr, castStablePtrToPtr)
 import           Kafka.Internal.RdKafka   (RdKafkaMessageT (..), RdKafkaRespErrT (..), RdKafkaTypeT (..), destroyUnmanagedRdKafkaTopic, newRdKafkaT, newUnmanagedRdKafkaTopicT, rdKafkaOutqLen, rdKafkaProduce, rdKafkaProduceBatch, rdKafkaSetLogLevel)
-import           Kafka.Internal.Setup     (Kafka (..), KafkaConf (..), KafkaProps (..), TopicConf (..), TopicProps (..), kafkaConf, topicConf)
+import           Kafka.Internal.Setup     (Kafka (..), KafkaConf (..), KafkaProps (..), TopicConf (..), TopicProps (..), kafkaConf, topicConf, Callback(..))
 import           Kafka.Internal.Shared    (pollEvents)
 import           Kafka.Producer.Convert   (copyMsgFlags, handleProduceErr', producePartitionCInt, producePartitionInt)
 import           Kafka.Producer.Types     (KafkaProducer (..), ImmediateError(..))
@@ -120,7 +120,7 @@ newProducer pps = liftIO $ do
   deliveryCallback (const mempty) kc
 
   -- set callbacks
-  forM_ (ppCallbacks pps) (\setCb -> setCb kc)
+  forM_ (ppCallbacks pps) (\(Callback setCb) -> setCb kc)
 
   mbKafka <- newRdKafkaT RdKafkaProducer kc'
   case mbKafka of

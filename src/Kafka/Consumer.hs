@@ -85,7 +85,7 @@ import           Foreign                    hiding (void)
 import           Kafka.Consumer.Convert     (fromMessagePtr, fromNativeTopicPartitionList'', offsetCommitToBool, offsetToInt64, toMap, toNativeTopicPartitionList, toNativeTopicPartitionList', toNativeTopicPartitionListNoDispose, topicPartitionFromMessageForCommit)
 import           Kafka.Consumer.Types       (KafkaConsumer (..))
 import           Kafka.Internal.RdKafka     (RdKafkaRespErrT (..), RdKafkaTopicPartitionListTPtr, RdKafkaTypeT (..), newRdKafkaT, newRdKafkaTopicPartitionListT, newRdKafkaTopicT, rdKafkaAssign, rdKafkaAssignment, rdKafkaCommit, rdKafkaCommitted, rdKafkaConfSetDefaultTopicConf, rdKafkaConsumeBatchQueue, rdKafkaConsumeQueue, rdKafkaConsumerClose, rdKafkaConsumerPoll, rdKafkaOffsetsStore, rdKafkaPausePartitions, rdKafkaPollSetConsumer, rdKafkaPosition, rdKafkaQueueDestroy, rdKafkaQueueNew, rdKafkaResumePartitions, rdKafkaSeek, rdKafkaSetLogLevel, rdKafkaSubscribe, rdKafkaSubscription, rdKafkaTopicConfDup, rdKafkaTopicPartitionListAdd)
-import           Kafka.Internal.Setup       (CallbackPollStatus (..), Kafka (..), KafkaConf (..), KafkaProps (..), TopicConf (..), TopicProps (..), getKafkaConf, getRdKafka, kafkaConf, topicConf)
+import           Kafka.Internal.Setup       (CallbackPollStatus (..), Kafka (..), KafkaConf (..), KafkaProps (..), TopicConf (..), TopicProps (..), getKafkaConf, getRdKafka, kafkaConf, topicConf, Callback(..))
 import           Kafka.Internal.Shared      (kafkaErrorToMaybe, maybeToLeft, rdKafkaErrorToEither)
 
 import Kafka.Consumer.ConsumerProperties as X
@@ -327,7 +327,7 @@ closeConsumer (KafkaConsumer (Kafka k) (KafkaConf _ qr statusVar)) = liftIO $
 newConsumerConf :: ConsumerProperties -> IO KafkaConf
 newConsumerConf ConsumerProperties {cpProps = m, cpCallbacks = cbs} = do
   conf <- kafkaConf (KafkaProps m)
-  forM_ cbs (\setCb -> setCb conf)
+  forM_ cbs (\(Callback setCb) -> setCb conf)
   return conf
 
 -- | Subscribes to a given list of topics.
