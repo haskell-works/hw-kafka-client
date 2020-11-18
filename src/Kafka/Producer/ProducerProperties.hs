@@ -12,6 +12,7 @@ module Kafka.Producer.ProducerProperties
 , compression
 , topicCompression
 , sendTimeout
+, statisticsInterval
 , extraProps
 , suppressDisconnectLogs
 , extraTopicProps
@@ -27,7 +28,7 @@ import           Data.Map                 (Map)
 import qualified Data.Map                 as M
 import           Data.Semigroup           as Sem
 import           Kafka.Internal.Setup     (KafkaConf(..))
-import           Kafka.Types              (KafkaDebug(..), Timeout(..), KafkaCompressionCodec(..), KafkaLogLevel(..), BrokerAddress(..), kafkaDebugToText, kafkaCompressionCodecToText)  
+import           Kafka.Types              (KafkaDebug(..), Timeout(..), KafkaCompressionCodec(..), KafkaLogLevel(..), BrokerAddress(..), kafkaDebugToText, kafkaCompressionCodecToText, Millis(..))
 
 import           Kafka.Producer.Callbacks
 
@@ -91,6 +92,11 @@ topicCompression c =
 sendTimeout :: Timeout -> ProducerProperties
 sendTimeout (Timeout t) =
   extraTopicProps $ M.singleton "message.timeout.ms" (Text.pack $ show t)
+
+-- | Set the <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md statistics.interval.ms> for the producer.
+statisticsInterval :: Millis -> ProducerProperties
+statisticsInterval (Millis t) =
+  extraProps $ M.singleton "statistics.interval.ms" (Text.pack $ show t)
 
 -- | Any configuration options that are supported by /librdkafka/.
 -- The full list can be found <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md here>
