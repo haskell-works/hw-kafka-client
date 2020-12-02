@@ -3,6 +3,8 @@
 
 module Kafka.Internal.RdKafka where
 
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Control.Monad (liftM)
@@ -15,7 +17,7 @@ import Foreign.Storable (Storable(..))
 import Foreign.Ptr (Ptr, FunPtr, castPtr, nullPtr)
 import Foreign.ForeignPtr (FinalizerPtr, addForeignPtrFinalizer, newForeignPtr_, withForeignPtr)
 import Foreign.C.Error (Errno(..), getErrno)
-import Foreign.C.String (CString, newCString, withCAString, peekCAString, peekCAStringLen, peekCString)
+import Foreign.C.String (CString, newCString, withCAString, peekCAString, peekCString)
 import Foreign.C.Types (CFile, CInt(..), CSize, CChar)
 import System.IO (Handle, stdin, stdout, stderr)
 import System.Posix.IO (handleToFd)
@@ -414,7 +416,7 @@ rdKafkaConfSetLogCb conf cb = do
 
 ---- Stats Callback
 type StatsCallback' = Ptr RdKafkaT -> CString -> CSize -> Word8Ptr -> IO ()
-type StatsCallback = Ptr RdKafkaT -> String -> IO ()
+type StatsCallback = Ptr RdKafkaT -> ByteString -> IO ()
 
 foreign import ccall safe "wrapper"
     mkStatsCallback :: StatsCallback' -> IO (FunPtr StatsCallback')
@@ -424,7 +426,7 @@ foreign import ccall safe "rd_kafka.h rd_kafka_conf_set_stats_cb"
 
 rdKafkaConfSetStatsCb :: RdKafkaConfTPtr -> StatsCallback -> IO ()
 rdKafkaConfSetStatsCb conf cb = do
-    cb' <- mkStatsCallback $ \k j jl _ -> peekCAStringLen (j, cIntConv jl) >>= cb k
+    cb' <- mkStatsCallback $ \k j jl _ -> BS.packCStringLen (j, cIntConv jl) >>= cb k
     withForeignPtr conf $ \c -> rdKafkaConfSetStatsCb' c cb'
     return ()
 
