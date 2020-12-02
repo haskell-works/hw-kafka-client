@@ -17,6 +17,7 @@ module Kafka.Consumer.ConsumerProperties
 , logLevel
 , compression
 , suppressDisconnectLogs
+, statisticsInterval
 , extraProps
 , extraProp
 , debugOptions
@@ -136,6 +137,11 @@ compression c =
 suppressDisconnectLogs :: ConsumerProperties
 suppressDisconnectLogs =
   extraProps $ M.fromList [("log.connection.close", "false")]
+
+-- | Set the <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md statistics.interval.ms> for the producer.
+statisticsInterval :: Millis -> ConsumerProperties
+statisticsInterval (Millis t) =
+  extraProps $ M.singleton "statistics.interval.ms" (Text.pack $ show t)
 
 -- | Set any configuration options that are supported by /librdkafka/.
 -- The full list can be found <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md here>
