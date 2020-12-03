@@ -27,7 +27,7 @@ import           Control.Monad            (MonadPlus(mplus))
 import           Data.Map                 (Map)
 import qualified Data.Map                 as M
 import           Data.Semigroup           as Sem
-import           Kafka.Internal.Setup     (KafkaConf(..))
+import           Kafka.Internal.Setup     (KafkaConf(..), Callback(..))
 import           Kafka.Types              (KafkaDebug(..), Timeout(..), KafkaCompressionCodec(..), KafkaLogLevel(..), BrokerAddress(..), kafkaDebugToText, kafkaCompressionCodecToText, Millis(..))
 
 import           Kafka.Producer.Callbacks
@@ -37,7 +37,7 @@ data ProducerProperties = ProducerProperties
   { ppKafkaProps :: Map Text Text
   , ppTopicProps :: Map Text Text
   , ppLogLevel   :: Maybe KafkaLogLevel
-  , ppCallbacks  :: [KafkaConf -> IO ()]
+  , ppCallbacks  :: [Callback]
   }
 
 instance Sem.Semigroup ProducerProperties where
@@ -70,7 +70,7 @@ brokersList bs =
 -- * 'errorCallback'
 -- * 'logCallback'
 -- * 'statsCallback'
-setCallback :: (KafkaConf -> IO ()) -> ProducerProperties
+setCallback :: Callback -> ProducerProperties
 setCallback cb = mempty { ppCallbacks = [cb] }
 
 -- | Sets the logging level.

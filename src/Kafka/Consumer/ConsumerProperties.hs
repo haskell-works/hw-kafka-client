@@ -34,7 +34,7 @@ import           Data.Semigroup       as Sem
 import           Data.Text            (Text)
 import qualified Data.Text            as Text
 import           Kafka.Consumer.Types (ConsumerGroupId (..))
-import           Kafka.Internal.Setup (KafkaConf (..))
+import           Kafka.Internal.Setup (KafkaConf (..), Callback(..))
 import           Kafka.Types          (BrokerAddress (..), ClientId (..), KafkaCompressionCodec (..), KafkaDebug (..), KafkaLogLevel (..), Millis (..), kafkaCompressionCodecToText, kafkaDebugToText)
 
 import Kafka.Consumer.Callbacks as X
@@ -53,7 +53,7 @@ data CallbackPollMode =
 data ConsumerProperties = ConsumerProperties
   { cpProps            :: Map Text Text
   , cpLogLevel         :: Maybe KafkaLogLevel
-  , cpCallbacks        :: [KafkaConf -> IO ()]
+  , cpCallbacks        :: [Callback]
   , cpCallbackPollMode :: CallbackPollMode
   }
 
@@ -117,7 +117,7 @@ clientId (ClientId cid) =
 -- * 'errorCallback'
 -- * 'logCallback'
 -- * 'statsCallback'
-setCallback :: (KafkaConf -> IO ()) -> ConsumerProperties
+setCallback :: Callback -> ConsumerProperties
 setCallback cb = mempty { cpCallbacks = [cb] }
 
 -- | Set the logging level.
