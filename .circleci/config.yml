@@ -35,7 +35,7 @@ commands:
           command: ./scripts/build-librdkafka
       - save_cache:
           key: cache--{{ .Environment.CACHE_VERSION }}--librdkafka--{{ checksum "scripts/build-librdkafka" }}
-          paths: .librdkafka
+          paths: [ .librdkafka ]
 
 workflows:
   build-app-pipelines:
