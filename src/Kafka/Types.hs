@@ -29,6 +29,7 @@ where
 
 import Control.Exception      (Exception (..))
 import Data.Int               (Int64)
+import Data.String            (IsString)
 import Data.Text              (Text, isPrefixOf)
 import Data.Typeable          (Typeable)
 import GHC.Generics           (Generic)
@@ -46,7 +47,9 @@ newtype Millis      = Millis { unMillis :: Int64 } deriving (Show, Read, Eq, Ord
 -- | Client ID used by Kafka to better track requests
 -- 
 -- See <https://kafka.apache.org/documentation/#client.id Kafka documentation on client ID>
-newtype ClientId    = ClientId { unClientId :: Text } deriving (Show, Eq, Ord, Generic)
+newtype ClientId = ClientId
+  { unClientId :: Text
+  } deriving (Show, Eq, IsString, Ord, Generic)
 
 -- | Batch size used for polling
 newtype BatchSize   = BatchSize { unBatchSize :: Int } deriving (Show, Read, Eq, Ord, Num, Generic)
@@ -63,9 +66,9 @@ data TopicType =
 -- any topic name in the topics list that is prefixed with @^@ will
 -- be regex-matched to the full list of topics in the cluster and matching
 -- topics will be added to the subscription list.
-newtype TopicName =
-    TopicName { unTopicName :: Text } -- ^ a simple topic name or a regex if started with @^@
-    deriving (Show, Eq, Ord, Read, Generic)
+newtype TopicName = TopicName
+  { unTopicName :: Text -- ^ a simple topic name or a regex if started with @^@
+  } deriving (Show, Eq, Ord, IsString, Read, Generic)
 
 -- | Deduce the type of a topic from its name, by checking if it starts with a double underscore "\__"
 topicType :: TopicName -> TopicType
@@ -74,7 +77,9 @@ topicType (TopicName tn) =
 {-# INLINE topicType #-}
 
 -- | Kafka broker address string (e.g. @broker1:9092@)
-newtype BrokerAddress = BrokerAddress { unBrokerAddress :: Text } deriving (Show, Eq, Generic)
+newtype BrokerAddress = BrokerAddress
+  { unBrokerAddress :: Text
+  } deriving (Show, Eq, IsString, Generic)
 
 -- | Timeout in milliseconds
 newtype Timeout = Timeout { unTimeout :: Int } deriving (Show, Eq, Read, Generic)

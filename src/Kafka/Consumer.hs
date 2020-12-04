@@ -15,7 +15,7 @@
 -- 
 -- -- Global consumer properties
 -- consumerProps :: 'ConsumerProperties'
--- consumerProps = 'brokersList' ['BrokerAddress' "localhost:9092"]
+-- consumerProps = 'brokersList' ["localhost:9092"]
 --              <> 'groupId' ('ConsumerGroupId' "consumer_example_group")
 --              <> 'noAutoCommit'
 --              <> 'logLevel' 'KafkaLogInfo'

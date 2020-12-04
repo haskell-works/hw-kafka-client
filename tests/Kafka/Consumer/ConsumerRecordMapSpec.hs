@@ -15,7 +15,7 @@ testValue = "some-value"
 
 testRecord :: ConsumerRecord (Maybe Text) (Maybe Text)
 testRecord = ConsumerRecord
-  { crTopic     = TopicName "some-topic"
+  { crTopic     = "some-topic"
   , crPartition = PartitionId 0
   , crOffset    = Offset 5
   , crTimestamp = NoTimestamp

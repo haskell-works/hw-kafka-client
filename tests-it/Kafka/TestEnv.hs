@@ -24,12 +24,12 @@ testPrefix = unsafePerformIO $ take 10 . Rnd.randomRs ('a','z') <$> Rnd.newStdGe
 
 brokerAddress :: BrokerAddress
 brokerAddress = unsafePerformIO $
-  (BrokerAddress . Text.pack) <$> getEnv "KAFKA_TEST_BROKER" `catch` \(_ :: SomeException) -> return "localhost:9092"
+  BrokerAddress . Text.pack <$> getEnv "KAFKA_TEST_BROKER" `catch` \(_ :: SomeException) -> return "localhost:9092"
 {-# NOINLINE brokerAddress #-}
 
 testTopic :: TopicName
 testTopic = unsafePerformIO $
-  (TopicName . Text.pack) <$> getEnv "KAFKA_TEST_TOPIC" `catch` \(_ :: SomeException) -> return $ testPrefix <> "-topic"
+  TopicName . Text.pack <$> getEnv "KAFKA_TEST_TOPIC" `catch` \(_ :: SomeException) -> return $ testPrefix <> "-topic"
 {-# NOINLINE testTopic #-}
 
 testGroupId :: ConsumerGroupId
