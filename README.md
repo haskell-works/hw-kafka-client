@@ -40,14 +40,14 @@ import Kafka.Consumer
 
 -- Global consumer properties
 consumerProps :: ConsumerProperties
-consumerProps = brokersList [BrokerAddress "localhost:9092"]
-             <> groupId (ConsumerGroupId "consumer_example_group")
+consumerProps = brokersList ["localhost:9092"]
+             <> groupId "consumer_example_group"
              <> noAutoCommit
              <> logLevel KafkaLogInfo
 
 -- Subscription to topics
 consumerSub :: Subscription
-consumerSub = topics [TopicName "kafka-client-example-topic"]
+consumerSub = topics ["kafka-client-example-topic"]
            <> offsetReset Earliest
 
 -- Running an example
@@ -58,7 +58,7 @@ runConsumerExample = do
     where
       mkConsumer = newConsumer consumerProps consumerSub
       clConsumer (Left err) = return (Left err)
-      clConsumer (Right kc) = (maybe (Right ()) Left) <$> closeConsumer kc
+      clConsumer (Right kc) = maybe (Right ()) Left <$> closeConsumer kc
       runHandler (Left err) = return (Left err)
       runHandler (Right kc) = processMessages kc
 
@@ -97,7 +97,7 @@ never dropped from the queue:
 
 ```haskell
 producerProps :: ProducerProperties
-producerProps = brokersList [BrokerAddress "localhost:9092"]
+producerProps = brokersList ["localhost:9092"]
              <> sendTimeout (Timeout 0)           -- for librdkafka "0" means "infinite" (see https://github.com/edenhill/librdkafka/issues/2015)
 ```
 
@@ -108,7 +108,7 @@ Currently `hw-kafka-client` only supports delivery error callbacks:
 
 ```haskell
 producerProps :: ProducerProperties
-producerProps = brokersList [BrokerAddress "localhost:9092"]
+producerProps = brokersList ["localhost:9092"]
              <> setCallback (deliveryCallback print)
 ```
 
@@ -126,12 +126,12 @@ import Kafka.Producer
 
 -- Global producer properties
 producerProps :: ProducerProperties
-producerProps = brokersList [BrokerAddress "localhost:9092"]
+producerProps = brokersList ["localhost:9092"]
              <> logLevel KafkaLogDebug
 
 -- Topic to send messages to
 targetTopic :: TopicName
-targetTopic = TopicName "kafka-client-example-topic"
+targetTopic = "kafka-client-example-topic"
 
 -- Run an example
 runProducerExample :: IO ()

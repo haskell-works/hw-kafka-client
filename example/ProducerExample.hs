@@ -16,14 +16,14 @@ import Data.Text               (Text)
 
 -- Global producer properties
 producerProps :: ProducerProperties
-producerProps = brokersList [BrokerAddress "localhost:9092"]
+producerProps = brokersList ["localhost:9092"]
              <> sendTimeout (Timeout 10000)
              <> setCallback (deliveryCallback print)
              <> logLevel KafkaLogDebug
 
 -- Topic to send messages to
 targetTopic :: TopicName
-targetTopic = TopicName "kafka-client-example-topic"
+targetTopic = "kafka-client-example-topic"
 
 mkMessage :: Maybe ByteString -> Maybe ByteString -> ProducerRecord
 mkMessage k v = ProducerRecord

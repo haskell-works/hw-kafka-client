@@ -118,7 +118,7 @@ spec = do
                 var <- newEmptyMVar
                 let
                   msg = ProducerRecord
-                    { prTopic = TopicName "callback-topic"
+                    { prTopic = "callback-topic"
                     , prPartition = UnassignedPartition
                     , prKey = Nothing
                     , prValue = Just "test from producer"
@@ -136,7 +136,7 @@ spec = do
         specWithConsumer "Run consumer with sync polling" (consumerProps <> groupId (makeGroupId "sync") <> callbackPollMode CallbackPollModeSync) runConsumerSpec
 
     describe "Kafka.Consumer.BatchSpec" $ do
-        specWithConsumer "Batch consumer" (consumerProps <> groupId (ConsumerGroupId "batch-consumer")) $ do
+        specWithConsumer "Batch consumer" (consumerProps <> groupId "batch-consumer") $ do
             it "should consume first batch" $ \k -> do
                 res <- pollMessageBatch k (Timeout 1000) (BatchSize 5)
                 length res `shouldBe` 5
@@ -232,8 +232,8 @@ runConsumerSpec = do
   it "should return topic metadata" $ \k -> do
     res <- topicMetadata k (Timeout 1000) testTopic
     res `shouldSatisfy` isRight
-    (length . kmBrokers) <$> res `shouldBe` Right 1
-    (length . kmTopics) <$> res `shouldBe` Right 1
+    length . kmBrokers <$> res `shouldBe` Right 1
+    length . kmTopics <$> res `shouldBe` Right 1
 
   it "should describe all consumer groups" $ \k -> do
     res <- allConsumerGroupsInfo k (Timeout 1000)
@@ -248,7 +248,7 @@ runConsumerSpec = do
     fmap giGroup <$> res `shouldBe` Right [testGroupId]
 
   it "should describe non-existent consumer group" $ \k -> do
-    res <- consumerGroupInfo k (Timeout 1000) (ConsumerGroupId "does-not-exist")
+    res <- consumerGroupInfo k (Timeout 1000) "does-not-exist"
     res `shouldBe` Right []
 
   it "should read topic offsets for time" $ \k -> do

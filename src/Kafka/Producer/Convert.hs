@@ -28,13 +28,13 @@ producePartitionCInt = fromIntegral . producePartitionInt
 {-# INLINE producePartitionCInt #-}
 
 handleProduceErr :: Int -> IO (Maybe KafkaError)
-handleProduceErr (- 1) = (Just . kafkaRespErr) <$> getErrno
+handleProduceErr (- 1) = Just . kafkaRespErr <$> getErrno
 handleProduceErr 0 = return Nothing
 handleProduceErr _ = return $ Just KafkaInvalidReturnValue
 {-# INLINE handleProduceErr #-}
 
 handleProduceErr' :: Int -> IO (Either KafkaError ())
-handleProduceErr' (- 1) = (Left . kafkaRespErr) <$> getErrno
+handleProduceErr' (- 1) = Left . kafkaRespErr <$> getErrno
 handleProduceErr' 0 = return (Right ())
 handleProduceErr' _ = return $ Left KafkaInvalidReturnValue
 {-# INLINE handleProduceErr' #-}
