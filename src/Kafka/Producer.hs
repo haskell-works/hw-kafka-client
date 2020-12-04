@@ -15,7 +15,7 @@
 -- 
 -- -- Global producer properties
 -- producerProps :: 'ProducerProperties'
--- producerProps = 'brokersList' ['BrokerAddress' "localhost:9092"]
+-- producerProps = 'brokersList' ["localhost:9092"]
 --              <> 'logLevel' 'KafkaLogDebug'
 -- 
 -- -- Topic to send messages to

@@ -1,5 +1,6 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveGeneric      #-}
+{-# LANGUAGE DeriveDataTypeable         #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -37,6 +38,7 @@ import Data.Bifoldable      (Bifoldable (..))
 import Data.Bifunctor       (Bifunctor (..))
 import Data.Bitraversable   (Bitraversable (..), bimapM, bisequence)
 import Data.Int             (Int64)
+import Data.String          (IsString)
 import Data.Text            (Text)
 import Data.Typeable        (Typeable)
 import GHC.Generics         (Generic)
@@ -62,7 +64,9 @@ instance HasKafkaConf KafkaConsumer where
 -- | Consumer group ID. Different consumers with the same consumer group ID will get assigned different partitions of each subscribed topic. 
 -- 
 -- See <https://kafka.apache.org/documentation/#group.id Kafka documentation on consumer group>
-newtype ConsumerGroupId = ConsumerGroupId { unConsumerGroupId :: Text } deriving (Show, Ord, Eq, Generic)
+newtype ConsumerGroupId = ConsumerGroupId
+  { unConsumerGroupId :: Text
+  } deriving (Show, Ord, Eq, IsString, Generic)
 
 -- | A message offset in a partition
 newtype Offset          = Offset { unOffset :: Int64 } deriving (Show, Eq, Ord, Read, Generic)

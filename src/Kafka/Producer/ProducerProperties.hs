@@ -60,7 +60,7 @@ instance Monoid ProducerProperties where
 -- | Set the <https://kafka.apache.org/documentation/#bootstrap.servers list of brokers> to contact to connect to the Kafka cluster.
 brokersList :: [BrokerAddress] -> ProducerProperties
 brokersList bs =
-  let bs' = Text.intercalate "," ((\(BrokerAddress x) -> x) <$> bs)
+  let bs' = Text.intercalate "," (unBrokerAddress <$> bs)
    in extraProps $ M.fromList [("bootstrap.servers", bs')]
 
 -- | Set the producer callback.

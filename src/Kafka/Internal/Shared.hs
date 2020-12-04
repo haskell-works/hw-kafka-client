@@ -35,8 +35,8 @@ import           Kafka.Types              (KafkaError (..), Millis (..), Timeout
 
 pollEvents :: HasKafka a => a -> Maybe Timeout -> IO ()
 pollEvents a tm =
-  let timeout = maybe 0 (\(Timeout ms) -> ms) tm
-      (Kafka k) = getKafka a
+  let timeout = maybe 0 unTimeout tm
+      Kafka k = getKafka a
   in void (rdKafkaPoll k timeout)
 
 word8PtrToBS :: Int -> Word8Ptr -> IO BS.ByteString
