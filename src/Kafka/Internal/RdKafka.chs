@@ -415,7 +415,7 @@ rdKafkaConfSetLogCb conf cb = do
     withForeignPtr conf $ \c -> rdKafkaConfSetLogCb' c cb'
 
 ---- Stats Callback
-type StatsCallback' = Ptr RdKafkaT -> CString -> CSize -> Word8Ptr -> IO ()
+type StatsCallback' = Ptr RdKafkaT -> CString -> CSize -> Word8Ptr -> IO CInt
 type StatsCallback = Ptr RdKafkaT -> ByteString -> IO ()
 
 foreign import ccall safe "wrapper"
@@ -426,12 +426,12 @@ foreign import ccall safe "rd_kafka.h rd_kafka_conf_set_stats_cb"
 
 rdKafkaConfSetStatsCb :: RdKafkaConfTPtr -> StatsCallback -> IO ()
 rdKafkaConfSetStatsCb conf cb = do
-    cb' <- mkStatsCallback $ \k j jl _ -> BS.packCStringLen (j, cIntConv jl) >>= cb k
+    cb' <- mkStatsCallback $ \k j jl _ -> BS.packCStringLen (j, cIntConv jl) >>= cb k >> pure 0
     withForeignPtr conf $ \c -> rdKafkaConfSetStatsCb' c cb'
     return ()
 
 ---- Socket Callback
-type SocketCallback = Int -> Int -> Int -> Word8Ptr -> IO ()
+type SocketCallback = Int -> Int -> Int -> Word8Ptr -> IO CInt
 
 foreign import ccall safe "wrapper"
     mkSocketCallback :: SocketCallback -> IO (FunPtr SocketCallback)
@@ -442,7 +442,7 @@ foreign import ccall safe "rd_kafka.h rd_kafka_conf_set_socket_cb"
 rdKafkaConfSetSocketCb :: RdKafkaConfTPtr -> SocketCallback -> IO ()
 rdKafkaConfSetSocketCb conf cb = do
     cb' <- mkSocketCallback cb
-    withForeignPtr conf $ \c -> rdKafkaConfSetSocketCb' c cb'
+    withForeignPtr conf $ \c -> rdKafkaConfSetSocketCb' c cb' >> pure 0
     return ()
 
 {#fun rd_kafka_conf_set_opaque as ^
