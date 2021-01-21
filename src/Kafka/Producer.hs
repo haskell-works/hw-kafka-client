@@ -117,7 +117,8 @@ newProducer pps = liftIO $ do
   tc <- topicConf (TopicProps $ (ppTopicProps pps))
 
   -- add default delivery report callback
-  let Callback setCb = deliveryCallback (const mempty) in setCb kc
+  let Callback setDeliveryCallback = deliveryCallback (const mempty)
+  setDeliveryCallback kc
 
   -- set callbacks
   forM_ (ppCallbacks pps) (\(Callback setCb) -> setCb kc)
