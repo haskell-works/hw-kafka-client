@@ -15,7 +15,7 @@ import           Foreign.StablePtr      (castPtrToStablePtr, deRefStablePtr, fre
 import           Kafka.Callbacks        as X
 import           Kafka.Consumer.Types   (Offset(..))
 import           Kafka.Internal.RdKafka (RdKafkaMessageT(..), RdKafkaRespErrT(..), rdKafkaConfSetDrMsgCb)
-import           Kafka.Internal.Setup   (KafkaConf(..), getRdKafkaConf)
+import           Kafka.Internal.Setup   (KafkaConf(..), getRdKafkaConf, Callback(..))
 import           Kafka.Internal.Shared  (kafkaRespErr, readTopic, readKey, readPayload)
 import           Kafka.Producer.Types   (ProducerRecord(..), DeliveryReport(..), ProducePartition(..))
 import           Kafka.Types            (KafkaError(..), TopicName(..))
@@ -27,8 +27,8 @@ import           Kafka.Types            (KafkaError(..), TopicName(..))
 --   callbacks. For callbacks to individual messsages see
 --   'Kafka.Producer.produceMessage\''./
 --
-deliveryCallback :: (DeliveryReport -> IO ()) -> KafkaConf -> IO ()
-deliveryCallback callback kc = rdKafkaConfSetDrMsgCb (getRdKafkaConf kc) realCb
+deliveryCallback :: (DeliveryReport -> IO ()) -> Callback
+deliveryCallback callback = Callback $ \kc -> rdKafkaConfSetDrMsgCb (getRdKafkaConf kc) realCb
   where
     realCb :: t -> Ptr RdKafkaMessageT -> IO ()
     realCb _ mptr =
