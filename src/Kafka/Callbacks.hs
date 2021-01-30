@@ -8,7 +8,7 @@ where
 
 import Data.ByteString (ByteString)
 import Kafka.Internal.RdKafka (rdKafkaConfSetErrorCb, rdKafkaConfSetLogCb, rdKafkaConfSetStatsCb)
-import Kafka.Internal.Setup (HasKafkaConf(..), getRdKafkaConf, Callback(..))
+import Kafka.Internal.Setup (getRdKafkaConf, Callback(..))
 import Kafka.Types (KafkaError(..), KafkaLogLevel(..))
 
 -- | Add a callback for errors.

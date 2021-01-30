@@ -85,7 +85,7 @@ import           Kafka.Internal.RdKafka   (RdKafkaMessageT (..), RdKafkaRespErrT
 import           Kafka.Internal.Setup     (Kafka (..), KafkaConf (..), KafkaProps (..), TopicConf (..), TopicProps (..), kafkaConf, topicConf, Callback(..))
 import           Kafka.Internal.Shared    (pollEvents)
 import           Kafka.Producer.Convert   (copyMsgFlags, handleProduceErr', producePartitionCInt, producePartitionInt)
-import           Kafka.Producer.Types     (KafkaProducer (..), ImmediateError(..))
+import           Kafka.Producer.Types     (KafkaProducer (..))
 
 import Kafka.Producer.ProducerProperties as X
 import Kafka.Producer.Types              as X hiding (KafkaProducer)

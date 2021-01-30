@@ -69,7 +69,7 @@ where
 import           Control.Arrow              (left, (&&&))
 import           Control.Concurrent         (forkIO, modifyMVar, rtsSupportsBoundThreads, withMVar)
 import           Control.Exception          (bracket)
-import           Control.Monad              (forM_, mapM_, void, when)
+import           Control.Monad              (forM_, void, when)
 import           Control.Monad.IO.Class     (MonadIO (liftIO))
 import           Control.Monad.Trans.Except (ExceptT (ExceptT), runExceptT)
 import           Data.Bifunctor             (bimap, first)
