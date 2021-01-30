@@ -1,6 +1,6 @@
 #!/bin/bash
 
-RDKAFKA_VER="7478b5ef16aadd6543fe38bc6a2deb895c70da98"
+RDKAFKA_VER="849c066b559950b02e37a69256f0cb7b04381d0e"
 
 PRJ=$PWD
 DST="$PRJ/.librdkafka"

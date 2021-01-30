@@ -11,6 +11,7 @@ import Control.Monad (liftM)
 import Data.Int (Int32, Int64)
 import Data.Word (Word8)
 import Foreign.Concurrent (newForeignPtr)
+import qualified Foreign.Concurrent as Concurrent
 import Foreign.Marshal.Alloc (alloca, allocaBytes)
 import Foreign.Marshal.Array (peekArray, allocaArray)
 import Foreign.Storable (Storable(..))
@@ -838,9 +839,6 @@ newRdKafkaTopicConfT = do
     {enumToCInt `RdKafkaTypeT', `RdKafkaConfTPtr', id `CCharBufPointer', cIntConv `CSize'}
     -> `RdKafkaTPtr' #}
 
-foreign import ccall safe "rdkafka.h &rd_kafka_destroy"
-    rdKafkaDestroy :: FunPtr (Ptr RdKafkaT -> IO ())
-
 newRdKafkaT :: RdKafkaTypeT -> RdKafkaConfTPtr -> IO (Either Text RdKafkaTPtr)
 newRdKafkaT kafkaType confPtr =
     allocaBytes nErrorBytes $ \charPtr -> do
@@ -849,10 +847,15 @@ newRdKafkaT kafkaType confPtr =
         withForeignPtr ret $ \realPtr -> do
             if realPtr == nullPtr then peekCText charPtr >>= return . Left
             else do
-                -- do not call 'rd_kafka_close_consumer' on destroying all Kafka.
-                -- when needed, applications should do it explicitly.
-                -- {# call rd_kafka_destroy_flags #} realPtr 0x8
-                addForeignPtrFinalizer rdKafkaDestroy ret
+                -- Issue #151
+                -- rd_kafka_destroy_flags may call back into Haskell if an
+                -- error or log callback is set, so we must use a concurrent
+                -- finalizer
+                Concurrent.addForeignPtrFinalizer ret $ do
+                  -- do not call 'rd_kafka_close_consumer' on destroying all Kafka.
+                  -- when needed, applications should do it explicitly.
+                  -- RD_KAFKA_DESTROY_F_NO_CONSUMER_CLOSE = 0x8
+                  {# call rd_kafka_destroy_flags #} realPtr 0x8
                 return $ Right ret
 
 {#fun rd_kafka_brokers_add as ^
