@@ -1,4 +1,4 @@
-with import <nixpkgs> {};
+with import ./nix/nixpkgs.nix { };
 
 pkgs.mkShell {
   buildInputs = with pkgs; [
