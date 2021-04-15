@@ -6,6 +6,7 @@ pkgs.mkShell {
     zlib
     rdkafka
     nettools
+    niv
   ];
 
   shellHook = ''
