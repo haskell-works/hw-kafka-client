@@ -260,8 +260,8 @@ fromPartitionMetadataPtr pm = do
     { pmPartitionId     = PartitionId (id'RdKafkaMetadataPartitionT pm)
     , pmError           = kafkaErrorToMaybe $ KafkaResponseError (err'RdKafkaMetadataPartitionT pm)
     , pmLeader          = BrokerId (leader'RdKafkaMetadataPartitionT pm)
-    , pmReplicas        = (BrokerId . fromIntegral) <$> reps
-    , pmInSyncReplicas  = (BrokerId . fromIntegral) <$> isrs
+    , pmReplicas        = BrokerId . fromIntegral <$> reps
+    , pmInSyncReplicas  = BrokerId . fromIntegral <$> isrs
     }
 
 
@@ -296,4 +296,4 @@ groupStateFromKafkaString s = case s of
   "Stable"             -> GroupStable
   "Dead"               -> GroupDead
   "Empty"              -> GroupEmpty
-  _                    -> error $ "Unknown group state: " <> (Text.unpack s)
+  _                    -> error $ "Unknown group state: " <> Text.unpack s

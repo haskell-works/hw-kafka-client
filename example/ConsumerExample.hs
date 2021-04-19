@@ -11,8 +11,8 @@ import Data.Text         (Text)
 
 -- Global consumer properties
 consumerProps :: ConsumerProperties
-consumerProps = brokersList [BrokerAddress "localhost:9092"]
-             <> groupId (ConsumerGroupId "consumer_example_group")
+consumerProps = brokersList ["localhost:9092"]
+             <> groupId "consumer_example_group"
              <> noAutoCommit
              <> setCallback (rebalanceCallback printingRebalanceCallback)
              <> setCallback (offsetCommitCallback printingOffsetCallback)
@@ -20,7 +20,7 @@ consumerProps = brokersList [BrokerAddress "localhost:9092"]
 
 -- Subscription to topics
 consumerSub :: Subscription
-consumerSub = topics [TopicName "kafka-client-example-topic"]
+consumerSub = topics ["kafka-client-example-topic"]
            <> offsetReset Earliest
 
 -- Running an example
@@ -32,7 +32,7 @@ runConsumerExample = do
     where
       mkConsumer = newConsumer consumerProps consumerSub
       clConsumer (Left err) = return (Left err)
-      clConsumer (Right kc) = (maybe (Right ()) Left) <$> closeConsumer kc
+      clConsumer (Right kc) = maybe (Right ()) Left <$> closeConsumer kc
       runHandler (Left err) = return (Left err)
       runHandler (Right kc) = processMessages kc
 
