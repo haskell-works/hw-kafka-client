@@ -1,4 +1,4 @@
-with import <nixpkgs> {};
+with import ./nix/nixpkgs.nix { };
 
 pkgs.mkShell {
   buildInputs = with pkgs; [
@@ -6,6 +6,7 @@ pkgs.mkShell {
     zlib
     rdkafka
     nettools
+    niv
   ];
 
   shellHook = ''
