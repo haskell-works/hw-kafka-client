@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Kafka.Internal.Shared
 ( pollEvents
 , word8PtrToBS
@@ -29,7 +31,7 @@ import           Foreign.Marshal.Alloc    (alloca)
 import           Foreign.Ptr              (Ptr, nullPtr)
 import           Foreign.Storable         (Storable (peek))
 import           Kafka.Consumer.Types     (Timestamp (..))
-import           Kafka.Internal.RdKafka   (RdKafkaMessageT (..), RdKafkaMessageTPtr, RdKafkaRespErrT (..), RdKafkaTimestampTypeT (..), Word8Ptr, rdKafkaErrno2err, rdKafkaMessageTimestamp, rdKafkaPoll, rdKafkaTopicName)
+import           Kafka.Internal.RdKafka   (RdKafkaMessageT (..), RdKafkaMessageTPtr, RdKafkaRespErrT (..), RdKafkaTimestampTypeT (..), Word8Ptr, rdKafkaErrno2err, rdKafkaMessageTimestamp, rdKafkaPoll, rdKafkaTopicName, rdKafkaHeaderGetAll, rdKafkaMessageHeaders)
 import           Kafka.Internal.Setup     (HasKafka (..), Kafka (..))
 import           Kafka.Types              (KafkaError (..), Millis (..), Timeout (..))
 
@@ -101,6 +103,30 @@ readTimestamp msg =
                RdKafkaTimestampCreateTime    -> CreateTime (Millis ts)
                RdKafkaTimestampLogAppendTime -> LogAppendTime (Millis ts)
                RdKafkaTimestampNotAvailable  -> NoTimestamp
+
+
+readHeaders :: RdKafkaMessageTPtr -> IO (Either RdKafkaRespErrT [(BS.ByteString, BS.ByteString)])
+readHeaders msg = do
+    eiHeaders <- rdKafkaMessageHeaders msg
+    case eiHeaders of 
+        Left RdKafkaRespErrNoent -> return $ Right []
+        Left e -> return $ Left e
+        Right ptHeaders -> extractHeaders ptHeaders
+    where extractHeaders ptHeaders = 
+            alloca $ \nptr -> 
+                alloca $ \vptr -> 
+                    alloca $ \szptr -> 
+                        let go acc idx = rdKafkaHeaderGetAll ptHeaders idx nptr vptr szptr >>= \case
+                                RdKafkaRespErrNoent -> return $ Right acc
+                                RdKafkaRespErrNoError -> do
+                                    cstr <- peek nptr
+                                    wptr <- peek vptr
+                                    csize <- peek szptr
+                                    hn <- BS.packCString cstr
+                                    hv <- word8PtrToBS (fromIntegral csize) wptr
+                                    go ((hn, hv) : acc) (idx + 1)
+                                _ -> error "Unexpected error code"
+                        in go [] 0
 
 readBS :: (t -> Int) -> (t -> Ptr Word8) -> t -> IO (Maybe BS.ByteString)
 readBS flen fdata s = if fdata s == nullPtr
