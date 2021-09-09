@@ -7,6 +7,7 @@ pkgs.mkShell {
     rdkafka
     nettools
     niv
+    gmp
   ];
 
   shellHook = ''
