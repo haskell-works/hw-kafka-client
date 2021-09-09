@@ -37,6 +37,7 @@ where
 import Data.Bifoldable      (Bifoldable (..))
 import Data.Bifunctor       (Bifunctor (..))
 import Data.Bitraversable   (Bitraversable (..), bimapM, bisequence)
+import Data.ByteString      (ByteString)
 import Data.Int             (Int64)
 import Data.String          (IsString)
 import Data.Text            (Text)
@@ -139,17 +140,18 @@ data TopicPartition = TopicPartition
 
 -- | Represents a /received/ message from Kafka (i.e. used in a consumer)
 data ConsumerRecord k v = ConsumerRecord
-  { crTopic     :: !TopicName    -- ^ Kafka topic this message was received from
-  , crPartition :: !PartitionId  -- ^ Kafka partition this message was received from
-  , crOffset    :: !Offset       -- ^ Offset within the 'crPartition' Kafka partition
-  , crTimestamp :: !Timestamp    -- ^ Message timestamp
-  , crKey       :: !k            -- ^ Message key
-  , crValue     :: !v            -- ^ Message value
+  { crTopic     :: !TopicName                  -- ^ Kafka topic this message was received from
+  , crPartition :: !PartitionId                -- ^ Kafka partition this message was received from
+  , crOffset    :: !Offset                     -- ^ Offset within the 'crPartition' Kafka partition
+  , crTimestamp :: !Timestamp                  -- ^ Message timestamp
+  , crHeaders   :: ![(ByteString, ByteString)] -- ^ Message headers
+  , crKey       :: !k                          -- ^ Message key
+  , crValue     :: !v                          -- ^ Message value
   }
   deriving (Eq, Show, Read, Typeable, Generic)
 
 instance Bifunctor ConsumerRecord where
-  bimap f g (ConsumerRecord t p o ts k v) =  ConsumerRecord t p o ts (f k) (g v)
+  bimap f g (ConsumerRecord t p o ts hds k v) =  ConsumerRecord t p o ts hds (f k) (g v)
   {-# INLINE bimap #-}
 
 instance Functor (ConsumerRecord k) where

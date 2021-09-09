@@ -975,10 +975,7 @@ newRdKafkaTopicT kafkaPtr topic topicConfPtr = do
     return res
 
 -------------------------------------------------------------------------------------------------
----- Headers
-
-data RdKafkaHeadersT
-{#pointer *rd_kafka_headers_t as RdKafkaHeadersTPtr foreign -> RdKafkaHeadersT #}
+---- Errors
 
 data RdKafkaErrorT
 {#pointer *rd_kafka_error_t as RdKafkaErrorTPtr foreign -> RdKafkaErrorT #}
@@ -988,6 +985,12 @@ foreign import ccall "rdkafka.h &rd_kafka_error_destroy"
 
 foreign import ccall "rdkafka.h rd_kafka_error_destroy"
     rdKafkaErrorDestroy :: Ptr RdKafkaErrorT -> IO ()
+
+-------------------------------------------------------------------------------------------------
+---- Headers
+
+data RdKafkaHeadersT
+{#pointer *rd_kafka_headers_t as RdKafkaHeadersTPtr -> RdKafkaHeadersT #}
 
 {#fun rd_kafka_headers_new as ^
     {`Int'} -> `RdKafkaHeadersTPtr' #}
@@ -1010,15 +1013,8 @@ foreign import ccall "rdkafka.h rd_kafka_headers_destroy"
 {#fun rd_kafka_message_set_headers as ^
     {`RdKafkaMessageTPtr', `RdKafkaHeadersTPtr'} -> `()' #}
 
-{#fun rd_kafka_message_detach_headers as rdKafkaMessageDetachHeaders'
-    {`RdKafkaMessageTPtr', alloca- `Ptr RdKafkaHeadersT' peekPtr*} -> `RdKafkaRespErrT' cIntToEnum #}
-
-rdKafkaMessageHeaders :: RdKafkaMessageTPtr -> IO (Either RdKafkaRespErrT RdKafkaHeadersTPtr)
-rdKafkaMessageHeaders msgPt = do
-    (err, res) <- rdKafkaMessageDetachHeaders' msgPt
-    case err of
-        RdKafkaRespErrNoError -> Right <$> newForeignPtr res (rdKafkaHeadersDestroy res)
-        e -> return $ Left e
+{#fun rd_kafka_message_headers as ^
+    {`RdKafkaMessageTPtr', alloca- `RdKafkaHeadersTPtr' peekPtr*} -> `RdKafkaRespErrT' cIntToEnum #}
 
 --- Producev api
 

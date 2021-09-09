@@ -10,6 +10,7 @@ module Kafka.Internal.Shared
 , kafkaErrorToEither
 , kafkaErrorToMaybe
 , maybeToLeft
+, readHeaders
 , readPayload
 , readTopic
 , readKey
@@ -107,11 +108,11 @@ readTimestamp msg =
 
 readHeaders :: RdKafkaMessageTPtr -> IO (Either RdKafkaRespErrT [(BS.ByteString, BS.ByteString)])
 readHeaders msg = do
-    eiHeaders <- rdKafkaMessageHeaders msg
-    case eiHeaders of 
-        Left RdKafkaRespErrNoent -> return $ Right []
-        Left e -> return $ Left e
-        Right ptHeaders -> extractHeaders ptHeaders
+    (err, headersPtr) <- rdKafkaMessageHeaders msg
+    case err of 
+        RdKafkaRespErrNoent -> return $ Right []
+        RdKafkaRespErrNoError -> extractHeaders headersPtr
+        e -> return $ Left e
     where extractHeaders ptHeaders = 
             alloca $ \nptr -> 
                 alloca $ \vptr -> 
