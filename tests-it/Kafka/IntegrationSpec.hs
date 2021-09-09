@@ -6,7 +6,7 @@ module Kafka.IntegrationSpec
 where
 
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
-import Control.Monad           (forM, forM_)
+import Control.Monad           (forM, forM_, void)
 import Control.Monad.Loops
 import Data.Either
 import Data.Map                (fromList)
@@ -151,6 +151,23 @@ spec = do
             it "should consume empty batch when there are no messages" $ \k -> do
                 res <- pollMessageBatch k (Timeout 1000) (BatchSize 50)
                 length res `shouldBe` 0
+    
+    describe "Kafka.Headers.Spec" $ do
+        let testHeaders = headersFromList [("a-header-name", "a-header-value"), ("b-header-name", "b-header-value")]
+
+        specWithKafka "Consumer after records with headers are published" consumerProps $ do
+              it "1. sends 2 messages to test topic enriched with headers" $ \(k, prod) -> do
+                  void $ receiveMessages k
+                  
+                  res  <- sendMessagesWithHeaders (testMessages testTopic) testHeaders prod
+                  res `shouldBe` Right ()
+              it "2. should receive 2 messages enriched with headers" $ \(k, _) -> do
+                  res <- receiveMessages k
+                  (length <$> res) `shouldBe` Right 2
+                  
+                  forM_ res $ \rcs -> 
+                    forM_ rcs ((`shouldBe` testHeaders) . crHeaders)
+
 ----------------------------------------------------------------------------------------------------------------
 
 data ReadState = Skip | Read
@@ -178,6 +195,10 @@ testMessages t =
 sendMessages :: [ProducerRecord] -> KafkaProducer -> IO (Either KafkaError ())
 sendMessages msgs prod =
   Right <$> (forM_ msgs (produceMessage prod) >> flushProducer prod)
+
+sendMessagesWithHeaders :: [ProducerRecord] -> Headers -> KafkaProducer -> IO (Either KafkaError ())
+sendMessagesWithHeaders msgs hdrs prod =
+  Right <$> (forM_ msgs (produceMessageWithHeaders prod hdrs) >> flushProducer prod)
 
 runConsumerSpec :: SpecWith KafkaConsumer
 runConsumerSpec = do

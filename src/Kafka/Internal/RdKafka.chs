@@ -1,7 +1,5 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE EmptyDataDecls #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE CApiFFI #-}
 
 module Kafka.Internal.RdKafka where
 
@@ -978,57 +976,40 @@ newRdKafkaTopicT kafkaPtr topic topicConfPtr = do
 ---- Errors
 
 data RdKafkaErrorT
-{#pointer *rd_kafka_error_t as RdKafkaErrorTPtr foreign -> RdKafkaErrorT #}
+{#pointer *rd_kafka_error_t as RdKafkaErrorTPtr -> RdKafkaErrorT #}
 
-foreign import ccall "rdkafka.h &rd_kafka_error_destroy"
-    rdKafkaErrorDestroyF :: FinalizerPtr RdKafkaErrorT
+{#fun rd_kafka_error_code as ^
+    {`RdKafkaErrorTPtr'} -> `RdKafkaRespErrT' cIntToEnum #}
 
-foreign import ccall "rdkafka.h rd_kafka_error_destroy"
-    rdKafkaErrorDestroy :: Ptr RdKafkaErrorT -> IO ()
-
+{#fun rd_kafka_error_destroy as ^
+    {`RdKafkaErrorTPtr'} -> `()' #}
 -------------------------------------------------------------------------------------------------
 ---- Headers
 
 data RdKafkaHeadersT
 {#pointer *rd_kafka_headers_t as RdKafkaHeadersTPtr -> RdKafkaHeadersT #}
 
-{#fun rd_kafka_headers_new as ^
-    {`Int'} -> `RdKafkaHeadersTPtr' #}
-
-foreign import ccall "rdkafka.h &rd_kafka_headers_destroy"
-    rdKafkaHeadersDestroyF :: FinalizerPtr RdKafkaHeadersT
-
-foreign import ccall "rdkafka.h rd_kafka_headers_destroy"
-    rdKafkaHeadersDestroy :: Ptr RdKafkaHeadersT -> IO ()
-
-{#fun rd_kafka_header_cnt as ^
-    {`RdKafkaHeadersTPtr'} -> `CSize' cIntConv #}
-
-{#fun rd_kafka_header_add as ^
-    {`RdKafkaHeadersTPtr', `CString', cIntConv `CSize', `Ptr ()', `CLong'} -> `CSize' cIntConv #}
-
 {#fun rd_kafka_header_get_all as ^
     {`RdKafkaHeadersTPtr', cIntConv `CSize', castPtr `Ptr CString', castPtr `Ptr Word8Ptr', `CSizePtr'} -> `RdKafkaRespErrT' cIntToEnum #}
-
-{#fun rd_kafka_message_set_headers as ^
-    {`RdKafkaMessageTPtr', `RdKafkaHeadersTPtr'} -> `()' #}
 
 {#fun rd_kafka_message_headers as ^
     {`RdKafkaMessageTPtr', alloca- `RdKafkaHeadersTPtr' peekPtr*} -> `RdKafkaRespErrT' cIntToEnum #}
 
---- Producev api
+--- Produceva api
 
 {#enum rd_kafka_vtype_t as ^ {underscoreToCase} deriving (Show, Eq) #}
 
 data RdKafkaVuT
     = Topic'RdKafkaVu CString
     | TopicHandle'RdKafkaVu (Ptr RdKafkaTopicT)
-    | Partition'RdKafkaVu CInt
+    | Partition'RdKafkaVu CInt32T
     | Value'RdKafkaVu Word8Ptr CSize
     | Key'RdKafkaVu Word8Ptr CSize
     | MsgFlags'RdKafkaVu CInt
-    | Timestamp'RdKafkaVu CLong
-    | Headers'RdKafkaVu (Ptr RdKafkaHeadersT) -- The message object will assume ownership of the headers (unless producev() fails)
+    | Timestamp'RdKafkaVu CInt64T
+    | Opaque'RdKafkaVu (Ptr ())
+    | Header'RdKafkaVu CString Word8Ptr CSize
+    | Headers'RdKafkaVu (Ptr RdKafkaHeadersT) -- The message object will assume ownership of the headers (unless produceva() fails)
     | End'RdKafkaVu
 
 {#pointer *rd_kafka_vu_t as RdKafkaVuTPtr foreign -> RdKafkaVuT #}
@@ -1052,8 +1033,12 @@ instance Storable RdKafkaVuT where
             sz <- ({#get rd_kafka_vu_t->u.mem.size #} p)
             return $ Key'RdKafkaVu nm (cIntConv sz)
         RdKafkaVtypeRkt   -> TopicHandle'RdKafkaVu <$> ({#get rd_kafka_vu_t->u.rkt #} p)
-        -- RdKafkaVtypeOpaque
-        -- RdKafkaVtypeHeader
+        RdKafkaVtypeOpaque -> Opaque'RdKafkaVu <$> ({#get rd_kafka_vu_t->u.ptr #} p)
+        RdKafkaVtypeHeader -> do
+            nm <- ({#get rd_kafka_vu_t->u.header.name #} p)
+            val' <- liftM castPtr ({#get rd_kafka_vu_t->u.header.val #} p)
+            sz <- ({#get rd_kafka_vu_t->u.header.size #} p)
+            return $ Header'RdKafkaVu nm val' (cIntConv sz)
     poke p End'RdKafkaVu = 
         {#set rd_kafka_vu_t.vtype #} p (enumToCInt RdKafkaVtypeEnd)
     poke p (Topic'RdKafkaVu str) = do
@@ -1082,6 +1067,14 @@ instance Storable RdKafkaVuT where
         {#set rd_kafka_vu_t.vtype #} p (enumToCInt RdKafkaVtypeKey)        
         {#set rd_kafka_vu_t.u.mem.size #} p (cIntConv sz)
         {#set rd_kafka_vu_t.u.mem.ptr #} p (castPtr pl)
+    poke p (Opaque'RdKafkaVu ptr') = do
+        {#set rd_kafka_vu_t.vtype #} p (enumToCInt RdKafkaVtypeOpaque)        
+        {#set rd_kafka_vu_t.u.ptr #} p ptr'
+    poke p (Header'RdKafkaVu nm val' sz) = do
+        {#set rd_kafka_vu_t.vtype #} p (enumToCInt RdKafkaVtypeHeader)        
+        {#set rd_kafka_vu_t.u.header.size #} p (cIntConv sz)
+        {#set rd_kafka_vu_t.u.header.name #} p nm
+        {#set rd_kafka_vu_t.u.header.val #} p (castPtr val')
 
 {#fun rd_kafka_produceva as rdKafkaMessageProduceVa'
     {`RdKafkaTPtr', `RdKafkaVuTPtr', `CLong'} -> `RdKafkaErrorTPtr' #}

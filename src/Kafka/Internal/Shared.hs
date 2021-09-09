@@ -34,7 +34,7 @@ import           Foreign.Storable         (Storable (peek))
 import           Kafka.Consumer.Types     (Timestamp (..))
 import           Kafka.Internal.RdKafka   (RdKafkaMessageT (..), RdKafkaMessageTPtr, RdKafkaRespErrT (..), RdKafkaTimestampTypeT (..), Word8Ptr, rdKafkaErrno2err, rdKafkaMessageTimestamp, rdKafkaPoll, rdKafkaTopicName, rdKafkaHeaderGetAll, rdKafkaMessageHeaders)
 import           Kafka.Internal.Setup     (HasKafka (..), Kafka (..))
-import           Kafka.Types              (KafkaError (..), Millis (..), Timeout (..))
+import           Kafka.Types              (KafkaError (..), Millis (..), Timeout (..), Headers, headersFromList)
 
 pollEvents :: HasKafka a => a -> Maybe Timeout -> IO ()
 pollEvents a tm =
@@ -106,17 +106,17 @@ readTimestamp msg =
                RdKafkaTimestampNotAvailable  -> NoTimestamp
 
 
-readHeaders :: RdKafkaMessageTPtr -> IO (Either RdKafkaRespErrT [(BS.ByteString, BS.ByteString)])
+readHeaders :: RdKafkaMessageTPtr -> IO (Either RdKafkaRespErrT Headers)
 readHeaders msg = do
     (err, headersPtr) <- rdKafkaMessageHeaders msg
-    case err of 
-        RdKafkaRespErrNoent -> return $ Right []
-        RdKafkaRespErrNoError -> extractHeaders headersPtr
+    case err of
+        RdKafkaRespErrNoent -> return $ Right mempty
+        RdKafkaRespErrNoError -> fmap headersFromList <$> extractHeaders headersPtr
         e -> return $ Left e
-    where extractHeaders ptHeaders = 
-            alloca $ \nptr -> 
-                alloca $ \vptr -> 
-                    alloca $ \szptr -> 
+    where extractHeaders ptHeaders =
+            alloca $ \nptr ->
+                alloca $ \vptr ->
+                    alloca $ \szptr ->
                         let go acc idx = rdKafkaHeaderGetAll ptHeaders idx nptr vptr szptr >>= \case
                                 RdKafkaRespErrNoent -> return $ Right acc
                                 RdKafkaRespErrNoError -> do

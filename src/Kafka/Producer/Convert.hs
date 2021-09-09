@@ -4,12 +4,13 @@ module Kafka.Producer.Convert
 , producePartitionCInt
 , handleProduceErr
 , handleProduceErr'
+, handleProduceErrT
 )
 where
 
 import           Foreign.C.Error        (getErrno)
 import           Foreign.C.Types        (CInt)
-import           Kafka.Internal.RdKafka (rdKafkaMsgFlagCopy)
+import           Kafka.Internal.RdKafka (RdKafkaRespErrT(..), rdKafkaMsgFlagCopy)
 import           Kafka.Internal.Shared  (kafkaRespErr)
 import           Kafka.Types            (KafkaError(..))
 import           Kafka.Producer.Types   (ProducePartition(..))
@@ -32,6 +33,12 @@ handleProduceErr (- 1) = Just . kafkaRespErr <$> getErrno
 handleProduceErr 0 = return Nothing
 handleProduceErr _ = return $ Just KafkaInvalidReturnValue
 {-# INLINE handleProduceErr #-}
+
+handleProduceErrT :: RdKafkaRespErrT -> IO (Maybe KafkaError)
+handleProduceErrT RdKafkaRespErrUnknown = Just . kafkaRespErr <$> getErrno
+handleProduceErrT RdKafkaRespErrNoError = return Nothing
+handleProduceErrT e = return $ Just (KafkaResponseError e)
+{-# INLINE handleProduceErrT #-}
 
 handleProduceErr' :: Int -> IO (Either KafkaError ())
 handleProduceErr' (- 1) = Left . kafkaRespErr <$> getErrno

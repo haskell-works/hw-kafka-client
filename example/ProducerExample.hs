@@ -61,6 +61,8 @@ sendMessages prod = do
   putStrLn "And the last one..."
   msg3 <- getLine
   err3 <- produceMessage prod (mkMessage (Just "key3") (Just $ pack msg3))
+  
+  err4 <- produceMessageWithHeaders prod (headersFromList [("fancy", "header")]) (mkMessage (Just "key4") (Just $ pack msg3))
 
   -- errs <- produceMessageBatch prod
   --           [ mkMessage (Just "b-1") (Just "batch-1")

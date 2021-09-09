@@ -58,8 +58,8 @@ module Kafka.Producer
 , module X
 , runProducer
 , newProducer
-, produceMessage, produceMessageBatch
-, produceMessage'
+, produceMessage, produceMessageBatch, produceMessageWithHeaders
+, produceMessage', produceMessageWithHeaders'
 , flushProducer
 , closeProducer
 , RdKafkaRespErrT (..)
@@ -76,15 +76,16 @@ import           Data.Function            (on)
 import           Data.List                (groupBy, sortBy)
 import           Data.Ord                 (comparing)
 import qualified Data.Text                as Text
+import           Foreign.C.String         (withCString)
 import           Foreign.ForeignPtr       (newForeignPtr_, withForeignPtr)
 import           Foreign.Marshal.Array    (withArrayLen)
 import           Foreign.Ptr              (Ptr, nullPtr, plusPtr)
 import           Foreign.Storable         (Storable (..))
 import           Foreign.StablePtr        (newStablePtr, castStablePtrToPtr)
-import           Kafka.Internal.RdKafka   (RdKafkaMessageT (..), RdKafkaRespErrT (..), RdKafkaTypeT (..), destroyUnmanagedRdKafkaTopic, newRdKafkaT, newUnmanagedRdKafkaTopicT, rdKafkaOutqLen, rdKafkaProduce, rdKafkaProduceBatch, rdKafkaSetLogLevel)
+import           Kafka.Internal.RdKafka   (RdKafkaMessageT (..), RdKafkaRespErrT (..), RdKafkaTypeT (..), RdKafkaVuT(..), destroyUnmanagedRdKafkaTopic, newRdKafkaT, newUnmanagedRdKafkaTopicT, rdKafkaErrorCode, rdKafkaErrorDestroy, rdKafkaOutqLen, rdKafkaProduceBatch, rdKafkaMessageProduceVa, rdKafkaSetLogLevel)
 import           Kafka.Internal.Setup     (Kafka (..), KafkaConf (..), KafkaProps (..), TopicConf (..), TopicProps (..), kafkaConf, topicConf, Callback(..))
 import           Kafka.Internal.Shared    (pollEvents)
-import           Kafka.Producer.Convert   (copyMsgFlags, handleProduceErr', producePartitionCInt, producePartitionInt)
+import           Kafka.Producer.Convert   (copyMsgFlags, handleProduceErrT, producePartitionCInt, producePartitionInt)
 import           Kafka.Producer.Types     (KafkaProducer (..))
 
 import Kafka.Producer.ProducerProperties as X
@@ -144,6 +145,18 @@ produceMessage kp m = produceMessage' kp m (pure . mempty) >>= adjustRes
       Right () -> pure Nothing
       Left (ImmediateError err) -> pure (Just err)
 
+-- | Sends a single message with a registered callback and headers.
+produceMessageWithHeaders :: MonadIO m
+                => KafkaProducer
+                -> Headers
+                -> ProducerRecord
+                -> m (Maybe KafkaError)
+produceMessageWithHeaders kp headers msg = produceMessageWithHeaders' kp headers msg (pure . mempty) >>= adjustRes
+  where
+    adjustRes = \case
+      Right () -> pure Nothing
+      Left (ImmediateError err) -> pure (Just err)
+
 -- | Sends a single message with a registered callback.
 --
 --   The callback can be a long running process, as it is forked by the thread
@@ -154,35 +167,45 @@ produceMessage' :: MonadIO m
                 -> ProducerRecord
                 -> (DeliveryReport -> IO ())
                 -> m (Either ImmediateError ())
-produceMessage' kp@(KafkaProducer (Kafka k) _ (TopicConf tc)) msg cb = liftIO $
-  fireCallbacks >> bracket (mkTopic . prTopic $ msg) closeTopic withTopic
+produceMessage' kp = produceMessageWithHeaders' kp mempty
+
+-- | Sends a single message with a registered callback and headers.
+--
+--   The callback can be a long running process, as it is forked by the thread
+--   that handles the delivery reports.
+--
+produceMessageWithHeaders' :: MonadIO m
+                => KafkaProducer
+                -> Headers
+                -> ProducerRecord
+                -> (DeliveryReport -> IO ())
+                -> m (Either ImmediateError ())
+produceMessageWithHeaders' kp@(KafkaProducer (Kafka k) _ _) headers msg cb = liftIO $
+  fireCallbacks >> produceIt
   where
     fireCallbacks =
       pollEvents kp . Just . Timeout $ 0
 
-    mkTopic (TopicName tn) =
-      newUnmanagedRdKafkaTopicT k (Text.unpack tn) (Just tc)
-
-    closeTopic = either mempty destroyUnmanagedRdKafkaTopic
-
-    withTopic (Left err) = return . Left . ImmediateError . KafkaError . Text.pack $ err
-    withTopic (Right topic) =
+    produceIt =
       withBS (prValue msg) $ \payloadPtr payloadLength ->
-        withBS (prKey msg) $ \keyPtr keyLength -> do
-          callbackPtr <- newStablePtr cb
-          res <- handleProduceErr' =<< rdKafkaProduce
-            topic
-            (producePartitionCInt (prPartition msg))
-            copyMsgFlags
-            payloadPtr
-            (fromIntegral payloadLength)
-            keyPtr
-            (fromIntegral keyLength)
-            (castStablePtrToPtr callbackPtr)
+        withBS (prKey msg) $ \keyPtr keyLength ->
+          withHeaders headers $ \hdrs ->
+            withCString (Text.unpack . unTopicName . prTopic $ msg) $ \topicName -> do
+              callbackPtr <- newStablePtr cb
+              let opts = [
+                      Topic'RdKafkaVu topicName
+                    , Partition'RdKafkaVu . producePartitionCInt . prPartition $ msg
+                    , MsgFlags'RdKafkaVu (fromIntegral copyMsgFlags)
+                    , Value'RdKafkaVu payloadPtr (fromIntegral payloadLength)
+                    , Key'RdKafkaVu keyPtr (fromIntegral keyLength)
+                    , Opaque'RdKafkaVu (castStablePtrToPtr callbackPtr)
+                    ]
 
-          pure $ case res of
-            Left err -> Left . ImmediateError $ err
-            Right () -> Right ()
+              code <- bracket (rdKafkaMessageProduceVa k (hdrs ++ opts)) rdKafkaErrorDestroy rdKafkaErrorCode
+              res  <- handleProduceErrT code
+              pure $ case res of
+                Just err -> Left . ImmediateError $ err
+                Nothing -> Right ()
 
 -- | Sends a batch of messages.
 -- Returns a list of messages which it was unable to send with corresponding errors.
@@ -254,6 +277,15 @@ flushProducer kp = liftIO $ do
       else flushProducer kp
 
 ------------------------------------------------------------------------------------
+
+withHeaders :: Headers -> ([RdKafkaVuT] -> IO a) -> IO a
+withHeaders hds handle = go (headersToList hds) []
+  where
+    go [] acc = handle acc
+    go ((nm, val) : xs) acc =
+        BS.useAsCString nm $ \cnm ->
+          withBS (Just val) $ \vp vl ->
+            go xs (Header'RdKafkaVu cnm vp (fromIntegral vl) : acc)
 
 withBS :: Maybe BS.ByteString -> (Ptr a -> Int -> IO b) -> IO b
 withBS Nothing f = f nullPtr 0

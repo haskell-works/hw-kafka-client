@@ -37,14 +37,13 @@ where
 import Data.Bifoldable      (Bifoldable (..))
 import Data.Bifunctor       (Bifunctor (..))
 import Data.Bitraversable   (Bitraversable (..), bimapM, bisequence)
-import Data.ByteString      (ByteString)
 import Data.Int             (Int64)
 import Data.String          (IsString)
 import Data.Text            (Text)
 import Data.Typeable        (Typeable)
 import GHC.Generics         (Generic)
 import Kafka.Internal.Setup (HasKafka (..), HasKafkaConf (..), Kafka (..), KafkaConf (..))
-import Kafka.Types          (Millis (..), PartitionId (..), TopicName (..))
+import Kafka.Types          (Millis (..), PartitionId (..), TopicName (..), Headers)
 
 -- | The main type for Kafka consumption, used e.g. to poll and commit messages.
 -- 
@@ -140,13 +139,13 @@ data TopicPartition = TopicPartition
 
 -- | Represents a /received/ message from Kafka (i.e. used in a consumer)
 data ConsumerRecord k v = ConsumerRecord
-  { crTopic     :: !TopicName                  -- ^ Kafka topic this message was received from
-  , crPartition :: !PartitionId                -- ^ Kafka partition this message was received from
-  , crOffset    :: !Offset                     -- ^ Offset within the 'crPartition' Kafka partition
-  , crTimestamp :: !Timestamp                  -- ^ Message timestamp
-  , crHeaders   :: ![(ByteString, ByteString)] -- ^ Message headers
-  , crKey       :: !k                          -- ^ Message key
-  , crValue     :: !v                          -- ^ Message value
+  { crTopic     :: !TopicName    -- ^ Kafka topic this message was received from
+  , crPartition :: !PartitionId  -- ^ Kafka partition this message was received from
+  , crOffset    :: !Offset       -- ^ Offset within the 'crPartition' Kafka partition
+  , crTimestamp :: !Timestamp    -- ^ Message timestamp
+  , crHeaders   :: !Headers      -- ^ Message headers
+  , crKey       :: !k            -- ^ Message key
+  , crValue     :: !v            -- ^ Message value
   }
   deriving (Eq, Show, Read, Typeable, Generic)
 
