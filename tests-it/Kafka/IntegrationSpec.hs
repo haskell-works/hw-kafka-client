@@ -10,6 +10,7 @@ import Control.Monad           (forM, forM_, void)
 import Control.Monad.Loops
 import Data.Either
 import Data.Map                (fromList)
+import qualified Data.Set as Set
 import Data.Monoid             ((<>))
 import Kafka.Consumer
 import Kafka.Metadata
@@ -155,7 +156,7 @@ spec = do
     describe "Kafka.Headers.Spec" $ do
         let testHeaders = headersFromList [("a-header-name", "a-header-value"), ("b-header-name", "b-header-value")]
 
-        specWithKafka "Consumer after records with headers are published" consumerProps $ do
+        specWithKafka "Headers consumer/producer" consumerProps $ do
               it "1. sends 2 messages to test topic enriched with headers" $ \(k, prod) -> do
                   void $ receiveMessages k
                   
@@ -166,7 +167,7 @@ spec = do
                   (length <$> res) `shouldBe` Right 2
                   
                   forM_ res $ \rcs -> 
-                    forM_ rcs ((`shouldBe` testHeaders) . crHeaders)
+                    forM_ rcs ((`shouldBe` Set.fromList (headersToList testHeaders)) . Set.fromList . headersToList . crHeaders)
 
 ----------------------------------------------------------------------------------------------------------------
 

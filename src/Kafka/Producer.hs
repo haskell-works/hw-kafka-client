@@ -79,6 +79,7 @@ import qualified Data.Text                as Text
 import           Foreign.C.String         (withCString)
 import           Foreign.ForeignPtr       (newForeignPtr_, withForeignPtr)
 import           Foreign.Marshal.Array    (withArrayLen)
+import           Foreign.Marshal.Utils    (withMany)
 import           Foreign.Ptr              (Ptr, nullPtr, plusPtr)
 import           Foreign.Storable         (Storable (..))
 import           Foreign.StablePtr        (newStablePtr, castStablePtrToPtr)
@@ -279,13 +280,12 @@ flushProducer kp = liftIO $ do
 ------------------------------------------------------------------------------------
 
 withHeaders :: Headers -> ([RdKafkaVuT] -> IO a) -> IO a
-withHeaders hds handle = go (headersToList hds) []
+withHeaders hds = withMany allocHeader (headersToList hds)
   where
-    go [] acc = handle acc
-    go ((nm, val) : xs) acc =
-        BS.useAsCString nm $ \cnm ->
+    allocHeader (nm, val) f = 
+      BS.useAsCString nm $ \cnm ->
           withBS (Just val) $ \vp vl ->
-            go xs (Header'RdKafkaVu cnm vp (fromIntegral vl) : acc)
+            f $ Header'RdKafkaVu cnm vp (fromIntegral vl)
 
 withBS :: Maybe BS.ByteString -> (Ptr a -> Int -> IO b) -> IO b
 withBS Nothing f = f nullPtr 0
