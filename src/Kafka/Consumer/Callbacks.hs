@@ -11,7 +11,7 @@ import Control.Monad          (forM_, void)
 import Foreign.ForeignPtr     (newForeignPtr_)
 import Foreign.Ptr            (nullPtr)
 import Kafka.Callbacks        as X
-import Kafka.Consumer.Convert (fromNativeTopicPartitionList', fromNativeTopicPartitionList'')
+import Kafka.Consumer.Convert (fromNativeTopicPartitionList', fromNativeTopicPartitionList'', toNativeTopicPartitionList)
 import Kafka.Consumer.Types   (KafkaConsumer (..), RebalanceEvent (..), TopicPartition (..))
 import Kafka.Internal.RdKafka
 import Kafka.Internal.Setup   (HasKafka (..), HasKafkaConf (..), Kafka (..), KafkaConf (..), getRdMsgQueue, Callback (..))
@@ -19,8 +19,12 @@ import Kafka.Types            (KafkaError (..), PartitionId (..), TopicName (..)
 
 import qualified Data.Text as Text
 
--- | Sets a callback that is called when rebalance is needed.
-rebalanceCallback :: (KafkaConsumer -> RebalanceEvent -> IO ()) -> Callback
+-- | Sets a callback that is called when rebalance is happening.
+--
+-- If you want to store the offsets locally, return the TopicPartition list with
+-- modified offsets from RebalanceBeforeAssign. Callback return value on other
+-- events is ignored.
+rebalanceCallback :: (KafkaConsumer -> RebalanceEvent -> IO (Maybe [TopicPartition])) -> Callback
 rebalanceCallback callback =
   Callback $ \kc@(KafkaConf con _ _) -> rdKafkaConfSetRebalanceCb con (realCb kc)
   where
@@ -54,19 +58,24 @@ redirectPartitionQueue (Kafka k) (TopicName t) (PartitionId p) q = do
     Nothing -> return ()
     Just pq -> rdKafkaQueueForward pq q
 
-setRebalanceCallback :: (KafkaConsumer -> RebalanceEvent -> IO ())
+setRebalanceCallback :: (KafkaConsumer -> RebalanceEvent -> IO (Maybe [TopicPartition]))
                           -> KafkaConsumer
                           -> KafkaError
                           -> RdKafkaTopicPartitionListTPtr -> IO ()
 setRebalanceCallback f k e pls = do
   ps <- fromNativeTopicPartitionList'' pls
-  let assignment = (tpTopicName &&& tpPartition) <$> ps
   let (Kafka kptr) = getKafka k
 
   case e of
     KafkaResponseError RdKafkaRespErrAssignPartitions -> do
-        f k (RebalanceBeforeAssign assignment)
-        void $ rdKafkaAssign kptr pls
+        -- Consumer may want to alter the offsets if they are stored locally.
+        mbAltered <- f k (RebalanceBeforeAssign ps)
+        (pls', assigned) <- case mbAltered of
+          Nothing -> pure (pls, ps)
+          Just alt -> do
+            pls' <- toNativeTopicPartitionList alt
+            pure (pls', alt)
+        void $ rdKafkaAssign kptr pls'
 
         mbq <- getRdMsgQueue $ getKafkaConf k
         case mbq of
@@ -80,10 +89,10 @@ setRebalanceCallback f k e pls = do
             forM_ ps (\tp -> redirectPartitionQueue (getKafka k) (tpTopicName tp) (tpPartition tp) mq)
             void $ rdKafkaResumePartitions kptr pls
 
-        f k (RebalanceAssign assignment)
+        void $ f k (RebalanceAssign assigned)
 
     KafkaResponseError RdKafkaRespErrRevokePartitions -> do
-        f k (RebalanceBeforeRevoke assignment)
+        void $ f k (RebalanceBeforeRevoke ps)
         void $ newForeignPtr_ nullPtr >>= rdKafkaAssign kptr
-        f k (RebalanceRevoke assignment)
+        void $ f k (RebalanceRevoke ps)
     x -> error $ "Rebalance: UNKNOWN response: " <> show x
