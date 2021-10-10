@@ -106,13 +106,13 @@ readTimestamp msg =
                RdKafkaTimestampNotAvailable  -> NoTimestamp
 
 
-readHeaders :: RdKafkaMessageTPtr -> IO (Either RdKafkaRespErrT Headers)
+readHeaders :: Ptr RdKafkaMessageT -> IO (Either RdKafkaRespErrT Headers)
 readHeaders msg = do
     (err, headersPtr) <- rdKafkaMessageHeaders msg
     case err of
         RdKafkaRespErrNoent -> return $ Right mempty
         RdKafkaRespErrNoError -> fmap headersFromList <$> extractHeaders headersPtr
-        e -> return $ Left e
+        e -> return . Left $ e
     where extractHeaders ptHeaders =
             alloca $ \nptr ->
                 alloca $ \vptr ->
@@ -126,7 +126,7 @@ readHeaders msg = do
                                     hn <- BS.packCString cstr
                                     hv <- word8PtrToBS (fromIntegral csize) wptr
                                     go ((hn, hv) : acc) (idx + 1)
-                                _ -> error "Unexpected error code"
+                                _ -> error "Unexpected error code while extracting headers"
                         in go [] 0
 
 readBS :: (t -> Int) -> (t -> Ptr Word8) -> t -> IO (Maybe BS.ByteString)

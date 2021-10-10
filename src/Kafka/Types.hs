@@ -21,7 +21,7 @@ module Kafka.Types
 , KafkaDebug(..)
 , KafkaCompressionCodec(..)
 , TopicType(..)
-, Headers(unHeaders), headersFromList, headersToList
+, Headers, headersFromList, headersToList
 , topicType
 , kafkaDebugToText
 , kafkaCompressionCodecToText

@@ -123,6 +123,7 @@ spec = do
                     , prPartition = UnassignedPartition
                     , prKey = Nothing
                     , prValue = Just "test from producer"
+                    , prHeaders = mempty
                     }
 
                 res <- produceMessage' prod msg (putMVar var)
@@ -189,8 +190,8 @@ receiveMessages kafka =
 
 testMessages :: TopicName -> [ProducerRecord]
 testMessages t =
-    [ ProducerRecord t UnassignedPartition Nothing (Just "test from producer")
-    , ProducerRecord t UnassignedPartition (Just "key") (Just "test from producer (with key)")
+    [ ProducerRecord t UnassignedPartition Nothing (Just "test from producer") mempty
+    , ProducerRecord t UnassignedPartition (Just "key") (Just "test from producer (with key)") mempty
     ]
 
 sendMessages :: [ProducerRecord] -> KafkaProducer -> IO (Either KafkaError ())
@@ -199,7 +200,7 @@ sendMessages msgs prod =
 
 sendMessagesWithHeaders :: [ProducerRecord] -> Headers -> KafkaProducer -> IO (Either KafkaError ())
 sendMessagesWithHeaders msgs hdrs prod =
-  Right <$> (forM_ msgs (produceMessageWithHeaders prod hdrs) >> flushProducer prod)
+  Right <$> (forM_ msgs (\msg -> produceMessage prod (msg {prHeaders = hdrs})) >> flushProducer prod)
 
 runConsumerSpec :: SpecWith KafkaConsumer
 runConsumerSpec = do

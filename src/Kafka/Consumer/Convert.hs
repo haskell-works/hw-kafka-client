@@ -159,16 +159,16 @@ fromMessagePtr ptr =
         s <- peek realPtr
         msg <- if err'RdKafkaMessageT s /= RdKafkaRespErrNoError
                 then return . Left . KafkaResponseError $ err'RdKafkaMessageT s
-                else Right <$> mkRecord s
+                else Right <$> mkRecord s realPtr
         rdKafkaMessageDestroy realPtr
         return msg
     where
-        mkRecord msg = do
+        mkRecord msg rptr = do
             topic     <- readTopic msg
             key       <- readKey msg
             payload   <- readPayload msg
             timestamp <- readTimestamp ptr
-            headers   <- fromRight mempty <$> readHeaders ptr
+            headers   <- fromRight mempty <$> readHeaders rptr
             return ConsumerRecord
                 { crTopic     = TopicName topic
                 , crPartition = PartitionId $ partition'RdKafkaMessageT msg

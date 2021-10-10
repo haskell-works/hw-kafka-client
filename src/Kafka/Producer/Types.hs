@@ -21,7 +21,7 @@ import Data.Typeable        (Typeable)
 import GHC.Generics         (Generic)
 import Kafka.Consumer.Types (Offset (..))
 import Kafka.Internal.Setup (HasKafka (..), HasKafkaConf (..), HasTopicConf (..), Kafka (..), KafkaConf (..), TopicConf (..))
-import Kafka.Types          (KafkaError (..), TopicName (..))
+import Kafka.Types          (KafkaError (..), TopicName (..), Headers)
 
 -- | The main type for Kafka message production, used e.g. to send messages.
 --
@@ -50,6 +50,7 @@ data ProducerRecord = ProducerRecord
   , prPartition :: !ProducePartition
   , prKey       :: Maybe ByteString
   , prValue     :: Maybe ByteString
+  , prHeaders   :: !Headers
   } deriving (Eq, Show, Typeable, Generic)
 
 -- | 
