@@ -56,9 +56,9 @@ jobs:
         with:
           args: |
             sync-from-archive \
-              --threads       "$BINARY_CACHE_THREADS" \
-              --archive-uri   "$BINARY_CACHE_URI" \
-              --region        "$BINARY_CACHE_REGION" \
+              --threads       "${BINARY_CACHE_THREADS-4}" \
+              --archive-uri   "${BINARY_CACHE_URI-'http://hw-binary-cache-us-west-2-a.s3-website-us-west-2.amazonaws.com/archive'}" \
+              --region        "${BINARY_CACHE_REGION-'us-west-2'}" \
               --store-path    "${{ steps.setup-haskell.outputs.cabal-store }}"
 
       - name: Build
@@ -83,9 +83,9 @@ jobs:
         with:
           args: |
             sync-to-archive \
-              --threads       "$BINARY_CACHE_THREADS" \
-              --archive-uri   "$BINARY_CACHE_URI" \
-              --region        "$BINARY_CACHE_REGION" \
+              --threads       "${BINARY_CACHE_THREADS-4}" \
+              --archive-uri   "${BINARY_CACHE_URI-'http://hw-binary-cache-us-west-2-a.s3-website-us-west-2.amazonaws.com/archive'}" \
+              --region        "${BINARY_CACHE_REGION-'us-west-2'}" \
               --store-path    "${{ steps.setup-haskell.outputs.cabal-store }}"
 
   check:
