@@ -19,6 +19,7 @@ testRecord = ConsumerRecord
   , crPartition = PartitionId 0
   , crOffset    = Offset 5
   , crTimestamp = NoTimestamp
+  , crHeaders   = mempty
   , crKey       = Just testKey
   , crValue     = Just testValue
   }

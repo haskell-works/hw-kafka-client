@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE LambdaCase #-}
 module Kafka.Producer.Callbacks
 ( deliveryCallback
 , module X
@@ -15,10 +16,11 @@ import           Foreign.StablePtr      (castPtrToStablePtr, deRefStablePtr, fre
 import           Kafka.Callbacks        as X
 import           Kafka.Consumer.Types   (Offset(..))
 import           Kafka.Internal.RdKafka (RdKafkaMessageT(..), RdKafkaRespErrT(..), rdKafkaConfSetDrMsgCb)
-import           Kafka.Internal.Setup   (KafkaConf(..), getRdKafkaConf, Callback(..))
-import           Kafka.Internal.Shared  (kafkaRespErr, readTopic, readKey, readPayload)
+import           Kafka.Internal.Setup   (getRdKafkaConf, Callback(..))
+import           Kafka.Internal.Shared  (kafkaRespErr, readTopic, readKey, readPayload, readHeaders)
 import           Kafka.Producer.Types   (ProducerRecord(..), DeliveryReport(..), ProducePartition(..))
 import           Kafka.Types            (KafkaError(..), TopicName(..))
+import Data.Either (fromRight)
 
 -- | Sets the callback for delivery reports.
 --
@@ -36,10 +38,12 @@ deliveryCallback callback = Callback $ \kc -> rdKafkaConfSetDrMsgCb (getRdKafkaC
         then getErrno >>= (callback . NoMessageError . kafkaRespErr)
         else do
           s <- peek mptr
+          prodRec <- mkProdRec mptr
           let cbPtr = opaque'RdKafkaMessageT s
-          if err'RdKafkaMessageT s /= RdKafkaRespErrNoError
-            then mkErrorReport s   >>= callbacks cbPtr
-            else mkSuccessReport s >>= callbacks cbPtr
+          callbacks cbPtr $ 
+            if err'RdKafkaMessageT s /= RdKafkaRespErrNoError
+              then mkErrorReport s prodRec  
+              else mkSuccessReport s prodRec
 
     callbacks cbPtr rep = do
       callback rep
@@ -51,24 +55,23 @@ deliveryCallback callback = Callback $ \kc -> rdKafkaConfSetDrMsgCb (getRdKafkaC
         -- blocking here would block librdkafka from continuing its execution
         void . forkIO $ msgCb rep
 
-mkErrorReport :: RdKafkaMessageT -> IO DeliveryReport
-mkErrorReport msg = do
-  prodRec <- mkProdRec msg
-  pure $ DeliveryFailure prodRec (KafkaResponseError (err'RdKafkaMessageT msg))
+mkErrorReport :: RdKafkaMessageT -> ProducerRecord -> DeliveryReport
+mkErrorReport msg prodRec = DeliveryFailure prodRec (KafkaResponseError (err'RdKafkaMessageT msg))
 
-mkSuccessReport :: RdKafkaMessageT -> IO DeliveryReport
-mkSuccessReport msg = do
-  prodRec <- mkProdRec msg
-  pure $ DeliverySuccess prodRec (Offset $ offset'RdKafkaMessageT msg)
+mkSuccessReport :: RdKafkaMessageT -> ProducerRecord -> DeliveryReport
+mkSuccessReport msg prodRec = DeliverySuccess prodRec (Offset $ offset'RdKafkaMessageT msg)
 
-mkProdRec :: RdKafkaMessageT -> IO ProducerRecord
-mkProdRec msg = do
-  topic     <- readTopic msg
-  key       <- readKey msg
-  payload   <- readPayload msg
-  pure ProducerRecord
-    { prTopic = TopicName topic
-    , prPartition = SpecifiedPartition (partition'RdKafkaMessageT msg)
-    , prKey = key
-    , prValue = payload
-    }
+mkProdRec :: Ptr RdKafkaMessageT -> IO ProducerRecord
+mkProdRec pmsg = do
+  msg         <- peek pmsg  
+  topic       <- readTopic msg
+  key         <- readKey msg
+  payload     <- readPayload msg
+  flip fmap (fromRight mempty <$> readHeaders pmsg) $ \headers -> 
+    ProducerRecord
+      { prTopic = TopicName topic
+      , prPartition = SpecifiedPartition (partition'RdKafkaMessageT msg)
+      , prKey = key
+      , prValue = payload
+      , prHeaders = headers
+      }

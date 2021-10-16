@@ -43,7 +43,7 @@ import Data.Text            (Text)
 import Data.Typeable        (Typeable)
 import GHC.Generics         (Generic)
 import Kafka.Internal.Setup (HasKafka (..), HasKafkaConf (..), Kafka (..), KafkaConf (..))
-import Kafka.Types          (Millis (..), PartitionId (..), TopicName (..))
+import Kafka.Types          (Millis (..), PartitionId (..), TopicName (..), Headers)
 
 -- | The main type for Kafka consumption, used e.g. to poll and commit messages.
 -- 
@@ -143,13 +143,14 @@ data ConsumerRecord k v = ConsumerRecord
   , crPartition :: !PartitionId  -- ^ Kafka partition this message was received from
   , crOffset    :: !Offset       -- ^ Offset within the 'crPartition' Kafka partition
   , crTimestamp :: !Timestamp    -- ^ Message timestamp
+  , crHeaders   :: !Headers      -- ^ Message headers
   , crKey       :: !k            -- ^ Message key
   , crValue     :: !v            -- ^ Message value
   }
   deriving (Eq, Show, Read, Typeable, Generic)
 
 instance Bifunctor ConsumerRecord where
-  bimap f g (ConsumerRecord t p o ts k v) =  ConsumerRecord t p o ts (f k) (g v)
+  bimap f g (ConsumerRecord t p o ts hds k v) =  ConsumerRecord t p o ts hds (f k) (g v)
   {-# INLINE bimap #-}
 
 instance Functor (ConsumerRecord k) where

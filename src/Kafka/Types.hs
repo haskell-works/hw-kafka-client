@@ -21,6 +21,7 @@ module Kafka.Types
 , KafkaDebug(..)
 , KafkaCompressionCodec(..)
 , TopicType(..)
+, Headers, headersFromList, headersToList
 , topicType
 , kafkaDebugToText
 , kafkaCompressionCodecToText
@@ -34,6 +35,7 @@ import Data.Text              (Text, isPrefixOf)
 import Data.Typeable          (Typeable)
 import GHC.Generics           (Generic)
 import Kafka.Internal.RdKafka (RdKafkaRespErrT, rdKafkaErr2name, rdKafkaErr2str)
+import qualified Data.ByteString as BS
 
 -- | Kafka broker ID
 newtype BrokerId = BrokerId { unBrokerId :: Int } deriving (Show, Eq, Ord, Read, Generic)
@@ -158,4 +160,14 @@ kafkaCompressionCodecToText c = case c of
   NoCompression -> "none"
   Gzip          -> "gzip"
   Snappy        -> "snappy"
-  Lz4           -> "lz4"
+  Lz4           -> "lz4" 
+
+-- | Headers that might be passed along with a record
+newtype Headers = Headers { unHeaders :: [(BS.ByteString, BS.ByteString)] } 
+  deriving (Eq, Show, Semigroup, Monoid, Read, Typeable, Generic)
+
+headersFromList :: [(BS.ByteString, BS.ByteString)] -> Headers
+headersFromList = Headers
+
+headersToList :: Headers -> [(BS.ByteString, BS.ByteString)]
+headersToList = unHeaders

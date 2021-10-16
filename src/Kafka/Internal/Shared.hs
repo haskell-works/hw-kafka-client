@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Kafka.Internal.Shared
 ( pollEvents
 , word8PtrToBS
@@ -8,6 +10,7 @@ module Kafka.Internal.Shared
 , kafkaErrorToEither
 , kafkaErrorToMaybe
 , maybeToLeft
+, readHeaders
 , readPayload
 , readTopic
 , readKey
@@ -29,9 +32,9 @@ import           Foreign.Marshal.Alloc    (alloca)
 import           Foreign.Ptr              (Ptr, nullPtr)
 import           Foreign.Storable         (Storable (peek))
 import           Kafka.Consumer.Types     (Timestamp (..))
-import           Kafka.Internal.RdKafka   (RdKafkaMessageT (..), RdKafkaMessageTPtr, RdKafkaRespErrT (..), RdKafkaTimestampTypeT (..), Word8Ptr, rdKafkaErrno2err, rdKafkaMessageTimestamp, rdKafkaPoll, rdKafkaTopicName)
+import           Kafka.Internal.RdKafka   (RdKafkaMessageT (..), RdKafkaMessageTPtr, RdKafkaRespErrT (..), RdKafkaTimestampTypeT (..), Word8Ptr, rdKafkaErrno2err, rdKafkaMessageTimestamp, rdKafkaPoll, rdKafkaTopicName, rdKafkaHeaderGetAll, rdKafkaMessageHeaders)
 import           Kafka.Internal.Setup     (HasKafka (..), Kafka (..))
-import           Kafka.Types              (KafkaError (..), Millis (..), Timeout (..))
+import           Kafka.Types              (KafkaError (..), Millis (..), Timeout (..), Headers, headersFromList)
 
 pollEvents :: HasKafka a => a -> Maybe Timeout -> IO ()
 pollEvents a tm =
@@ -101,6 +104,30 @@ readTimestamp msg =
                RdKafkaTimestampCreateTime    -> CreateTime (Millis ts)
                RdKafkaTimestampLogAppendTime -> LogAppendTime (Millis ts)
                RdKafkaTimestampNotAvailable  -> NoTimestamp
+
+
+readHeaders :: Ptr RdKafkaMessageT -> IO (Either RdKafkaRespErrT Headers)
+readHeaders msg = do
+    (err, headersPtr) <- rdKafkaMessageHeaders msg
+    case err of
+        RdKafkaRespErrNoent -> return $ Right mempty
+        RdKafkaRespErrNoError -> fmap headersFromList <$> extractHeaders headersPtr
+        e -> return . Left $ e
+    where extractHeaders ptHeaders =
+            alloca $ \nptr ->
+                alloca $ \vptr ->
+                    alloca $ \szptr ->
+                        let go acc idx = rdKafkaHeaderGetAll ptHeaders idx nptr vptr szptr >>= \case
+                                RdKafkaRespErrNoent -> return $ Right acc
+                                RdKafkaRespErrNoError -> do
+                                    cstr <- peek nptr
+                                    wptr <- peek vptr
+                                    csize <- peek szptr
+                                    hn <- BS.packCString cstr
+                                    hv <- word8PtrToBS (fromIntegral csize) wptr
+                                    go ((hn, hv) : acc) (idx + 1)
+                                _ -> error "Unexpected error code while extracting headers"
+                        in go [] 0
 
 readBS :: (t -> Int) -> (t -> Ptr Word8) -> t -> IO (Maybe BS.ByteString)
 readBS flen fdata s = if fdata s == nullPtr

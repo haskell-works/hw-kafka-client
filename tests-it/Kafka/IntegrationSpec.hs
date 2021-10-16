@@ -6,10 +6,11 @@ module Kafka.IntegrationSpec
 where
 
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
-import Control.Monad           (forM, forM_)
+import Control.Monad           (forM, forM_, void)
 import Control.Monad.Loops
 import Data.Either
 import Data.Map                (fromList)
+import qualified Data.Set as Set
 import Data.Monoid             ((<>))
 import Kafka.Consumer
 import Kafka.Metadata
@@ -122,6 +123,7 @@ spec = do
                     , prPartition = UnassignedPartition
                     , prKey = Nothing
                     , prValue = Just "test from producer"
+                    , prHeaders = mempty
                     }
 
                 res <- produceMessage' prod msg (putMVar var)
@@ -151,6 +153,23 @@ spec = do
             it "should consume empty batch when there are no messages" $ \k -> do
                 res <- pollMessageBatch k (Timeout 1000) (BatchSize 50)
                 length res `shouldBe` 0
+    
+    describe "Kafka.Headers.Spec" $ do
+        let testHeaders = headersFromList [("a-header-name", "a-header-value"), ("b-header-name", "b-header-value")]
+
+        specWithKafka "Headers consumer/producer" consumerProps $ do
+              it "1. sends 2 messages to test topic enriched with headers" $ \(k, prod) -> do
+                  void $ receiveMessages k
+                  
+                  res  <- sendMessagesWithHeaders (testMessages testTopic) testHeaders prod
+                  res `shouldBe` Right ()
+              it "2. should receive 2 messages enriched with headers" $ \(k, _) -> do
+                  res <- receiveMessages k
+                  (length <$> res) `shouldBe` Right 2
+                  
+                  forM_ res $ \rcs -> 
+                    forM_ rcs ((`shouldBe` Set.fromList (headersToList testHeaders)) . Set.fromList . headersToList . crHeaders)
+
 ----------------------------------------------------------------------------------------------------------------
 
 data ReadState = Skip | Read
@@ -171,13 +190,17 @@ receiveMessages kafka =
 
 testMessages :: TopicName -> [ProducerRecord]
 testMessages t =
-    [ ProducerRecord t UnassignedPartition Nothing (Just "test from producer")
-    , ProducerRecord t UnassignedPartition (Just "key") (Just "test from producer (with key)")
+    [ ProducerRecord t UnassignedPartition Nothing (Just "test from producer") mempty
+    , ProducerRecord t UnassignedPartition (Just "key") (Just "test from producer (with key)") mempty
     ]
 
 sendMessages :: [ProducerRecord] -> KafkaProducer -> IO (Either KafkaError ())
 sendMessages msgs prod =
   Right <$> (forM_ msgs (produceMessage prod) >> flushProducer prod)
+
+sendMessagesWithHeaders :: [ProducerRecord] -> Headers -> KafkaProducer -> IO (Either KafkaError ())
+sendMessagesWithHeaders msgs hdrs prod =
+  Right <$> (forM_ msgs (\msg -> produceMessage prod (msg {prHeaders = hdrs})) >> flushProducer prod)
 
 runConsumerSpec :: SpecWith KafkaConsumer
 runConsumerSpec = do

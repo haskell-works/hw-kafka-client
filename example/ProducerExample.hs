@@ -31,6 +31,7 @@ mkMessage k v = ProducerRecord
                   , prPartition = UnassignedPartition
                   , prKey = k
                   , prValue = v
+                  , prHeaders = mempty
                   }
 
 -- Run an example
@@ -61,12 +62,8 @@ sendMessages prod = do
   putStrLn "And the last one..."
   msg3 <- getLine
   err3 <- produceMessage prod (mkMessage (Just "key3") (Just $ pack msg3))
-
-  -- errs <- produceMessageBatch prod
-  --           [ mkMessage (Just "b-1") (Just "batch-1")
-  --           , mkMessage (Just "b-2") (Just "batch-2")
-  --           , mkMessage Nothing      (Just "batch-3")
-  --           ]
+  
+  err4 <- produceMessage prod ((mkMessage (Just "key4") (Just $ pack msg3)) { prHeaders = headersFromList [("fancy", "header")]})
 
   -- forM_ errs (print . snd)
 

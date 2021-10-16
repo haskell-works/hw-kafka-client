@@ -13,13 +13,13 @@ import Data.Word (Word8)
 import Foreign.Concurrent (newForeignPtr)
 import qualified Foreign.Concurrent as Concurrent
 import Foreign.Marshal.Alloc (alloca, allocaBytes)
-import Foreign.Marshal.Array (peekArray, allocaArray)
+import Foreign.Marshal.Array (peekArray, allocaArray, withArrayLen)
 import Foreign.Storable (Storable(..))
 import Foreign.Ptr (Ptr, FunPtr, castPtr, nullPtr)
 import Foreign.ForeignPtr (FinalizerPtr, addForeignPtrFinalizer, newForeignPtr_, withForeignPtr)
 import Foreign.C.Error (Errno(..), getErrno)
 import Foreign.C.String (CString, newCString, withCAString, peekCAString, peekCString)
-import Foreign.C.Types (CFile, CInt(..), CSize, CChar)
+import Foreign.C.Types (CFile, CInt(..), CSize, CChar, CLong)
 import System.IO (Handle, stdin, stdout, stderr)
 import System.Posix.IO (handleToFd)
 import System.Posix.Types (Fd(..))
@@ -971,6 +971,118 @@ newRdKafkaTopicT kafkaPtr topic topicConfPtr = do
     res <- newUnmanagedRdKafkaTopicT kafkaPtr topic topicConfPtr
     _ <- traverse (addForeignPtrFinalizer rdKafkaTopicDestroy') res
     return res
+
+-------------------------------------------------------------------------------------------------
+---- Errors
+
+data RdKafkaErrorT
+{#pointer *rd_kafka_error_t as RdKafkaErrorTPtr -> RdKafkaErrorT #}
+
+{#fun rd_kafka_error_code as ^
+    {`RdKafkaErrorTPtr'} -> `RdKafkaRespErrT' cIntToEnum #}
+
+{#fun rd_kafka_error_destroy as ^
+    {`RdKafkaErrorTPtr'} -> `()' #}
+-------------------------------------------------------------------------------------------------
+---- Headers
+
+data RdKafkaHeadersT
+{#pointer *rd_kafka_headers_t as RdKafkaHeadersTPtr -> RdKafkaHeadersT #}
+
+{#fun rd_kafka_header_get_all as ^
+    {`RdKafkaHeadersTPtr', cIntConv `CSize', castPtr `Ptr CString', castPtr `Ptr Word8Ptr', `CSizePtr'} -> `RdKafkaRespErrT' cIntToEnum #}
+
+{#fun rd_kafka_message_headers as ^
+    {castPtr `Ptr RdKafkaMessageT', alloca- `RdKafkaHeadersTPtr' peekPtr*} -> `RdKafkaRespErrT' cIntToEnum #}
+
+--- Produceva api
+
+{#enum rd_kafka_vtype_t as ^ {underscoreToCase} deriving (Show, Eq) #}
+
+data RdKafkaVuT
+    = Topic'RdKafkaVu CString
+    | TopicHandle'RdKafkaVu (Ptr RdKafkaTopicT)
+    | Partition'RdKafkaVu CInt32T
+    | Value'RdKafkaVu Word8Ptr CSize
+    | Key'RdKafkaVu Word8Ptr CSize
+    | MsgFlags'RdKafkaVu CInt
+    | Timestamp'RdKafkaVu CInt64T
+    | Opaque'RdKafkaVu (Ptr ())
+    | Header'RdKafkaVu CString Word8Ptr CSize
+    | Headers'RdKafkaVu (Ptr RdKafkaHeadersT) -- The message object will assume ownership of the headers (unless produceva() fails)
+    | End'RdKafkaVu
+
+{#pointer *rd_kafka_vu_t as RdKafkaVuTPtr foreign -> RdKafkaVuT #}
+
+instance Storable RdKafkaVuT where
+    alignment _ = {#alignof rd_kafka_vu_t #}
+    sizeOf _ = {#sizeof rd_kafka_vu_t #}
+    peek p = {#get rd_kafka_vu_t->vtype #} p >>= \a -> case cIntToEnum a of 
+        RdKafkaVtypeEnd -> return End'RdKafkaVu
+        RdKafkaVtypeTopic ->     Topic'RdKafkaVu <$> ({#get rd_kafka_vu_t->u.cstr #} p)
+        RdKafkaVtypeMsgflags ->  MsgFlags'RdKafkaVu <$> ({#get rd_kafka_vu_t->u.i #} p)
+        RdKafkaVtypeTimestamp -> Timestamp'RdKafkaVu <$> ({#get rd_kafka_vu_t->u.i64 #} p)
+        RdKafkaVtypePartition -> Partition'RdKafkaVu <$> ({#get rd_kafka_vu_t->u.i32 #} p)
+        RdKafkaVtypeHeaders ->   Headers'RdKafkaVu <$> ({#get rd_kafka_vu_t->u.headers #} p)
+        RdKafkaVtypeValue   -> do 
+            nm <- liftM castPtr ({#get rd_kafka_vu_t->u.mem.ptr #} p)
+            sz <- ({#get rd_kafka_vu_t->u.mem.size #} p)
+            return $ Value'RdKafkaVu nm (cIntConv sz)
+        RdKafkaVtypeKey   -> do 
+            nm <- liftM castPtr ({#get rd_kafka_vu_t->u.mem.ptr #} p)
+            sz <- ({#get rd_kafka_vu_t->u.mem.size #} p)
+            return $ Key'RdKafkaVu nm (cIntConv sz)
+        RdKafkaVtypeRkt   -> TopicHandle'RdKafkaVu <$> ({#get rd_kafka_vu_t->u.rkt #} p)
+        RdKafkaVtypeOpaque -> Opaque'RdKafkaVu <$> ({#get rd_kafka_vu_t->u.ptr #} p)
+        RdKafkaVtypeHeader -> do
+            nm <- ({#get rd_kafka_vu_t->u.header.name #} p)
+            val' <- liftM castPtr ({#get rd_kafka_vu_t->u.header.val #} p)
+            sz <- ({#get rd_kafka_vu_t->u.header.size #} p)
+            return $ Header'RdKafkaVu nm val' (cIntConv sz)
+    poke p End'RdKafkaVu = 
+        {#set rd_kafka_vu_t.vtype #} p (enumToCInt RdKafkaVtypeEnd)
+    poke p (Topic'RdKafkaVu str) = do
+        {#set rd_kafka_vu_t.vtype #} p (enumToCInt RdKafkaVtypeTopic)
+        {#set rd_kafka_vu_t.u.cstr #} p str
+    poke p (Timestamp'RdKafkaVu tms) = do
+        {#set rd_kafka_vu_t.vtype #} p (enumToCInt RdKafkaVtypeTimestamp)        
+        {#set rd_kafka_vu_t.u.i64 #} p tms
+    poke p (Partition'RdKafkaVu prt) = do
+        {#set rd_kafka_vu_t.vtype #} p (enumToCInt RdKafkaVtypePartition)        
+        {#set rd_kafka_vu_t.u.i32 #} p prt
+    poke p (MsgFlags'RdKafkaVu flags) = do
+        {#set rd_kafka_vu_t.vtype #} p (enumToCInt RdKafkaVtypeMsgflags)        
+        {#set rd_kafka_vu_t.u.i #} p flags
+    poke p (Headers'RdKafkaVu headers) = do
+        {#set rd_kafka_vu_t.vtype #} p (enumToCInt RdKafkaVtypeHeaders)        
+        {#set rd_kafka_vu_t.u.headers #} p headers 
+    poke p (TopicHandle'RdKafkaVu tphandle) = do
+        {#set rd_kafka_vu_t.vtype #} p (enumToCInt RdKafkaVtypeRkt)        
+        {#set rd_kafka_vu_t.u.rkt #} p tphandle 
+    poke p (Value'RdKafkaVu pl sz) = do
+        {#set rd_kafka_vu_t.vtype #} p (enumToCInt RdKafkaVtypeValue)        
+        {#set rd_kafka_vu_t.u.mem.size #} p (cIntConv sz)
+        {#set rd_kafka_vu_t.u.mem.ptr #} p (castPtr pl)
+    poke p (Key'RdKafkaVu pl sz) = do
+        {#set rd_kafka_vu_t.vtype #} p (enumToCInt RdKafkaVtypeKey)        
+        {#set rd_kafka_vu_t.u.mem.size #} p (cIntConv sz)
+        {#set rd_kafka_vu_t.u.mem.ptr #} p (castPtr pl)
+    poke p (Opaque'RdKafkaVu ptr') = do
+        {#set rd_kafka_vu_t.vtype #} p (enumToCInt RdKafkaVtypeOpaque)        
+        {#set rd_kafka_vu_t.u.ptr #} p ptr'
+    poke p (Header'RdKafkaVu nm val' sz) = do
+        {#set rd_kafka_vu_t.vtype #} p (enumToCInt RdKafkaVtypeHeader)        
+        {#set rd_kafka_vu_t.u.header.size #} p (cIntConv sz)
+        {#set rd_kafka_vu_t.u.header.name #} p nm
+        {#set rd_kafka_vu_t.u.header.val #} p (castPtr val')
+
+{#fun rd_kafka_produceva as rdKafkaMessageProduceVa'
+    {`RdKafkaTPtr', `RdKafkaVuTPtr', `CLong'} -> `RdKafkaErrorTPtr' #}
+
+rdKafkaMessageProduceVa :: RdKafkaTPtr -> [RdKafkaVuT] -> IO RdKafkaErrorTPtr
+rdKafkaMessageProduceVa kafkaPtr vts = withArrayLen vts $ \i arrPtr -> do
+    fptr <- newForeignPtr_ arrPtr
+    rdKafkaMessageProduceVa' kafkaPtr fptr (cIntConv i)
 
 -- Marshall / Unmarshall
 enumToCInt :: Enum a => a -> CInt

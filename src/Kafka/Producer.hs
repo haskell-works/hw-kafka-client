@@ -58,7 +58,7 @@ module Kafka.Producer
 , module X
 , runProducer
 , newProducer
-, produceMessage, produceMessageBatch
+, produceMessage
 , produceMessage'
 , flushProducer
 , closeProducer
@@ -66,25 +66,21 @@ module Kafka.Producer
 )
 where
 
-import           Control.Arrow            ((&&&))
 import           Control.Exception        (bracket)
-import           Control.Monad            (forM, forM_, (<=<))
+import           Control.Monad            (forM_)
 import           Control.Monad.IO.Class   (MonadIO (liftIO))
 import qualified Data.ByteString          as BS
 import qualified Data.ByteString.Internal as BSI
-import           Data.Function            (on)
-import           Data.List                (groupBy, sortBy)
-import           Data.Ord                 (comparing)
 import qualified Data.Text                as Text
-import           Foreign.ForeignPtr       (newForeignPtr_, withForeignPtr)
-import           Foreign.Marshal.Array    (withArrayLen)
+import           Foreign.C.String         (withCString)
+import           Foreign.ForeignPtr       (withForeignPtr)
+import           Foreign.Marshal.Utils    (withMany)
 import           Foreign.Ptr              (Ptr, nullPtr, plusPtr)
-import           Foreign.Storable         (Storable (..))
 import           Foreign.StablePtr        (newStablePtr, castStablePtrToPtr)
-import           Kafka.Internal.RdKafka   (RdKafkaMessageT (..), RdKafkaRespErrT (..), RdKafkaTypeT (..), destroyUnmanagedRdKafkaTopic, newRdKafkaT, newUnmanagedRdKafkaTopicT, rdKafkaOutqLen, rdKafkaProduce, rdKafkaProduceBatch, rdKafkaSetLogLevel)
-import           Kafka.Internal.Setup     (Kafka (..), KafkaConf (..), KafkaProps (..), TopicConf (..), TopicProps (..), kafkaConf, topicConf, Callback(..))
+import           Kafka.Internal.RdKafka   (RdKafkaRespErrT (..), RdKafkaTypeT (..), RdKafkaVuT(..), newRdKafkaT, rdKafkaErrorCode, rdKafkaErrorDestroy, rdKafkaOutqLen, rdKafkaMessageProduceVa, rdKafkaSetLogLevel)
+import           Kafka.Internal.Setup     (Kafka (..), KafkaConf (..), KafkaProps (..), TopicProps (..), kafkaConf, topicConf, Callback(..))
 import           Kafka.Internal.Shared    (pollEvents)
-import           Kafka.Producer.Convert   (copyMsgFlags, handleProduceErr', producePartitionCInt, producePartitionInt)
+import           Kafka.Producer.Convert   (copyMsgFlags, handleProduceErrT, producePartitionCInt)
 import           Kafka.Producer.Types     (KafkaProducer (..))
 
 import Kafka.Producer.ProducerProperties as X
@@ -93,7 +89,7 @@ import Kafka.Types                       as X
 
 -- | Runs Kafka Producer.
 -- The callback provided is expected to call 'produceMessage'
--- or/and 'produceMessageBatch' to send messages to Kafka.
+-- to send messages to Kafka.
 {-# DEPRECATED runProducer "Use 'newProducer'/'closeProducer' instead" #-}
 runProducer :: ProducerProperties
             -> (KafkaProducer -> IO (Either KafkaError a))
@@ -148,94 +144,37 @@ produceMessage kp m = produceMessage' kp m (pure . mempty) >>= adjustRes
 --
 --   The callback can be a long running process, as it is forked by the thread
 --   that handles the delivery reports.
---
 produceMessage' :: MonadIO m
                 => KafkaProducer
                 -> ProducerRecord
                 -> (DeliveryReport -> IO ())
                 -> m (Either ImmediateError ())
-produceMessage' kp@(KafkaProducer (Kafka k) _ (TopicConf tc)) msg cb = liftIO $
-  fireCallbacks >> bracket (mkTopic . prTopic $ msg) closeTopic withTopic
+produceMessage' kp@(KafkaProducer (Kafka k) _ _) msg cb = liftIO $
+  fireCallbacks >> produceIt
   where
     fireCallbacks =
       pollEvents kp . Just . Timeout $ 0
 
-    mkTopic (TopicName tn) =
-      newUnmanagedRdKafkaTopicT k (Text.unpack tn) (Just tc)
-
-    closeTopic = either mempty destroyUnmanagedRdKafkaTopic
-
-    withTopic (Left err) = return . Left . ImmediateError . KafkaError . Text.pack $ err
-    withTopic (Right topic) =
+    produceIt =
       withBS (prValue msg) $ \payloadPtr payloadLength ->
-        withBS (prKey msg) $ \keyPtr keyLength -> do
-          callbackPtr <- newStablePtr cb
-          res <- handleProduceErr' =<< rdKafkaProduce
-            topic
-            (producePartitionCInt (prPartition msg))
-            copyMsgFlags
-            payloadPtr
-            (fromIntegral payloadLength)
-            keyPtr
-            (fromIntegral keyLength)
-            (castStablePtrToPtr callbackPtr)
+        withBS (prKey msg) $ \keyPtr keyLength ->
+          withHeaders (prHeaders msg) $ \hdrs ->
+            withCString (Text.unpack . unTopicName . prTopic $ msg) $ \topicName -> do
+              callbackPtr <- newStablePtr cb
+              let opts = [
+                      Topic'RdKafkaVu topicName
+                    , Partition'RdKafkaVu . producePartitionCInt . prPartition $ msg
+                    , MsgFlags'RdKafkaVu (fromIntegral copyMsgFlags)
+                    , Value'RdKafkaVu payloadPtr (fromIntegral payloadLength)
+                    , Key'RdKafkaVu keyPtr (fromIntegral keyLength)
+                    , Opaque'RdKafkaVu (castStablePtrToPtr callbackPtr)
+                    ]
 
-          pure $ case res of
-            Left err -> Left . ImmediateError $ err
-            Right () -> Right ()
-
--- | Sends a batch of messages.
--- Returns a list of messages which it was unable to send with corresponding errors.
--- Since librdkafka is backed by a queue, this function can return before messages are sent. See
--- 'flushProducer' to wait for queue to empty.
-produceMessageBatch :: MonadIO m
-                    => KafkaProducer
-                    -> [ProducerRecord]
-                    -> m [(ProducerRecord, KafkaError)]
-                    -- ^ An empty list when the operation is successful,
-                    -- otherwise a list of "failed" messages with corresponsing errors.
-produceMessageBatch kp@(KafkaProducer (Kafka k) _ (TopicConf tc)) messages = liftIO $ do
-  pollEvents kp (Just $ Timeout 0) -- fire callbacks if any exist (handle delivery reports)
-  concat <$> forM (mkBatches messages) sendBatch
-  where
-    mkSortKey = prTopic &&& prPartition
-    mkBatches = groupBy ((==) `on` mkSortKey) . sortBy (comparing mkSortKey)
-
-    mkTopic (TopicName tn) = newUnmanagedRdKafkaTopicT k (Text.unpack tn) (Just tc)
-
-    clTopic = either (return . const ()) destroyUnmanagedRdKafkaTopic
-
-    sendBatch []    = return []
-    sendBatch batch = bracket (mkTopic $ prTopic (head batch)) clTopic (withTopic batch)
-
-    withTopic ms (Left err) = return $ (, KafkaError (Text.pack err)) <$> ms
-    withTopic ms (Right t) = do
-      let (partInt, partCInt) = (producePartitionInt &&& producePartitionCInt) $ prPartition (head ms)
-      withForeignPtr t $ \topicPtr -> do
-        nativeMs <- forM ms (toNativeMessage topicPtr partInt)
-        withArrayLen nativeMs $ \len batchPtr -> do
-          batchPtrF <- newForeignPtr_ batchPtr
-          numRet    <- rdKafkaProduceBatch t partCInt copyMsgFlags batchPtrF len
-          if numRet == len then return []
-          else do
-            errs <- mapM (return . err'RdKafkaMessageT <=< peekElemOff batchPtr)
-                         [0..(fromIntegral $ len - 1)]
-            return [(m, KafkaResponseError e) | (m, e) <- zip messages errs, e /= RdKafkaRespErrNoError]
-
-    toNativeMessage t p m =
-      withBS (prValue m) $ \payloadPtr payloadLength ->
-        withBS (prKey m) $ \keyPtr keyLength ->
-          return RdKafkaMessageT
-            { err'RdKafkaMessageT       = RdKafkaRespErrNoError
-            , topic'RdKafkaMessageT     = t
-            , partition'RdKafkaMessageT = p
-            , len'RdKafkaMessageT       = payloadLength
-            , payload'RdKafkaMessageT   = payloadPtr
-            , offset'RdKafkaMessageT    = 0
-            , keyLen'RdKafkaMessageT    = keyLength
-            , key'RdKafkaMessageT       = keyPtr
-            , opaque'RdKafkaMessageT    = nullPtr
-            }
+              code <- bracket (rdKafkaMessageProduceVa k (hdrs ++ opts)) rdKafkaErrorDestroy rdKafkaErrorCode
+              res  <- handleProduceErrT code
+              pure $ case res of
+                Just err -> Left . ImmediateError $ err
+                Nothing -> Right ()
 
 -- | Closes the producer.
 -- Will wait until the outbound queue is drained before returning the control.
@@ -254,6 +193,14 @@ flushProducer kp = liftIO $ do
       else flushProducer kp
 
 ------------------------------------------------------------------------------------
+
+withHeaders :: Headers -> ([RdKafkaVuT] -> IO a) -> IO a
+withHeaders hds = withMany allocHeader (headersToList hds)
+  where
+    allocHeader (nm, val) f = 
+      BS.useAsCString nm $ \cnm ->
+          withBS (Just val) $ \vp vl ->
+            f $ Header'RdKafkaVu cnm vp (fromIntegral vl)
 
 withBS :: Maybe BS.ByteString -> (Ptr a -> Int -> IO b) -> IO b
 withBS Nothing f = f nullPtr 0

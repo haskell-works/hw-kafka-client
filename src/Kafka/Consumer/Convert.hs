@@ -18,6 +18,7 @@ where
 
 import           Control.Monad          ((>=>))
 import qualified Data.ByteString        as BS
+import           Data.Either            (fromRight)
 import           Data.Int               (Int64)
 import           Data.Map.Strict        (Map, fromListWith)
 import qualified Data.Set               as S
@@ -41,7 +42,7 @@ import           Kafka.Internal.RdKafka
   , rdKafkaTopicPartitionListNew
   , peekCText
   )
-import           Kafka.Internal.Shared  (kafkaRespErr, readTopic, readKey, readPayload, readTimestamp)
+import           Kafka.Internal.Shared  (kafkaRespErr, readHeaders, readTopic, readKey, readPayload, readTimestamp)
 import           Kafka.Types            (KafkaError(..), PartitionId(..), TopicName(..))
 
 -- | Converts offsets sync policy to integer (the way Kafka understands it):
@@ -158,20 +159,22 @@ fromMessagePtr ptr =
         s <- peek realPtr
         msg <- if err'RdKafkaMessageT s /= RdKafkaRespErrNoError
                 then return . Left . KafkaResponseError $ err'RdKafkaMessageT s
-                else Right <$> mkRecord s
+                else Right <$> mkRecord s realPtr
         rdKafkaMessageDestroy realPtr
         return msg
     where
-        mkRecord msg = do
+        mkRecord msg rptr = do
             topic     <- readTopic msg
             key       <- readKey msg
             payload   <- readPayload msg
             timestamp <- readTimestamp ptr
+            headers   <- fromRight mempty <$> readHeaders rptr
             return ConsumerRecord
                 { crTopic     = TopicName topic
                 , crPartition = PartitionId $ partition'RdKafkaMessageT msg
                 , crOffset    = Offset $ offset'RdKafkaMessageT msg
                 , crTimestamp = timestamp
+                , crHeaders   = headers
                 , crKey       = key
                 , crValue     = payload
                 }
