@@ -45,21 +45,10 @@ jobs:
       - name: Configure project
         run: cabal configure --enable-tests --enable-benchmarks --write-ghc-environment-files=ghc8.4.4+
 
-      - name: Restore cabal cache
-        uses: haskell-works/cabal-cache-action@v1
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          BINARY_CACHE_REGION: ${{ secrets.BINARY_CACHE_REGION }}
-          BINARY_CACHE_THREADS: ${{ secrets.BINARY_CACHE_THREADS }}
-          BINARY_CACHE_URI: ${{ secrets.BINARY_CACHE_URI }}
+      - uses: action-works/cabal-cache@v1
+        name: Cache cabal store
         with:
-          args: |
-            sync-from-archive \
-              --threads       "${BINARY_CACHE_THREADS-4}" \
-              --archive-uri   "${BINARY_CACHE_URI-'http://hw-binary-cache-us-west-2-a.s3-website-us-west-2.amazonaws.com/archive'}" \
-              --region        "${BINARY_CACHE_REGION-'us-west-2'}" \
-              --store-path    "${{ steps.setup-haskell.outputs.cabal-store }}"
+          key-prefix: CwBTpnRd
 
       - name: Build
         # Try building it twice in case of flakey builds on Windows
@@ -70,23 +59,6 @@ jobs:
       - name: Test
         run: |
           cabal test all --enable-tests --enable-benchmarks --write-ghc-environment-files=ghc8.4.4+
-
-      - name: Save cabal cache
-        uses: haskell-works/cabal-cache-action@v1
-        if: ${{ always() }}
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          BINARY_CACHE_REGION: ${{ secrets.BINARY_CACHE_REGION }}
-          BINARY_CACHE_THREADS: ${{ secrets.BINARY_CACHE_THREADS }}
-          BINARY_CACHE_URI: ${{ secrets.BINARY_CACHE_URI }}
-        with:
-          args: |
-            sync-to-archive \
-              --threads       "${BINARY_CACHE_THREADS-4}" \
-              --archive-uri   "${BINARY_CACHE_URI-'http://hw-binary-cache-us-west-2-a.s3-website-us-west-2.amazonaws.com/archive'}" \
-              --region        "${BINARY_CACHE_REGION-'us-west-2'}" \
-              --store-path    "${{ steps.setup-haskell.outputs.cabal-store }}"
 
   check:
     needs: build
@@ -192,3 +164,4 @@ jobs:
           body: Undocumented
           draft: true
           prerelease: false
+
