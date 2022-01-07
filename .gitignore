@@ -10,7 +10,6 @@
 # Icon must ends with two \r.
 Icon
 
-
 # Thumbnails
 ._*
 
@@ -71,3 +70,9 @@ TAGS
 ### Haddock
 src/highlight.js
 src/style.css
+
+### VS Code
+.vscode/
+
+### Intellij IDEA
+.idea/
