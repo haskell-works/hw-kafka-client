@@ -1086,11 +1086,38 @@ rdKafkaMessageProduceVa kafkaPtr vts = withArrayLen vts $ \i arrPtr -> do
 
 --- Transactional api
 
+-- data RdKafkaConsumerGroupMetadataT = RdKafkaConsumerGroupMetadataT
+--     { group_id'RdKafkaConsumerGroupMetadataT          :: CString
+--     , generation_id'RdKafkaConsumerGroupMetadataT     :: Int
+--     , member_id'RdKafkaConsumerGroupMetadataT         :: CString
+--     , group_instance_id'RdKafkaConsumerGroupMetadataT :: CString
+--     } deriving (Show, Eq)
+
+-- {#pointer *rd_kafka_consumer_group_metadata_t as RdKafkaConsumerGroupMetadataTPtr foreign -> RdKafkaConsumerGroupMetadataT #}
+
+-- instance Storable RdKafkaConsumerGroupMetadataT where
+--   alignment _ = {#alignof rd_kafka_consumer_group_metadata_t#}
+--   sizeOf _    = {#sizeof  rd_kafka_consumer_group_metadata_t#}
+--   peek p = RdKafkaConsumerGroupMetadataT
+--     <$> liftM id           ({#get rd_kafka_consumer_group_metadata_t->group_id #} p)
+--     <*> liftM fromIntegral ({#get rd_kafka_consumer_group_metadata_t->generation_id #} p)
+--     <*> liftM id           ({#get rd_kafka_consumer_group_metadata_t->member_id #} p)
+--     <*> liftM id           ({#get rd_kafka_consumer_group_metadata_t->group_instance_id #} p)
+--   poke p x = do
+--     {#set rd_kafka_consumer_group_metadata_t.group_id#}          p (id      $ group_id'RdKafkaConsumerGroupMetadataT x)
+--     {#set rd_kafka_consumer_group_metadata_t.generation_id#}     p (fromIntegral $ generation_id'RdKafkaConsumerGroupMetadataT x)
+--     {#set rd_kafka_consumer_group_metadata_t.member_id#}         p (id      $ member_id'RdKafkaConsumerGroupMetadataT x)
+--     {#set rd_kafka_consumer_group_metadata_t.group_instance_id#} p (id      $ group_instance_id'RdKafkaConsumerGroupMetadataT x)
+
+
 {#fun rd_kafka_init_transactions as rdKafkaInitTransactions
     {`RdKafkaTPtr', `Int'} -> `RdKafkaErrorTPtr' #}
 
 {#fun rd_kafka_begin_transaction as rdKafkaBeginTransaction
     {`RdKafkaTPtr'} -> `RdKafkaErrorTPtr' #}
+
+{#fun rd_kafka_send_offsets_to_transaction as rdKafkaSendOffsetsToTransaction'
+    {`RdKafkaTPtr', `RdKafkaTopicPartitionListTPtr', `Ptr ()', `Int' } -> `RdKafkaErrorTPtr' #}
 
 {#fun rd_kafka_commit_transaction as rdKafkaCommitTransaction
     {`RdKafkaTPtr', `Int'} -> `RdKafkaErrorTPtr' #}
@@ -1098,6 +1125,13 @@ rdKafkaMessageProduceVa kafkaPtr vts = withArrayLen vts $ \i arrPtr -> do
 {#fun rd_kafka_abort_transaction as rdKafkaAbortTransaction
     {`RdKafkaTPtr', `Int'} -> `RdKafkaErrorTPtr' #}
 
+{#fun rd_kafka_consumer_group_metadata as rdKafkaConsumerGroupMetadata
+    {`RdKafkaTPtr'} -> `Ptr ()' #}
+
+rdKafkaSendOffsetsToTransaction :: RdKafkaTPtr -> RdKafkaTPtr -> RdKafkaTopicPartitionListTPtr -> Int -> IO RdKafkaErrorTPtr
+rdKafkaSendOffsetsToTransaction p c topicPartition timeOut = do
+    metaData <- rdKafkaConsumerGroupMetadata c
+    rdKafkaSendOffsetsToTransaction' p topicPartition metaData timeOut
 
 -- Marshall / Unmarshall
 enumToCInt :: Enum a => a -> CInt
