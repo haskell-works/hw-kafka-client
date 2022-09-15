@@ -62,6 +62,10 @@ module Kafka.Producer
 , produceMessage'
 , flushProducer
 , closeProducer
+, initTransactions
+, beginTransaction
+, commitTransaction
+, abortTransaction
 , RdKafkaRespErrT (..)
 )
 where
@@ -77,8 +81,8 @@ import           Foreign.ForeignPtr       (withForeignPtr)
 import           Foreign.Marshal.Utils    (withMany)
 import           Foreign.Ptr              (Ptr, nullPtr, plusPtr)
 import           Foreign.StablePtr        (newStablePtr, castStablePtrToPtr)
-import           Kafka.Internal.RdKafka   (RdKafkaRespErrT (..), RdKafkaTypeT (..), RdKafkaVuT(..), newRdKafkaT, rdKafkaErrorCode, rdKafkaErrorDestroy, rdKafkaOutqLen, rdKafkaMessageProduceVa, rdKafkaSetLogLevel)
-import           Kafka.Internal.Setup     (Kafka (..), KafkaConf (..), KafkaProps (..), TopicProps (..), kafkaConf, topicConf, Callback(..))
+import           Kafka.Internal.RdKafka   (RdKafkaRespErrT (..), RdKafkaTypeT (..), RdKafkaVuT(..), newRdKafkaT, rdKafkaErrorCode, rdKafkaErrorDestroy, rdKafkaOutqLen, rdKafkaMessageProduceVa, rdKafkaSetLogLevel, rdKafkaInitTransactions, rdKafkaBeginTransaction, rdKafkaCommitTransaction, rdKafkaAbortTransaction)
+import           Kafka.Internal.Setup     (Kafka (..), KafkaConf (..), KafkaProps (..), TopicProps (..), kafkaConf, getRdKafka, topicConf, Callback(..))
 import           Kafka.Internal.Shared    (pollEvents)
 import           Kafka.Producer.Convert   (copyMsgFlags, handleProduceErrT, producePartitionCInt)
 import           Kafka.Producer.Types     (KafkaProducer (..))
@@ -191,6 +195,22 @@ flushProducer kp = liftIO $ do
     if (l == 0)
       then pollEvents kp (Just $ Timeout 0) -- to be sure that all the delivery reports are fired
       else flushProducer kp
+
+initTransactions :: MonadIO m => KafkaProducer -> Timeout -> m (Maybe KafkaError)
+initTransactions p (Timeout to) = liftIO $ do
+  rdKafkaInitTransactions (getRdKafka p) to >>= rdKafkaErrorCode >>= handleProduceErrT
+
+beginTransaction :: MonadIO m => KafkaProducer -> m (Maybe KafkaError)
+beginTransaction p = liftIO $ do
+  rdKafkaBeginTransaction (getRdKafka p) >>= rdKafkaErrorCode >>= handleProduceErrT
+
+commitTransaction :: MonadIO m => KafkaProducer -> Timeout -> m (Maybe KafkaError)
+commitTransaction p (Timeout to) = liftIO $ do
+  rdKafkaCommitTransaction (getRdKafka p) to >>= rdKafkaErrorCode >>= handleProduceErrT
+
+abortTransaction :: MonadIO m => KafkaProducer -> Timeout -> m (Maybe KafkaError)
+abortTransaction p (Timeout to) = liftIO $ do
+  rdKafkaAbortTransaction (getRdKafka p) to >>= rdKafkaErrorCode >>= handleProduceErrT
 
 ------------------------------------------------------------------------------------
 

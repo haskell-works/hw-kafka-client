@@ -1084,6 +1084,21 @@ rdKafkaMessageProduceVa kafkaPtr vts = withArrayLen vts $ \i arrPtr -> do
     fptr <- newForeignPtr_ arrPtr
     rdKafkaMessageProduceVa' kafkaPtr fptr (cIntConv i)
 
+--- Transactional api
+
+{#fun rd_kafka_init_transactions as rdKafkaInitTransactions
+    {`RdKafkaTPtr', `Int'} -> `RdKafkaErrorTPtr' #}
+
+{#fun rd_kafka_begin_transaction as rdKafkaBeginTransaction
+    {`RdKafkaTPtr'} -> `RdKafkaErrorTPtr' #}
+
+{#fun rd_kafka_commit_transaction as rdKafkaCommitTransaction
+    {`RdKafkaTPtr', `Int'} -> `RdKafkaErrorTPtr' #}
+
+{#fun rd_kafka_abort_transaction as rdKafkaAbortTransaction
+    {`RdKafkaTPtr', `Int'} -> `RdKafkaErrorTPtr' #}
+
+
 -- Marshall / Unmarshall
 enumToCInt :: Enum a => a -> CInt
 enumToCInt = fromIntegral . fromEnum
