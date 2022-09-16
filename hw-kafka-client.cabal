@@ -64,7 +64,6 @@ library
                         Kafka.Producer
                         Kafka.Producer.ProducerProperties
                         Kafka.Producer.Types
-                        Kafka.Transaction
                         Kafka.Types
   other-modules:        Kafka.Callbacks
                         Kafka.Consumer.Callbacks
