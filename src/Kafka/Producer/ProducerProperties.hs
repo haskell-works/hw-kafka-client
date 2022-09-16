@@ -27,7 +27,6 @@ import           Control.Monad            (MonadPlus(mplus))
 import           Data.Map                 (Map)
 import qualified Data.Map                 as M
 import           Data.Semigroup           as Sem
-import           Kafka.Internal.Setup     (KafkaConf(..), Callback(..))
 import           Kafka.Types              (KafkaDebug(..), Timeout(..), KafkaCompressionCodec(..), KafkaLogLevel(..), BrokerAddress(..), kafkaDebugToText, kafkaCompressionCodecToText, Millis(..))
 
 import           Kafka.Producer.Callbacks

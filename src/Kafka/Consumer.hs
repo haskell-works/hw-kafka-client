@@ -77,7 +77,6 @@ import qualified Data.ByteString            as BS
 import           Data.IORef                 (readIORef, writeIORef)
 import qualified Data.Map                   as M
 import           Data.Maybe                 (fromMaybe)
-import           Data.Monoid                ((<>))
 import           Data.Set                   (Set)
 import qualified Data.Set                   as Set
 import qualified Data.Text                  as Text

@@ -443,7 +443,7 @@ foreign import ccall safe "rd_kafka.h rd_kafka_conf_set_socket_cb"
 rdKafkaConfSetSocketCb :: RdKafkaConfTPtr -> SocketCallback -> IO ()
 rdKafkaConfSetSocketCb conf cb = do
     cb' <- mkSocketCallback cb
-    withForeignPtr conf $ \c -> rdKafkaConfSetSocketCb' c cb' >> pure 0
+    _ <- withForeignPtr conf $ \c -> rdKafkaConfSetSocketCb' c cb' >> pure (0 :: Int)
     return ()
 
 {#fun rd_kafka_conf_set_opaque as ^
@@ -1085,30 +1085,6 @@ rdKafkaMessageProduceVa kafkaPtr vts = withArrayLen vts $ \i arrPtr -> do
     rdKafkaMessageProduceVa' kafkaPtr fptr (cIntConv i)
 
 --- Transactional api
-
--- data RdKafkaConsumerGroupMetadataT = RdKafkaConsumerGroupMetadataT
---     { group_id'RdKafkaConsumerGroupMetadataT          :: CString
---     , generation_id'RdKafkaConsumerGroupMetadataT     :: Int
---     , member_id'RdKafkaConsumerGroupMetadataT         :: CString
---     , group_instance_id'RdKafkaConsumerGroupMetadataT :: CString
---     } deriving (Show, Eq)
-
--- {#pointer *rd_kafka_consumer_group_metadata_t as RdKafkaConsumerGroupMetadataTPtr foreign -> RdKafkaConsumerGroupMetadataT #}
-
--- instance Storable RdKafkaConsumerGroupMetadataT where
---   alignment _ = {#alignof rd_kafka_consumer_group_metadata_t#}
---   sizeOf _    = {#sizeof  rd_kafka_consumer_group_metadata_t#}
---   peek p = RdKafkaConsumerGroupMetadataT
---     <$> liftM id           ({#get rd_kafka_consumer_group_metadata_t->group_id #} p)
---     <*> liftM fromIntegral ({#get rd_kafka_consumer_group_metadata_t->generation_id #} p)
---     <*> liftM id           ({#get rd_kafka_consumer_group_metadata_t->member_id #} p)
---     <*> liftM id           ({#get rd_kafka_consumer_group_metadata_t->group_instance_id #} p)
---   poke p x = do
---     {#set rd_kafka_consumer_group_metadata_t.group_id#}          p (id      $ group_id'RdKafkaConsumerGroupMetadataT x)
---     {#set rd_kafka_consumer_group_metadata_t.generation_id#}     p (fromIntegral $ generation_id'RdKafkaConsumerGroupMetadataT x)
---     {#set rd_kafka_consumer_group_metadata_t.member_id#}         p (id      $ member_id'RdKafkaConsumerGroupMetadataT x)
---     {#set rd_kafka_consumer_group_metadata_t.group_instance_id#} p (id      $ group_instance_id'RdKafkaConsumerGroupMetadataT x)
-
 
 {#fun rd_kafka_init_transactions as rdKafkaInitTransactions
     {`RdKafkaTPtr', `Int'} -> `RdKafkaErrorTPtr' #}

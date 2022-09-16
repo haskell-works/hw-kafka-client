@@ -34,7 +34,6 @@ import           Data.Semigroup       as Sem
 import           Data.Text            (Text)
 import qualified Data.Text            as Text
 import           Kafka.Consumer.Types (ConsumerGroupId (..))
-import           Kafka.Internal.Setup (KafkaConf (..), Callback(..))
 import           Kafka.Types          (BrokerAddress (..), ClientId (..), KafkaCompressionCodec (..), KafkaDebug (..), KafkaLogLevel (..), Millis (..), kafkaCompressionCodecToText, kafkaDebugToText)
 
 import Kafka.Consumer.Callbacks as X
