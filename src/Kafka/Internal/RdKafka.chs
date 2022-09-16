@@ -1109,6 +1109,25 @@ rdKafkaSendOffsetsToTransaction p c topicPartition timeOut = do
     metaData <- rdKafkaConsumerGroupMetadata c
     rdKafkaSendOffsetsToTransaction' p topicPartition metaData timeOut
 
+{#fun rd_kafka_error_is_fatal as rdKafkaErrorIsFatal'
+    {`RdKafkaErrorTPtr'} -> `CInt' #}
+
+{#fun rd_kafka_error_is_retriable as rdKafkaErrorIsRetriable'
+    {`RdKafkaErrorTPtr'} -> `CInt' #}
+
+{#fun rd_kafka_error_txn_requires_abort as rdKafkaErrorTxnRequiresAbort'
+    {`RdKafkaErrorTPtr'} -> `CInt' #}
+
+rdKafkaErrorIsFatal :: RdKafkaErrorTPtr -> IO Bool
+rdKafkaErrorIsFatal ptr = boolFromCInt <$> rdKafkaErrorIsFatal' ptr
+
+rdKafkaErrorIsRetriable :: RdKafkaErrorTPtr -> IO Bool
+rdKafkaErrorIsRetriable ptr = boolFromCInt <$> rdKafkaErrorIsRetriable' ptr
+
+rdKafkaErrorTxnRequiresAbort :: RdKafkaErrorTPtr -> IO Bool
+rdKafkaErrorTxnRequiresAbort ptr = boolFromCInt <$> rdKafkaErrorTxnRequiresAbort' ptr
+
+
 -- Marshall / Unmarshall
 enumToCInt :: Enum a => a -> CInt
 enumToCInt = fromIntegral . fromEnum
@@ -1126,6 +1145,11 @@ boolToCInt :: Bool -> CInt
 boolToCInt True = CInt 1
 boolToCInt False = CInt 0
 {-# INLINE boolToCInt #-}
+
+boolFromCInt :: CInt -> Bool
+boolFromCInt (CInt 0) = False
+boolFromCInt (CInt _) = True
+{-# INLINE boolFromCInt #-}
 
 peekInt64Conv :: (Storable a, Integral a) =>  Ptr a -> IO Int64
 peekInt64Conv  = liftM cIntConv . peek
