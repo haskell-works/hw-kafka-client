@@ -63,21 +63,6 @@ module Kafka.Producer
 , flushProducer
 , closeProducer
 , RdKafkaRespErrT (..)
-
-, initTransactions
-, beginTransaction
-, commitTransaction
-, abortTransaction
-
-, produceMessageTxError
-, commitOffsetMessageTransaction
-, commitAllOffsetsTransaction
-
-, TxError
-, getKafkaError
-, kafkaErrorIsFatal
-, kafkaErrorIsRetriable
-, kafkaErrorTxnRequiresAbort
 )
 where
 
@@ -88,17 +73,16 @@ import qualified Data.ByteString          as BS
 import qualified Data.ByteString.Internal as BSI
 import qualified Data.Text                as Text
 import           Foreign.C.String         (withCString)
-import           Foreign.ForeignPtr       (withForeignPtr, newForeignPtr_)
+import           Foreign.ForeignPtr       (withForeignPtr)
 import           Foreign.Marshal.Utils    (withMany)
 import           Foreign.Ptr              (Ptr, nullPtr, plusPtr)
 import           Foreign.StablePtr        (newStablePtr, castStablePtrToPtr)
-import           Kafka.Internal.RdKafka   (RdKafkaRespErrT (..), RdKafkaTypeT (..), RdKafkaVuT(..), RdKafkaErrorTPtr, RdKafkaErrorTPtr, rdKafkaErrorDestroy, rdKafkaErrorIsFatal, rdKafkaErrorIsRetriable, rdKafkaErrorTxnRequiresAbort, rdKafkaErrorCode, rdKafkaInitTransactions, rdKafkaBeginTransaction, rdKafkaCommitTransaction, rdKafkaAbortTransaction, rdKafkaSendOffsetsToTransaction, newRdKafkaT, rdKafkaErrorCode, rdKafkaErrorDestroy, rdKafkaOutqLen, rdKafkaMessageProduceVa, rdKafkaSetLogLevel)
-import           Kafka.Internal.Setup     (Kafka (..), KafkaConf (..), KafkaProps (..), TopicProps (..), getRdKafka, kafkaConf, topicConf, Callback(..))
+import           Kafka.Internal.RdKafka   (RdKafkaRespErrT (..), RdKafkaTypeT (..), RdKafkaVuT(..), newRdKafkaT, rdKafkaErrorCode, rdKafkaErrorDestroy, rdKafkaOutqLen, rdKafkaMessageProduceVa, rdKafkaSetLogLevel)
+import           Kafka.Internal.Setup     (Kafka (..), KafkaConf (..), KafkaProps (..), TopicProps (..), kafkaConf, topicConf, Callback(..))
 import           Kafka.Internal.Shared    (pollEvents)
 import           Kafka.Producer.Convert   (copyMsgFlags, handleProduceErrT, producePartitionCInt)
 import           Kafka.Producer.Types     (KafkaProducer (..))
-import           Kafka.Consumer.Convert   (toNativeTopicPartitionList, topicPartitionFromMessageForCommit)
-import           Kafka.Consumer.Types     (KafkaConsumer (..), ConsumerRecord)
+
 
 import Kafka.Producer.ProducerProperties as X
 import Kafka.Producer.Types              as X hiding (KafkaProducer)
@@ -166,141 +150,8 @@ produceMessage' :: MonadIO m
                 -> ProducerRecord
                 -> (DeliveryReport -> IO ())
                 -> m (Either ImmediateError ())
-produceMessage' p msg cb = liftIO $ do
-  code <- bracket (produceMessageErrT p msg cb) rdKafkaErrorDestroy rdKafkaErrorCode
-  res  <- handleProduceErrT code
-  pure $ case res of
-    Just err -> Left . ImmediateError $ err
-    Nothing -> Right ()
-
--- | Closes the producer.
--- Will wait until the outbound queue is drained before returning the control.
-closeProducer :: MonadIO m => KafkaProducer -> m ()
-closeProducer = flushProducer
-
--- | Drains the outbound queue for a producer.
---  This function is also called automatically when the producer is closed
--- with 'closeProducer' to ensure that all queued messages make it to Kafka.
-flushProducer :: MonadIO m => KafkaProducer -> m ()
-flushProducer kp = liftIO $ do
-    pollEvents kp (Just $ Timeout 100)
-    l <- outboundQueueLength (kpKafkaPtr kp)
-    if (l == 0)
-      then pollEvents kp (Just $ Timeout 0) -- to be sure that all the delivery reports are fired
-      else flushProducer kp
-
-------------------------------------------------------------------------------------
--- Tx API
-
-data TxError = TxError 
-  { txErrorKafka       :: !KafkaError 
-  , txErrorFatal       :: !Bool
-  , txErrorRetriable   :: !Bool
-  , txErrorTxnReqAbort :: !Bool
-  } 
-
--- | Initialises Kafka for transactions 
-initTransactions :: MonadIO m 
-                 => KafkaProducer 
-                 -> Timeout 
-                 -> m (Maybe TxError)
-initTransactions p (Timeout to) = liftIO $ rdKafkaInitTransactions (getRdKafka p) to >>= toTxError
-
--- | Begins a new transaction
-beginTransaction :: MonadIO m 
-                 => KafkaProducer 
-                 -> m (Maybe TxError)
-beginTransaction p = liftIO $ rdKafkaBeginTransaction (getRdKafka p) >>= toTxError
-
--- | Commits an existing transaction
--- Pre-condition: there exists an open transaction, created with beginTransaction
-commitTransaction :: MonadIO m 
-                  => KafkaProducer 
-                  -> Timeout 
-                  -> m (Maybe TxError)
-commitTransaction p (Timeout to) = liftIO $ rdKafkaCommitTransaction (getRdKafka p) to >>= toTxError
-
--- | Aborts an existing transaction
--- Pre-condition: there exists an open transaction, created with beginTransaction
-abortTransaction :: MonadIO m 
-                 => KafkaProducer 
-                 -> Timeout 
-                 -> m (Maybe TxError)
-abortTransaction p (Timeout to) = liftIO $ do rdKafkaAbortTransaction (getRdKafka p) to >>= toTxError
-
--- | Commits the message's offset in the current transaction
---    Similar to Kafka.Consumer.commitOffsetMessage but within a transactional context
--- Pre-condition: there exists an open transaction, created with beginTransaction
-commitOffsetMessageTransaction :: MonadIO m 
-                               => KafkaProducer 
-                               -> KafkaConsumer 
-                               -> ConsumerRecord k v
-                               -> Timeout 
-                               -> m (Maybe TxError)
-commitOffsetMessageTransaction p c m (Timeout to) = liftIO $ do
-  tps <- toNativeTopicPartitionList [topicPartitionFromMessageForCommit m]
-  rdKafkaSendOffsetsToTransaction (getRdKafka p) (getRdKafka c) tps to >>= toTxError
-
--- | Commit offsets for all currently assigned partitions in the current transaction
---    Similar to Kafka.Consumer.commitAllOffsets but within a transactional context
--- Pre-condition: there exists an open transaction, created with beginTransaction
-commitAllOffsetsTransaction :: MonadIO m 
-                            => KafkaProducer 
-                            -> KafkaConsumer 
-                            -> Timeout 
-                            -> m (Maybe TxError)
-commitAllOffsetsTransaction p c (Timeout to) = liftIO $ do
-  tps <- newForeignPtr_ nullPtr
-  rdKafkaSendOffsetsToTransaction (getRdKafka p) (getRdKafka c) tps to >>= toTxError
-
--- | This is the same as Kafka.Producer.produceMessage but returns a TxError
-produceMessageTxError :: MonadIO m
-                      => KafkaProducer
-                      -> ProducerRecord
-                      -> m (Maybe TxError)
-produceMessageTxError p pr = liftIO $ produceMessageErrT p pr (pure . mempty) >>= toTxError
-
-getKafkaError :: TxError -> KafkaError
-getKafkaError = txErrorKafka
-
-kafkaErrorIsFatal :: TxError -> Bool
-kafkaErrorIsFatal = txErrorFatal
-
-kafkaErrorIsRetriable :: TxError -> Bool
-kafkaErrorIsRetriable = txErrorRetriable
-
-kafkaErrorTxnRequiresAbort :: TxError -> Bool
-kafkaErrorTxnRequiresAbort = txErrorTxnReqAbort
-
-----------------------------------------------------------------------------------------------------
--- Implementation detail, used internally
-toTxError :: RdKafkaErrorTPtr -> IO (Maybe TxError)
-toTxError errPtr = do
-  ret <- rdKafkaErrorCode errPtr >>= handleProduceErrT
-  case ret of
-    Nothing -> pure Nothing
-    Just ke -> do
-      fatal     <- rdKafkaErrorIsFatal errPtr
-      retriable <- rdKafkaErrorIsRetriable errPtr
-      reqAbort  <- rdKafkaErrorTxnRequiresAbort errPtr
-      -- NOTE: don't forget to free error structure, otherwise we are leaking memory!
-      rdKafkaErrorDestroy errPtr
-      pure $ Just $ TxError 
-        { txErrorKafka       = ke
-        , txErrorFatal       = fatal
-        , txErrorRetriable   = retriable
-        , txErrorTxnReqAbort = reqAbort
-        }
-
-
--- used internally
-produceMessageErrT :: MonadIO m
-                   => KafkaProducer
-                   -> ProducerRecord
-                   -> (DeliveryReport -> IO ())
-                   -> m RdKafkaErrorTPtr
-produceMessageErrT kp@(KafkaProducer (Kafka k) _ _) msg cb = liftIO $
-    fireCallbacks >> produceIt
+produceMessage' kp@(KafkaProducer (Kafka k) _ _) msg cb = liftIO $
+  fireCallbacks >> produceIt
   where
     fireCallbacks =
       pollEvents kp . Just . Timeout $ 0
@@ -320,7 +171,28 @@ produceMessageErrT kp@(KafkaProducer (Kafka k) _ _) msg cb = liftIO $
                     , Opaque'RdKafkaVu (castStablePtrToPtr callbackPtr)
                     ]
 
-              rdKafkaMessageProduceVa k (hdrs ++ opts)
+              code <- bracket (rdKafkaMessageProduceVa k (hdrs ++ opts)) rdKafkaErrorDestroy rdKafkaErrorCode
+              res  <- handleProduceErrT code
+              pure $ case res of
+                Just err -> Left . ImmediateError $ err
+                Nothing -> Right ()
+
+-- | Closes the producer.
+-- Will wait until the outbound queue is drained before returning the control.
+closeProducer :: MonadIO m => KafkaProducer -> m ()
+closeProducer = flushProducer
+
+-- | Drains the outbound queue for a producer.
+--  This function is also called automatically when the producer is closed
+-- with 'closeProducer' to ensure that all queued messages make it to Kafka.
+flushProducer :: MonadIO m => KafkaProducer -> m ()
+flushProducer kp = liftIO $ do
+    pollEvents kp (Just $ Timeout 100)
+    l <- outboundQueueLength (kpKafkaPtr kp)
+    if (l == 0)
+      then pollEvents kp (Just $ Timeout 0) -- to be sure that all the delivery reports are fired
+      else flushProducer kp
+------------------------------------------------------------------------------------
 
 withHeaders :: Headers -> ([RdKafkaVuT] -> IO a) -> IO a
 withHeaders hds = withMany allocHeader (headersToList hds)
