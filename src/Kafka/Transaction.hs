@@ -151,7 +151,6 @@ kafkaErrorTxnRequiresAbort = txErrorTxnReqAbort
 -- Implementation detail, used internally
 toTxError :: RdKafkaErrorTPtr -> IO (Maybe TxError)
 toTxError errPtr = do
-  -- TODO: use rdKafkaErrorToEither
   ret <- rdKafkaErrorCode errPtr >>= handleProduceErrT
   case ret of
     Nothing -> do
