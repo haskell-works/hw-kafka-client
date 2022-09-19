@@ -1104,10 +1104,14 @@ rdKafkaMessageProduceVa kafkaPtr vts = withArrayLen vts $ \i arrPtr -> do
 {#fun rd_kafka_consumer_group_metadata as rdKafkaConsumerGroupMetadata
     {`RdKafkaTPtr'} -> `Ptr ()' #}
 
+{#fun rd_kafka_seek_partitions as rdKafkaSeekPartitions
+    {`RdKafkaTPtr', `RdKafkaTopicPartitionListTPtr', `Int'} -> `RdKafkaErrorTPtr' #}
+
 rdKafkaSendOffsetsToTransaction :: RdKafkaTPtr -> RdKafkaTPtr -> RdKafkaTopicPartitionListTPtr -> Int -> IO RdKafkaErrorTPtr
 rdKafkaSendOffsetsToTransaction p c topicPartition timeOut = do
     metaData <- rdKafkaConsumerGroupMetadata c
     rdKafkaSendOffsetsToTransaction' p topicPartition metaData timeOut
+    -- TODO: do we need to destroy the metadata using rd_kafka_consumer_group_metadata_destroy ?
 
 {#fun rd_kafka_error_is_fatal as rdKafkaErrorIsFatal'
     {`RdKafkaErrorTPtr'} -> `CInt' #}

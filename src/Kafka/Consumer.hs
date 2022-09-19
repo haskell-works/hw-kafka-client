@@ -55,7 +55,7 @@ module Kafka.Consumer
 , newConsumer
 , assign, assignment, subscription
 , pausePartitions, resumePartitions
-, committed, position, seek
+, committed, position, seek, seekPartitions
 , pollMessage, pollConsumerEvents
 , pollMessageBatch
 , commitOffsetMessage, commitAllOffsets, commitPartitionsOffsets
@@ -83,7 +83,7 @@ import qualified Data.Text                  as Text
 import           Foreign                    hiding (void)
 import           Kafka.Consumer.Convert     (fromMessagePtr, fromNativeTopicPartitionList'', offsetCommitToBool, offsetToInt64, toMap, toNativeTopicPartitionList, toNativeTopicPartitionList', toNativeTopicPartitionListNoDispose, topicPartitionFromMessageForCommit)
 import           Kafka.Consumer.Types       (KafkaConsumer (..))
-import           Kafka.Internal.RdKafka     (RdKafkaRespErrT (..), RdKafkaTopicPartitionListTPtr, RdKafkaTypeT (..), newRdKafkaT, newRdKafkaTopicPartitionListT, newRdKafkaTopicT, rdKafkaAssign, rdKafkaAssignment, rdKafkaCommit, rdKafkaCommitted, rdKafkaConfSetDefaultTopicConf, rdKafkaConsumeBatchQueue, rdKafkaConsumeQueue, rdKafkaConsumerClose, rdKafkaConsumerPoll, rdKafkaOffsetsStore, rdKafkaPausePartitions, rdKafkaPollSetConsumer, rdKafkaPosition, rdKafkaQueueDestroy, rdKafkaQueueNew, rdKafkaResumePartitions, rdKafkaSeek, rdKafkaSetLogLevel, rdKafkaSubscribe, rdKafkaSubscription, rdKafkaTopicConfDup, rdKafkaTopicPartitionListAdd)
+import           Kafka.Internal.RdKafka     (RdKafkaRespErrT (..), RdKafkaTopicPartitionListTPtr, RdKafkaTypeT (..), rdKafkaSeekPartitions, rdKafkaErrorDestroy, rdKafkaErrorCode, newRdKafkaT, newRdKafkaTopicPartitionListT, newRdKafkaTopicT, rdKafkaAssign, rdKafkaAssignment, rdKafkaCommit, rdKafkaCommitted, rdKafkaConfSetDefaultTopicConf, rdKafkaConsumeBatchQueue, rdKafkaConsumeQueue, rdKafkaConsumerClose, rdKafkaConsumerPoll, rdKafkaOffsetsStore, rdKafkaPausePartitions, rdKafkaPollSetConsumer, rdKafkaPosition, rdKafkaQueueDestroy, rdKafkaQueueNew, rdKafkaResumePartitions, rdKafkaSeek, rdKafkaSetLogLevel, rdKafkaSubscribe, rdKafkaSubscription, rdKafkaTopicConfDup, rdKafkaTopicPartitionListAdd)
 import           Kafka.Internal.Setup       (CallbackPollStatus (..), Kafka (..), KafkaConf (..), KafkaProps (..), TopicConf (..), TopicProps (..), getKafkaConf, getRdKafka, kafkaConf, topicConf, Callback(..))
 import           Kafka.Internal.Shared      (kafkaErrorToMaybe, maybeToLeft, rdKafkaErrorToEither)
 
@@ -254,6 +254,7 @@ resumePartitions (KafkaConsumer (Kafka k) _) ps = liftIO $ do
   KafkaResponseError <$> rdKafkaResumePartitions k pl
 
 -- | Seek a particular offset for each provided 'TopicPartition'
+{-# DEPRECATED seek "Use seekPartitions instead" #-}
 seek :: MonadIO m => KafkaConsumer -> Timeout -> [TopicPartition] -> m (Maybe KafkaError)
 seek (KafkaConsumer (Kafka k) _) (Timeout timeout) tps = liftIO $
   either Just (const Nothing) <$> seekAll
@@ -269,6 +270,14 @@ seek (KafkaConsumer (Kafka k) _) (Timeout timeout) tps = liftIO $
       let (TopicName tn) = tpTopicName tp
       nt <- newRdKafkaTopicT k (Text.unpack tn) Nothing
       return $ bimap KafkaError (,tpPartition tp, tpOffset tp) (first Text.pack nt)
+
+-- | Seek consumer for partitions in partitions to the per-partition
+--    offset in the offset field of partitions.
+seekPartitions :: MonadIO m => KafkaConsumer -> [TopicPartition] -> Timeout -> m (Maybe KafkaError)
+seekPartitions (KafkaConsumer (Kafka k) _) ps (Timeout timeout) = liftIO $ do
+  tps <- toNativeTopicPartitionList ps
+  err <- bracket (rdKafkaSeekPartitions k tps timeout) rdKafkaErrorDestroy rdKafkaErrorCode
+  pure $ either Just (const Nothing) $ rdKafkaErrorToEither err
 
 -- | Retrieve committed offsets for topics+partitions.
 committed :: MonadIO m => KafkaConsumer -> Timeout -> [(TopicName, PartitionId)] -> m (Either KafkaError [TopicPartition])
