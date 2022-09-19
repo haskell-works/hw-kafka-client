@@ -3,7 +3,6 @@
 -- Module to work wih Kafkas transactional producers.
 -- 
 -----------------------------------------------------------------------------
-{-# LANGUAGE TupleSections #-}
 module Kafka.Transaction
 ( initTransactions
 , beginTransaction
@@ -12,7 +11,6 @@ module Kafka.Transaction
 
 , commitOffsetMessageTransaction
 -- , commitTransactionWithOffsets
-, rewindConsumer
 
 , TxError
 , getKafkaError
@@ -23,8 +21,6 @@ module Kafka.Transaction
 where
 
 import           Control.Monad.IO.Class   (MonadIO (liftIO))
-import           Data.Map                 as Map hiding (map, foldr)
--- import           Foreign                  hiding (void)
 import           Kafka.Internal.RdKafka   (RdKafkaErrorTPtr, rdKafkaErrorDestroy, rdKafkaErrorIsFatal, rdKafkaErrorIsRetriable, rdKafkaErrorTxnRequiresAbort, rdKafkaErrorCode, rdKafkaInitTransactions, rdKafkaBeginTransaction, rdKafkaCommitTransaction, rdKafkaAbortTransaction, rdKafkaSendOffsetsToTransaction)
 import           Kafka.Internal.Setup     (getRdKafka)
 import           Kafka.Producer.Convert   (handleProduceErrT)
@@ -99,41 +95,6 @@ commitOffsetMessageTransaction p c m (Timeout to) = liftIO $ do
 --   -- TODO: this can't be right...
 --   tps <- newForeignPtr_ nullPtr
 --   rdKafkaSendOffsetsToTransaction (getRdKafka p) (getRdKafka c) tps to >>= toTxError
-
--- | Rewind consumer's consume position to the last committed offsets for the current assignment.
--- NOTE: follows https://github.com/edenhill/librdkafka/blob/master/examples/transactions.c#L166
-rewindConsumer :: MonadIO m 
-               => KafkaConsumer 
-               -> Timeout
-               -> m (Maybe KafkaError)
-rewindConsumer c to = liftIO $ do
-  ret <- assignment c
-  case ret of
-    Left err -> pure $ Just err
-    Right os -> do
-      if Map.size os == 0
-        -- No current assignment to rewind
-        then pure Nothing
-        else do
-          let tps = foldr (\(t, ps) acc -> map (t,) ps ++ acc) [] $ Map.toList os
-          ret' <- committed c to tps
-          case ret' of
-            Left err -> pure $ Just err
-            Right ps -> do
-              -- Seek to committed offset, or start of partition if no
-              -- committed offset is available.
-              let ps' = map checkOffsets ps
-              seekPartitions c ps' to
-  where
-    checkOffsets :: TopicPartition -> TopicPartition
-    checkOffsets tp 
-      | isUncommitedOffset $ tpOffset tp 
-        = tp { tpOffset = PartitionOffsetBeginning }
-      | otherwise = tp 
-
-    isUncommitedOffset :: PartitionOffset -> Bool
-    isUncommitedOffset (PartitionOffset _) = False
-    isUncommitedOffset _ = True
     
 getKafkaError :: TxError -> KafkaError
 getKafkaError = txErrorKafka

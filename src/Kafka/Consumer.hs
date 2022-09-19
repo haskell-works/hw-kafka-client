@@ -60,6 +60,7 @@ module Kafka.Consumer
 , pollMessageBatch
 , commitOffsetMessage, commitAllOffsets, commitPartitionsOffsets
 , storeOffsets, storeOffsetMessage
+, rewindConsumer
 , closeConsumer
 -- ReExport Types
 , RdKafkaRespErrT (..)
@@ -75,7 +76,7 @@ import           Control.Monad.Trans.Except (ExceptT (ExceptT), runExceptT)
 import           Data.Bifunctor             (bimap, first)
 import qualified Data.ByteString            as BS
 import           Data.IORef                 (readIORef, writeIORef)
-import qualified Data.Map                   as M
+import qualified Data.Map                   as M hiding (map, foldr)
 import           Data.Maybe                 (fromMaybe)
 import           Data.Set                   (Set)
 import qualified Data.Set                   as Set
@@ -331,6 +332,41 @@ closeConsumer (KafkaConsumer (Kafka k) (KafkaConf _ qr statusVar)) = liftIO $
     readIORef qr >>= mapM_ rdKafkaQueueDestroy
     res <- kafkaErrorToMaybe . KafkaResponseError <$> rdKafkaConsumerClose k
     pure (CallbackPollDisabled, res)
+
+-- | Rewind consumer's consume position to the last committed offsets for the current assignment.
+-- NOTE: follows https://github.com/edenhill/librdkafka/blob/master/examples/transactions.c#L166
+rewindConsumer :: MonadIO m 
+               => KafkaConsumer 
+               -> Timeout
+               -> m (Maybe KafkaError)
+rewindConsumer c to = liftIO $ do
+  ret <- assignment c
+  case ret of
+    Left err -> pure $ Just err
+    Right os -> do
+      if M.size os == 0
+        -- No current assignment to rewind
+        then pure Nothing
+        else do
+          let tps = foldr (\(t, ps) acc -> map (t,) ps ++ acc) [] $ M.toList os
+          ret' <- committed c to tps
+          case ret' of
+            Left err -> pure $ Just err
+            Right ps -> do
+              -- Seek to committed offset, or start of partition if no
+              -- committed offset is available.
+              let ps' = map checkOffsets ps
+              seekPartitions c ps' to
+  where
+    checkOffsets :: TopicPartition -> TopicPartition
+    checkOffsets tp 
+      | isUncommitedOffset $ tpOffset tp 
+        = tp { tpOffset = PartitionOffsetBeginning }
+      | otherwise = tp 
+
+    isUncommitedOffset :: PartitionOffset -> Bool
+    isUncommitedOffset (PartitionOffset _) = False
+    isUncommitedOffset _ = True
 -----------------------------------------------------------------------------
 newConsumerConf :: ConsumerProperties -> IO KafkaConf
 newConsumerConf ConsumerProperties {cpProps = m, cpCallbacks = cbs} = do
