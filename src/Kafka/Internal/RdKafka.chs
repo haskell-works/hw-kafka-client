@@ -443,7 +443,7 @@ foreign import ccall safe "rd_kafka.h rd_kafka_conf_set_socket_cb"
 rdKafkaConfSetSocketCb :: RdKafkaConfTPtr -> SocketCallback -> IO ()
 rdKafkaConfSetSocketCb conf cb = do
     cb' <- mkSocketCallback cb
-    withForeignPtr conf $ \c -> rdKafkaConfSetSocketCb' c cb' >> pure 0
+    _ <- withForeignPtr conf $ \c -> rdKafkaConfSetSocketCb' c cb' >> pure (0 :: Int)
     return ()
 
 {#fun rd_kafka_conf_set_opaque as ^
@@ -1084,6 +1084,59 @@ rdKafkaMessageProduceVa kafkaPtr vts = withArrayLen vts $ \i arrPtr -> do
     fptr <- newForeignPtr_ arrPtr
     rdKafkaMessageProduceVa' kafkaPtr fptr (cIntConv i)
 
+--- Transactional api
+
+{#fun rd_kafka_init_transactions as rdKafkaInitTransactions
+    {`RdKafkaTPtr', `Int'} -> `RdKafkaErrorTPtr' #}
+
+{#fun rd_kafka_begin_transaction as rdKafkaBeginTransaction
+    {`RdKafkaTPtr'} -> `RdKafkaErrorTPtr' #}
+
+{#fun rd_kafka_send_offsets_to_transaction as rdKafkaSendOffsetsToTransaction'
+    {`RdKafkaTPtr', `RdKafkaTopicPartitionListTPtr', `Ptr ()', `Int' } -> `RdKafkaErrorTPtr' #}
+
+{#fun rd_kafka_commit_transaction as rdKafkaCommitTransaction
+    {`RdKafkaTPtr', `Int'} -> `RdKafkaErrorTPtr' #}
+
+{#fun rd_kafka_abort_transaction as rdKafkaAbortTransaction
+    {`RdKafkaTPtr', `Int'} -> `RdKafkaErrorTPtr' #}
+
+{#fun rd_kafka_consumer_group_metadata as rdKafkaConsumerGroupMetadata
+    {`RdKafkaTPtr'} -> `Ptr ()' #}
+
+{#fun rd_kafka_consumer_group_metadata_destroy as rdKafkaConsumerGroupMetadataDestroy
+    {`Ptr ()'} -> `()' #}
+
+{#fun rd_kafka_seek_partitions as rdKafkaSeekPartitions
+    {`RdKafkaTPtr', `RdKafkaTopicPartitionListTPtr', `Int'} -> `RdKafkaErrorTPtr' #}
+
+rdKafkaSendOffsetsToTransaction :: RdKafkaTPtr -> RdKafkaTPtr -> RdKafkaTopicPartitionListTPtr -> Int -> IO RdKafkaErrorTPtr
+rdKafkaSendOffsetsToTransaction p c topicPartition timeOut = do
+    metaData <- rdKafkaConsumerGroupMetadata c
+    errPtr   <- rdKafkaSendOffsetsToTransaction' p topicPartition metaData timeOut
+    -- NOTE:need to destroy the metadata otherwise leaking memory
+    rdKafkaConsumerGroupMetadataDestroy metaData
+    pure errPtr
+
+{#fun rd_kafka_error_is_fatal as rdKafkaErrorIsFatal'
+    {`RdKafkaErrorTPtr'} -> `CInt' #}
+
+{#fun rd_kafka_error_is_retriable as rdKafkaErrorIsRetriable'
+    {`RdKafkaErrorTPtr'} -> `CInt' #}
+
+{#fun rd_kafka_error_txn_requires_abort as rdKafkaErrorTxnRequiresAbort'
+    {`RdKafkaErrorTPtr'} -> `CInt' #}
+
+rdKafkaErrorIsFatal :: RdKafkaErrorTPtr -> IO Bool
+rdKafkaErrorIsFatal ptr = boolFromCInt <$> rdKafkaErrorIsFatal' ptr
+
+rdKafkaErrorIsRetriable :: RdKafkaErrorTPtr -> IO Bool
+rdKafkaErrorIsRetriable ptr = boolFromCInt <$> rdKafkaErrorIsRetriable' ptr
+
+rdKafkaErrorTxnRequiresAbort :: RdKafkaErrorTPtr -> IO Bool
+rdKafkaErrorTxnRequiresAbort ptr = boolFromCInt <$> rdKafkaErrorTxnRequiresAbort' ptr
+
+
 -- Marshall / Unmarshall
 enumToCInt :: Enum a => a -> CInt
 enumToCInt = fromIntegral . fromEnum
@@ -1101,6 +1154,11 @@ boolToCInt :: Bool -> CInt
 boolToCInt True = CInt 1
 boolToCInt False = CInt 0
 {-# INLINE boolToCInt #-}
+
+boolFromCInt :: CInt -> Bool
+boolFromCInt (CInt 0) = False
+boolFromCInt (CInt _) = True
+{-# INLINE boolFromCInt #-}
 
 peekInt64Conv :: (Storable a, Integral a) =>  Ptr a -> IO Int64
 peekInt64Conv  = liftM cIntConv . peek

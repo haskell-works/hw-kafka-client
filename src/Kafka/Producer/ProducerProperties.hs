@@ -14,6 +14,7 @@ module Kafka.Producer.ProducerProperties
 , sendTimeout
 , statisticsInterval
 , extraProps
+, extraProp
 , suppressDisconnectLogs
 , extraTopicProps
 , debugOptions
@@ -27,7 +28,6 @@ import           Control.Monad            (MonadPlus(mplus))
 import           Data.Map                 (Map)
 import qualified Data.Map                 as M
 import           Data.Semigroup           as Sem
-import           Kafka.Internal.Setup     (KafkaConf(..), Callback(..))
 import           Kafka.Types              (KafkaDebug(..), Timeout(..), KafkaCompressionCodec(..), KafkaLogLevel(..), BrokerAddress(..), kafkaDebugToText, kafkaCompressionCodecToText, Millis(..))
 
 import           Kafka.Producer.Callbacks
@@ -102,6 +102,12 @@ statisticsInterval (Millis t) =
 -- The full list can be found <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md here>
 extraProps :: Map Text Text -> ProducerProperties
 extraProps m = mempty { ppKafkaProps = m }
+
+-- | Any configuration options that are supported by /librdkafka/.
+-- The full list can be found <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md here>
+extraProp :: Text -> Text -> ProducerProperties
+extraProp k v = mempty { ppKafkaProps = M.singleton k v }
+{-# INLINE extraProp #-}
 
 -- | Suppresses producer disconnects logs.
 --

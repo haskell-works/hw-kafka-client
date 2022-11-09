@@ -83,6 +83,7 @@ import           Kafka.Internal.Shared    (pollEvents)
 import           Kafka.Producer.Convert   (copyMsgFlags, handleProduceErrT, producePartitionCInt)
 import           Kafka.Producer.Types     (KafkaProducer (..))
 
+
 import Kafka.Producer.ProducerProperties as X
 import Kafka.Producer.Types              as X hiding (KafkaProducer)
 import Kafka.Types                       as X
@@ -191,7 +192,6 @@ flushProducer kp = liftIO $ do
     if (l == 0)
       then pollEvents kp (Just $ Timeout 0) -- to be sure that all the delivery reports are fired
       else flushProducer kp
-
 ------------------------------------------------------------------------------------
 
 withHeaders :: Headers -> ([RdKafkaVuT] -> IO a) -> IO a

@@ -55,11 +55,12 @@ module Kafka.Consumer
 , newConsumer
 , assign, assignment, subscription
 , pausePartitions, resumePartitions
-, committed, position, seek
+, committed, position, seek, seekPartitions
 , pollMessage, pollConsumerEvents
 , pollMessageBatch
 , commitOffsetMessage, commitAllOffsets, commitPartitionsOffsets
 , storeOffsets, storeOffsetMessage
+, rewindConsumer
 , closeConsumer
 -- ReExport Types
 , RdKafkaRespErrT (..)
@@ -75,16 +76,15 @@ import           Control.Monad.Trans.Except (ExceptT (ExceptT), runExceptT)
 import           Data.Bifunctor             (bimap, first)
 import qualified Data.ByteString            as BS
 import           Data.IORef                 (readIORef, writeIORef)
-import qualified Data.Map                   as M
+import qualified Data.Map                   as M hiding (map, foldr)
 import           Data.Maybe                 (fromMaybe)
-import           Data.Monoid                ((<>))
 import           Data.Set                   (Set)
 import qualified Data.Set                   as Set
 import qualified Data.Text                  as Text
 import           Foreign                    hiding (void)
 import           Kafka.Consumer.Convert     (fromMessagePtr, fromNativeTopicPartitionList'', offsetCommitToBool, offsetToInt64, toMap, toNativeTopicPartitionList, toNativeTopicPartitionList', toNativeTopicPartitionListNoDispose, topicPartitionFromMessageForCommit)
 import           Kafka.Consumer.Types       (KafkaConsumer (..))
-import           Kafka.Internal.RdKafka     (RdKafkaRespErrT (..), RdKafkaTopicPartitionListTPtr, RdKafkaTypeT (..), newRdKafkaT, newRdKafkaTopicPartitionListT, newRdKafkaTopicT, rdKafkaAssign, rdKafkaAssignment, rdKafkaCommit, rdKafkaCommitted, rdKafkaConfSetDefaultTopicConf, rdKafkaConsumeBatchQueue, rdKafkaConsumeQueue, rdKafkaConsumerClose, rdKafkaConsumerPoll, rdKafkaOffsetsStore, rdKafkaPausePartitions, rdKafkaPollSetConsumer, rdKafkaPosition, rdKafkaQueueDestroy, rdKafkaQueueNew, rdKafkaResumePartitions, rdKafkaSeek, rdKafkaSetLogLevel, rdKafkaSubscribe, rdKafkaSubscription, rdKafkaTopicConfDup, rdKafkaTopicPartitionListAdd)
+import           Kafka.Internal.RdKafka     (RdKafkaRespErrT (..), RdKafkaTopicPartitionListTPtr, RdKafkaTypeT (..), rdKafkaSeekPartitions, rdKafkaErrorDestroy, rdKafkaErrorCode, newRdKafkaT, newRdKafkaTopicPartitionListT, newRdKafkaTopicT, rdKafkaAssign, rdKafkaAssignment, rdKafkaCommit, rdKafkaCommitted, rdKafkaConfSetDefaultTopicConf, rdKafkaConsumeBatchQueue, rdKafkaConsumeQueue, rdKafkaConsumerClose, rdKafkaConsumerPoll, rdKafkaOffsetsStore, rdKafkaPausePartitions, rdKafkaPollSetConsumer, rdKafkaPosition, rdKafkaQueueDestroy, rdKafkaQueueNew, rdKafkaResumePartitions, rdKafkaSeek, rdKafkaSetLogLevel, rdKafkaSubscribe, rdKafkaSubscription, rdKafkaTopicConfDup, rdKafkaTopicPartitionListAdd)
 import           Kafka.Internal.Setup       (CallbackPollStatus (..), Kafka (..), KafkaConf (..), KafkaProps (..), TopicConf (..), TopicProps (..), getKafkaConf, getRdKafka, kafkaConf, topicConf, Callback(..))
 import           Kafka.Internal.Shared      (kafkaErrorToMaybe, maybeToLeft, rdKafkaErrorToEither)
 
@@ -255,6 +255,7 @@ resumePartitions (KafkaConsumer (Kafka k) _) ps = liftIO $ do
   KafkaResponseError <$> rdKafkaResumePartitions k pl
 
 -- | Seek a particular offset for each provided 'TopicPartition'
+{-# DEPRECATED seek "Use seekPartitions instead" #-}
 seek :: MonadIO m => KafkaConsumer -> Timeout -> [TopicPartition] -> m (Maybe KafkaError)
 seek (KafkaConsumer (Kafka k) _) (Timeout timeout) tps = liftIO $
   either Just (const Nothing) <$> seekAll
@@ -270,6 +271,14 @@ seek (KafkaConsumer (Kafka k) _) (Timeout timeout) tps = liftIO $
       let (TopicName tn) = tpTopicName tp
       nt <- newRdKafkaTopicT k (Text.unpack tn) Nothing
       return $ bimap KafkaError (,tpPartition tp, tpOffset tp) (first Text.pack nt)
+
+-- | Seek consumer for partitions in partitions to the per-partition
+--    offset in the offset field of partitions.
+seekPartitions :: MonadIO m => KafkaConsumer -> [TopicPartition] -> Timeout -> m (Maybe KafkaError)
+seekPartitions (KafkaConsumer (Kafka k) _) ps (Timeout timeout) = liftIO $ do
+  tps <- toNativeTopicPartitionList ps
+  err <- bracket (rdKafkaSeekPartitions k tps timeout) rdKafkaErrorDestroy rdKafkaErrorCode
+  pure $ either Just (const Nothing) $ rdKafkaErrorToEither err
 
 -- | Retrieve committed offsets for topics+partitions.
 committed :: MonadIO m => KafkaConsumer -> Timeout -> [(TopicName, PartitionId)] -> m (Either KafkaError [TopicPartition])
@@ -323,6 +332,41 @@ closeConsumer (KafkaConsumer (Kafka k) (KafkaConf _ qr statusVar)) = liftIO $
     readIORef qr >>= mapM_ rdKafkaQueueDestroy
     res <- kafkaErrorToMaybe . KafkaResponseError <$> rdKafkaConsumerClose k
     pure (CallbackPollDisabled, res)
+
+-- | Rewind consumer's consume position to the last committed offsets for the current assignment.
+-- NOTE: follows https://github.com/edenhill/librdkafka/blob/master/examples/transactions.c#L166
+rewindConsumer :: MonadIO m 
+               => KafkaConsumer 
+               -> Timeout
+               -> m (Maybe KafkaError)
+rewindConsumer c to = liftIO $ do
+  ret <- assignment c
+  case ret of
+    Left err -> pure $ Just err
+    Right os -> do
+      if M.size os == 0
+        -- No current assignment to rewind
+        then pure Nothing
+        else do
+          let tps = foldr (\(t, ps) acc -> map (t,) ps ++ acc) [] $ M.toList os
+          ret' <- committed c to tps
+          case ret' of
+            Left err -> pure $ Just err
+            Right ps -> do
+              -- Seek to committed offset, or start of partition if no
+              -- committed offset is available.
+              let ps' = map checkOffsets ps
+              seekPartitions c ps' to
+  where
+    checkOffsets :: TopicPartition -> TopicPartition
+    checkOffsets tp 
+      | isUncommitedOffset $ tpOffset tp 
+        = tp { tpOffset = PartitionOffsetBeginning }
+      | otherwise = tp 
+
+    isUncommitedOffset :: PartitionOffset -> Bool
+    isUncommitedOffset (PartitionOffset _) = False
+    isUncommitedOffset _ = True
 -----------------------------------------------------------------------------
 newConsumerConf :: ConsumerProperties -> IO KafkaConf
 newConsumerConf ConsumerProperties {cpProps = m, cpCallbacks = cbs} = do
