@@ -8,6 +8,9 @@ pkgs.mkShell {
     nettools
     niv
     gmp
+    docker-compose
+    nixfmt
+    colima
   ];
 
   shellHook = ''

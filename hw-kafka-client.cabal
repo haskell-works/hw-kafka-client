@@ -19,7 +19,7 @@ author:                 Alexey Raga <alexey.raga@gmail.com>
 maintainer:             Alexey Raga <alexey.raga@gmail.com>
 license:                MIT
 license-file:           LICENSE
-tested-with:            GHC == 8.10.2, GHC == 8.8.3, GHC == 8.6.5, GHC == 8.4.4
+tested-with:            GHC == 8.10.7, GHC == 8.10.2, GHC == 8.8.3, GHC == 8.6.5, GHC == 8.4.4
 build-type:             Simple
 extra-source-files:     README.md
 
