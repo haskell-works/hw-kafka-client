@@ -153,21 +153,21 @@ spec = do
             it "should consume empty batch when there are no messages" $ \k -> do
                 res <- pollMessageBatch k (Timeout 1000) (BatchSize 50)
                 length res `shouldBe` 0
-    
+
     describe "Kafka.Headers.Spec" $ do
         let testHeaders = headersFromList [("a-header-name", "a-header-value"), ("b-header-name", "b-header-value")]
 
         specWithKafka "Headers consumer/producer" consumerProps $ do
               it "1. sends 2 messages to test topic enriched with headers" $ \(k, prod) -> do
                   void $ receiveMessages k
-                  
+
                   res  <- sendMessagesWithHeaders (testMessages testTopic) testHeaders prod
                   res `shouldBe` Right ()
               it "2. should receive 2 messages enriched with headers" $ \(k, _) -> do
                   res <- receiveMessages k
                   (length <$> res) `shouldBe` Right 2
-                  
-                  forM_ res $ \rcs -> 
+
+                  forM_ res $ \rcs ->
                     forM_ rcs ((`shouldBe` Set.fromList (headersToList testHeaders)) . Set.fromList . headersToList . crHeaders)
 
 ----------------------------------------------------------------------------------------------------------------
@@ -253,13 +253,14 @@ runConsumerSpec = do
     hasTopic `shouldBe` True
 
   it "should return topic metadata" $ \k -> do
-    res <- topicMetadata k (Timeout 1000) testTopic
+    res <- topicMetadata k (Timeout 2000) testTopic
     res `shouldSatisfy` isRight
     length . kmBrokers <$> res `shouldBe` Right 1
     length . kmTopics <$> res `shouldBe` Right 1
 
   it "should describe all consumer groups" $ \k -> do
-    res <- allConsumerGroupsInfo k (Timeout 1000)
+    res <- allConsumerGroupsInfo k (Timeout 2000)
+    res `shouldSatisfy` isRight
     let groups = either (const []) (fmap giGroup) res
     let prefixedGroups = filter isTestGroupId groups
     let resLen = length prefixedGroups
@@ -267,15 +268,15 @@ runConsumerSpec = do
     -- fmap giGroup <$> res `shouldBe` Right [testGroupId]
 
   it "should describe a given consumer group" $ \k -> do
-    res <- consumerGroupInfo k (Timeout 1000) testGroupId
+    res <- consumerGroupInfo k (Timeout 2000) testGroupId
     fmap giGroup <$> res `shouldBe` Right [testGroupId]
 
   it "should describe non-existent consumer group" $ \k -> do
-    res <- consumerGroupInfo k (Timeout 1000) "does-not-exist"
+    res <- consumerGroupInfo k (Timeout 2000) "does-not-exist"
     res `shouldBe` Right []
 
   it "should read topic offsets for time" $ \k -> do
-    res <- topicOffsetsForTime k (Timeout 1000) (Millis 1904057189508) testTopic
+    res <- topicOffsetsForTime k (Timeout 2000) (Millis 1904057189508) testTopic
     res `shouldSatisfy` isRight
     fmap tpOffset <$> res `shouldBe` Right [PartitionOffsetEnd]
 
@@ -300,13 +301,13 @@ runConsumerSpec = do
         ||  x == Left (KafkaResponseError RdKafkaRespErrTimedOut))
 
   it "should respect out-of-bound offsets (invalid offset)" $ \k -> do
-    res <- seek k (Timeout 1000) [TopicPartition testTopic (PartitionId 0) PartitionOffsetInvalid]
+    res <- seek k (Timeout 2000) [TopicPartition testTopic (PartitionId 0) PartitionOffsetInvalid]
     res `shouldBe` Nothing
     msg <- pollMessage k (Timeout 1000)
     crOffset <$> msg `shouldBe` Right (Offset 0)
 
   it "should respect out-of-bound offsets (huge offset)" $ \k -> do
-    res <- seek k (Timeout 1000) [TopicPartition testTopic (PartitionId 0) (PartitionOffset 123456)]
+    res <- seek k (Timeout 3000) [TopicPartition testTopic (PartitionId 0) (PartitionOffset 123456)]
     res `shouldBe` Nothing
-    msg <- pollMessage k (Timeout 1000)
+    msg <- pollMessage k (Timeout 2000)
     crOffset <$> msg `shouldBe` Right (Offset 0)

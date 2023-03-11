@@ -1,12 +1,10 @@
-with import ./nix/nixpkgs.nix { };
+with import <nixpkgs> {};
 
 pkgs.mkShell {
   buildInputs = with pkgs; [
-    openssl
     zlib
     rdkafka
-    nettools
-    niv
+    # nettools
     gmp
   ];
 

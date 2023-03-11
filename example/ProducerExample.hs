@@ -50,7 +50,7 @@ sendMessages prod = do
   putStrLn "Producer is ready, send your messages!"
   msg1 <- getLine
 
-  err1 <- produceMessage prod (mkMessage Nothing (Just $ pack msg1))
+  err1 <- produceMessage prod (mkMessage (Just "zero") (Just $ pack msg1))
   forM_ err1 print
 
   putStrLn "One more time!"
@@ -62,7 +62,7 @@ sendMessages prod = do
   putStrLn "And the last one..."
   msg3 <- getLine
   err3 <- produceMessage prod (mkMessage (Just "key3") (Just $ pack msg3))
-  
+
   err4 <- produceMessage prod ((mkMessage (Just "key4") (Just $ pack msg3)) { prHeaders = headersFromList [("fancy", "header")]})
 
   -- forM_ errs (print . snd)
