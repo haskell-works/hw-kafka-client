@@ -150,6 +150,7 @@ data KafkaCompressionCodec =
   | Gzip
   | Snappy
   | Lz4
+  | Zstd
   deriving (Eq, Show, Typeable, Generic)
 
 -- | Convert a 'KafkaCompressionCodec' into its /librdkafka/ string equivalent.
@@ -161,6 +162,7 @@ kafkaCompressionCodecToText c = case c of
   Gzip          -> "gzip"
   Snappy        -> "snappy"
   Lz4           -> "lz4" 
+  Zstd          -> "zstd"
 
 -- | Headers that might be passed along with a record
 newtype Headers = Headers { unHeaders :: [(BS.ByteString, BS.ByteString)] } 
