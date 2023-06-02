@@ -72,20 +72,20 @@ newtype ConsumerGroupId = ConsumerGroupId
 newtype Offset          = Offset { unOffset :: Int64 } deriving (Show, Eq, Ord, Read, Generic)
 
 -- | Where to reset the offset when there is no initial offset in Kafka
--- 
+--
 -- See <https://kafka.apache.org/documentation/#auto.offset.reset Kafka documentation on offset reset>
 data OffsetReset        = Earliest | Latest deriving (Show, Eq, Generic)
 
 -- | A set of events which happen during the rebalancing process
 data RebalanceEvent =
     -- | Happens before Kafka Client confirms new assignment
-    RebalanceBeforeAssign [(TopicName, PartitionId)]
+    RebalanceBeforeAssign [TopicPartition]
     -- | Happens after the new assignment is confirmed
-  | RebalanceAssign [(TopicName, PartitionId)]
+  | RebalanceAssign [TopicPartition]
     -- | Happens before Kafka Client confirms partitions rejection
-  | RebalanceBeforeRevoke [(TopicName, PartitionId)]
+  | RebalanceBeforeRevoke [TopicPartition]
     -- | Happens after the rejection is confirmed
-  | RebalanceRevoke [(TopicName, PartitionId)]
+  | RebalanceRevoke [TopicPartition]
   deriving (Eq, Show, Generic)
 
 -- | The partition offset
