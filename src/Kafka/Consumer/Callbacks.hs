@@ -66,7 +66,10 @@ setRebalanceCallback f k e pls = do
   case e of
     KafkaResponseError RdKafkaRespErrAssignPartitions -> do
         f k (RebalanceBeforeAssign assignment)
-        void $ rdKafkaAssign kptr pls
+        protocol <- rdKafkaRebalanceProtocol kptr
+        if protocol == "COOPERATIVE" 
+          then void $ rdKafkaIncrementalAssign kptr pls
+          else void $ rdKafkaAssign kptr pls
 
         mbq <- getRdMsgQueue $ getKafkaConf k
         case mbq of
@@ -84,6 +87,9 @@ setRebalanceCallback f k e pls = do
 
     KafkaResponseError RdKafkaRespErrRevokePartitions -> do
         f k (RebalanceBeforeRevoke assignment)
-        void $ newForeignPtr_ nullPtr >>= rdKafkaAssign kptr
+        protocol <- rdKafkaRebalanceProtocol kptr
+        if protocol == "COOPERATIVE" 
+          then void $ rdKafkaIncrementalUnassign kptr pls
+          else void $ newForeignPtr_ nullPtr >>= rdKafkaAssign kptr
         f k (RebalanceRevoke assignment)
     x -> error $ "Rebalance: UNKNOWN response: " <> show x
