@@ -611,6 +611,9 @@ pollRdKafkaConsumer k t = do
     {`RdKafkaTPtr', `RdKafkaTopicPartitionListTPtr'}
     -> `RdKafkaRespErrT' cIntToEnum #}
 
+{#fun rd_kafka_rebalance_protocol as ^
+    {`RdKafkaTPtr'} -> `String' #}
+
 {#fun rd_kafka_assignment as rdKafkaAssignment'
     {`RdKafkaTPtr', alloca- `Ptr RdKafkaTopicPartitionListT' peekPtr* }
     -> `RdKafkaRespErrT' cIntToEnum #}
@@ -1100,6 +1103,13 @@ rdKafkaMessageProduceVa kafkaPtr vts = withArrayLen vts $ \i arrPtr -> do
 
 {#fun rd_kafka_abort_transaction as rdKafkaAbortTransaction
     {`RdKafkaTPtr', `Int'} -> `RdKafkaErrorTPtr' #}
+
+{#fun rd_kafka_incremental_assign as ^
+    {`RdKafkaTPtr', `RdKafkaTopicPartitionListTPtr'} -> `RdKafkaErrorTPtr' #}
+
+{#fun rd_kafka_incremental_unassign as ^
+    {`RdKafkaTPtr', `RdKafkaTopicPartitionListTPtr'}
+    -> `RdKafkaErrorTPtr' #}
 
 {#fun rd_kafka_consumer_group_metadata as rdKafkaConsumerGroupMetadata
     {`RdKafkaTPtr'} -> `Ptr ()' #}
