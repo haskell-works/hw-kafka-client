@@ -82,7 +82,7 @@ import           Data.Set                   (Set)
 import qualified Data.Set                   as Set
 import qualified Data.Text                  as Text
 import           Foreign                    hiding (void)
-import           Kafka.Consumer.Convert     (fromMessagePtr, fromNativeTopicPartitionList'', offsetCommitToBool, offsetToInt64, toMap, toNativeTopicPartitionList, toNativeTopicPartitionList', toNativeTopicPartitionListNoDispose, topicPartitionFromMessageForCommit)
+import           Kafka.Consumer.Convert     (fromMessagePtr, fromNativeTopicPartitionList'', offsetCommitToBool, offsetToInt64, toMap, toNativeTopicPartitionList, toNativeTopicPartitionList', topicPartitionFromMessageForCommit)
 import           Kafka.Consumer.Types       (KafkaConsumer (..))
 import           Kafka.Internal.RdKafka     (RdKafkaRespErrT (..), RdKafkaTopicPartitionListTPtr, RdKafkaTypeT (..), rdKafkaSeekPartitions, rdKafkaErrorDestroy, rdKafkaErrorCode, newRdKafkaT, newRdKafkaTopicPartitionListT, newRdKafkaTopicT, rdKafkaAssign, rdKafkaAssignment, rdKafkaCommit, rdKafkaCommitted, rdKafkaConfSetDefaultTopicConf, rdKafkaConsumeBatchQueue, rdKafkaConsumeQueue, rdKafkaConsumerClose, rdKafkaConsumerPoll, rdKafkaOffsetsStore, rdKafkaPausePartitions, rdKafkaPollSetConsumer, rdKafkaPosition, rdKafkaQueueDestroy, rdKafkaQueueNew, rdKafkaResumePartitions, rdKafkaSeek, rdKafkaSetLogLevel, rdKafkaSubscribe, rdKafkaSubscription, rdKafkaTopicConfDup, rdKafkaTopicPartitionListAdd)
 import           Kafka.Internal.Setup       (CallbackPollStatus (..), Kafka (..), KafkaConf (..), KafkaProps (..), TopicConf (..), TopicProps (..), getKafkaConf, getRdKafka, kafkaConf, topicConf, Callback(..))
@@ -185,7 +185,7 @@ storeOffsetMessage :: MonadIO m
                    -> ConsumerRecord k v
                    -> m (Maybe KafkaError)
 storeOffsetMessage k m =
-  liftIO $ toNativeTopicPartitionListNoDispose [topicPartitionFromMessageForCommit m] >>= commitOffsetsStore k
+  liftIO $ toNativeTopicPartitionList [topicPartitionFromMessageForCommit m] >>= commitOffsetsStore k
 
 -- | Stores offsets locally
 storeOffsets :: MonadIO m
@@ -193,7 +193,7 @@ storeOffsets :: MonadIO m
              -> [TopicPartition]
              -> m (Maybe KafkaError)
 storeOffsets k ps =
-  liftIO $ toNativeTopicPartitionListNoDispose ps >>= commitOffsetsStore k
+  liftIO $ toNativeTopicPartitionList ps >>= commitOffsetsStore k
 
 -- | Commit offsets for all currently assigned partitions.
 commitAllOffsets :: MonadIO m
