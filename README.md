@@ -223,7 +223,7 @@ To be able to run tests locally, `$KAFKA_TEST_BROKER` environment variable is ex
 
 `$KAFKA_TEST_BROKER` should contain an IP address of an accessible Kafka broker that will be used to run integration tests against.
 
-With [Docker Compose](./docker-compose.yml) this variable is used to configure Kafka broker to listen on this address:
+With [Docker Compose](./docker-compose.yml) this variable is used to configure a Kafka broker with a UI on localhost:8080 to listen on this address:
 
 ```
 $ docker-compose up

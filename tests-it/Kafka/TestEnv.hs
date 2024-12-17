@@ -15,6 +15,7 @@ import qualified System.Random as Rnd
 import Control.Concurrent
 import Kafka.Consumer     as C
 import Kafka.Producer     as P
+import Kafka.Admin        as A
 
 import Test.Hspec
 
@@ -57,6 +58,9 @@ producerProps =  P.brokersList [brokerAddress]
               <> P.setCallback (logCallback (\l s1 s2 -> print $ "[Producer] " <> show l <> ": " <> s1 <> ", " <> s2))
               <> P.setCallback (errorCallback (\e r -> print $ "[Producer] " <> show e <> ": " <> r))
 
+adminProperties :: AdminProperties
+adminProperties = A.brokers [brokerAddress]
+
 testSubscription :: TopicName -> Subscription
 testSubscription t = topics [t]
               <> offsetReset Earliest
@@ -76,6 +80,8 @@ mkConsumerWith props = do
       (RebalanceAssign _) -> putMVar var True
       _                   -> pure ()
 
+mkAdmin :: IO KAdmin
+mkAdmin = newKAdmin adminProperties >>= \(Right k) -> pure k
 
 specWithConsumer :: String -> ConsumerProperties -> SpecWith KafkaConsumer -> Spec
 specWithConsumer s p f =
@@ -91,3 +97,9 @@ specWithKafka s p f =
   beforeAll ((,) <$> mkConsumerWith p <*> mkProducer)
     $ afterAll (\(consumer, producer) -> void $ closeProducer producer >> closeConsumer consumer)
     $ describe s f
+
+specWithAdmin :: String -> SpecWith KAdmin -> Spec
+specWithAdmin s f = 
+  beforeAll mkAdmin 
+  $ afterAll (void . closeKAdmin) 
+  $ describe s f

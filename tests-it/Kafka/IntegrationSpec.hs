@@ -5,6 +5,8 @@
 module Kafka.IntegrationSpec
 where
 
+import System.Random (randomRIO)
+import Control.Concurrent
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 import Control.Monad           (forM, forM_, void)
 import Control.Monad.Loops
@@ -13,8 +15,10 @@ import Data.Map                (fromList)
 import qualified Data.Set as Set
 import Data.Monoid             ((<>))
 import Kafka.Consumer
+import qualified Data.Text as T
 import Kafka.Metadata
 import Kafka.Producer
+import Kafka.Admin
 import Kafka.TestEnv
 import Test.Hspec
 
@@ -170,6 +174,16 @@ spec = do
                   forM_ res $ \rcs ->
                     forM_ rcs ((`shouldBe` Set.fromList (headersToList testHeaders)) . Set.fromList . headersToList . crHeaders)
 
+    describe "Kafka.Admin.Spec" $ do
+        let topicName = addRandomChars "admin.topic.created." 5
+
+        specWithAdmin "Create topic" $ do
+    
+          it "should create a new topic" $ \(admin :: KAdmin) -> do
+              tName <- topicName
+              let newTopic = mkNewTopic (TopicName ( T.pack(tName) ))
+              result <- createTopic admin newTopic
+              result `shouldSatisfy` isRight
 ----------------------------------------------------------------------------------------------------------------
 
 data ReadState = Skip | Read
@@ -311,3 +325,12 @@ runConsumerSpec = do
     res `shouldBe` Nothing
     msg <- pollMessage k (Timeout 2000)
     crOffset <$> msg `shouldBe` Right (Offset 0)
+
+mkNewTopic :: TopicName -> NewTopic
+mkNewTopic name = NewTopic name (PartitionCount 1) (ReplicationFactor 1) mempty
+
+
+addRandomChars :: String -> Int -> IO String
+addRandomChars baseStr n = do
+  randomChars <- mapM (\_ -> randomRIO ('a', 'z')) [1..n]
+  return $ baseStr ++ randomChars
