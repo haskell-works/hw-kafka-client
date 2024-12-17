@@ -10,13 +10,12 @@ import qualified Data.Text as Text
 import Control.Monad (liftM)
 import Data.Int (Int32, Int64)
 import Data.Word (Word8)
-import Foreign.Concurrent (newForeignPtr)
 import qualified Foreign.Concurrent as Concurrent
 import Foreign.Marshal.Alloc (alloca, allocaBytes)
 import Foreign.Marshal.Array (peekArray, allocaArray, withArrayLen)
 import Foreign.Storable (Storable(..))
 import Foreign.Ptr (Ptr, FunPtr, castPtr, nullPtr)
-import Foreign.ForeignPtr (FinalizerPtr, addForeignPtrFinalizer, newForeignPtr_, withForeignPtr)
+import Foreign.ForeignPtr (FinalizerPtr, addForeignPtrFinalizer, newForeignPtr_, withForeignPtr, ForeignPtr, newForeignPtr)
 import Foreign.C.Error (Errno(..), getErrno)
 import Foreign.C.String (CString, newCString, withCAString, peekCAString, peekCString)
 import Foreign.C.Types (CFile, CInt(..), CSize, CChar, CLong)
@@ -271,14 +270,12 @@ instance Storable RdKafkaMetadataT where
     {`Int'} -> `RdKafkaTopicPartitionListTPtr' #}
 
 foreign import ccall unsafe "rdkafka.h &rd_kafka_topic_partition_list_destroy"
-    rdKafkaTopicPartitionListDestroyF :: FinalizerPtr RdKafkaTopicPartitionListT
-foreign import ccall unsafe "rdkafka.h rd_kafka_topic_partition_list_destroy"
-    rdKafkaTopicPartitionListDestroy :: Ptr RdKafkaTopicPartitionListT -> IO ()
+    rdKafkaTopicPartitionListDestroy :: FinalizerPtr RdKafkaTopicPartitionListT
 
 newRdKafkaTopicPartitionListT :: Int -> IO RdKafkaTopicPartitionListTPtr
 newRdKafkaTopicPartitionListT size = do
     ret <- rdKafkaTopicPartitionListNew size
-    addForeignPtrFinalizer rdKafkaTopicPartitionListDestroyF ret
+    addForeignPtrFinalizer rdKafkaTopicPartitionListDestroy ret
     return ret
 
 {# fun rd_kafka_topic_partition_list_add as ^
@@ -293,7 +290,7 @@ newRdKafkaTopicPartitionListT size = do
 copyRdKafkaTopicPartitionList :: RdKafkaTopicPartitionListTPtr -> IO RdKafkaTopicPartitionListTPtr
 copyRdKafkaTopicPartitionList pl = do
     cp <- rdKafkaTopicPartitionListCopy pl
-    addForeignPtrFinalizer rdKafkaTopicPartitionListDestroyF cp
+    addForeignPtrFinalizer rdKafkaTopicPartitionListDestroy cp
     return cp
 
 {# fun rd_kafka_topic_partition_list_set_offset as ^
@@ -521,6 +518,16 @@ rdKafkaTopicConfSetPartitionerCb conf cb = do
 {#fun rd_kafka_resume_partitions as ^
     {`RdKafkaTPtr', `RdKafkaTopicPartitionListTPtr'} -> `RdKafkaRespErrT' cIntToEnum #}
 
+---- EVENT
+foreign import ccall unsafe "rdkafka.h &rd_kafka_event_destroy"
+    rdKafkaEventDestroyF :: FinalizerPtr RdKafkaEventT
+
+data RdKafkaEventT
+{#pointer *rd_kafka_event_t as RdKafkaEventTPtr foreign -> RdKafkaEventT #}
+
+{#fun rd_kafka_event_destroy as ^
+    {`RdKafkaEventTPtr'} -> `()'#}
+
 ---- QUEUE
 data RdKafkaQueueT
 {#pointer *rd_kafka_queue_t as RdKafkaQueueTPtr foreign -> RdKafkaQueueT #}
@@ -528,17 +535,25 @@ data RdKafkaQueueT
 {#fun rd_kafka_queue_new as ^
     {`RdKafkaTPtr'} -> `RdKafkaQueueTPtr' #}
 
-foreign import ccall unsafe "rdkafka.h &rd_kafka_queue_destroy"
-    rdKafkaQueueDestroyF :: FinalizerPtr RdKafkaQueueT
-
 {#fun rd_kafka_queue_destroy as ^
     {`RdKafkaQueueTPtr'} -> `()'#}
+
+foreign import ccall unsafe "rdkafka.h &rd_kafka_queue_destroy"
+    rdKafkaQueueDestroyF :: FinalizerPtr RdKafkaQueueT
 
 newRdKafkaQueue :: RdKafkaTPtr -> IO RdKafkaQueueTPtr
 newRdKafkaQueue k = do
     q <- rdKafkaQueueNew k
     addForeignPtrFinalizer rdKafkaQueueDestroyF q
     return q
+
+rdKafkaQueuePoll :: RdKafkaQueueTPtr -> Int -> IO (Maybe RdKafkaEventTPtr)
+rdKafkaQueuePoll qPtr timeout =
+  withForeignPtr qPtr $ \qPtr' -> do
+    res <- {#call rd_kafka_queue_poll#} qPtr' (fromIntegral timeout)
+    if res == nullPtr
+      then pure Nothing
+      else Just <$> newForeignPtr rdKafkaEventDestroyF res
 
 {#fun rd_kafka_consume_queue as ^
     {`RdKafkaQueueTPtr', `Int'} -> `RdKafkaMessageTPtr' #}
@@ -566,7 +581,7 @@ rdKafkaConsumeBatchQueue :: RdKafkaQueueTPtr -> Int -> Int -> IO [RdKafkaMessage
 rdKafkaConsumeBatchQueue qptr timeout batchSize = do
   allocaArray batchSize $ \pArr -> do
     rSize <- rdKafkaConsumeBatchQueue' qptr timeout pArr (fromIntegral batchSize)
-    peekArray (fromIntegral rSize) pArr >>= traverse (flip newForeignPtr (return ()))
+    peekArray (fromIntegral rSize) pArr >>= traverse newForeignPtr_
 
 -------------------------------------------------------------------------------------------------
 ---- High-level KafkaConsumer
@@ -588,7 +603,7 @@ rdKafkaSubscription k = do
     (err, sub) <- rdKafkaSubscription' k
     case err of
         RdKafkaRespErrNoError ->
-            Right <$> newForeignPtr sub (rdKafkaTopicPartitionListDestroy sub)
+            Right <$> newForeignPtr rdKafkaTopicPartitionListDestroy sub
         e -> return (Left e)
 
 {#fun rd_kafka_consumer_poll as ^
@@ -623,7 +638,7 @@ rdKafkaAssignment k = do
     (err, ass) <- rdKafkaAssignment' k
     case err of
         RdKafkaRespErrNoError ->
-            Right <$> newForeignPtr ass (rdKafkaTopicPartitionListDestroy ass)
+            Right <$> newForeignPtr rdKafkaTopicPartitionListDestroy ass
         e -> return (Left e)
 
 {#fun rd_kafka_commit as ^
@@ -732,8 +747,8 @@ instance Storable RdKafkaGroupListT where
 foreign import ccall "rdkafka.h &rd_kafka_group_list_destroy"
     rdKafkaGroupListDestroyF :: FinalizerPtr RdKafkaGroupListT
 
-foreign import ccall "rdkafka.h rd_kafka_group_list_destroy"
-    rdKafkaGroupListDestroy :: Ptr RdKafkaGroupListT -> IO ()
+foreign import ccall "rdkafka.h &rd_kafka_group_list_destroy"
+    rdKafkaGroupListDestroy :: FinalizerPtr RdKafkaGroupListT
 
 rdKafkaListGroups :: RdKafkaTPtr -> Maybe String -> Int -> IO (Either RdKafkaRespErrT RdKafkaGroupListTPtr)
 rdKafkaListGroups k g t = case g of
@@ -743,7 +758,7 @@ rdKafkaListGroups k g t = case g of
         listGroups grp = do
             (err, res) <- rdKafkaListGroups' k grp t
             case err of
-                RdKafkaRespErrNoError -> Right <$> newForeignPtr res (rdKafkaGroupListDestroy res)
+                RdKafkaRespErrNoError -> Right <$> newForeignPtr rdKafkaGroupListDestroy res
                 e -> return $ Left e
 -------------------------------------------------------------------------------------------------
 
@@ -924,15 +939,15 @@ rdKafkaConsumeStop topicPtr partition = do
     alloca- `Ptr RdKafkaMetadataT' peekPtr*, `Int'}
    -> `RdKafkaRespErrT' cIntToEnum #}
 
-foreign import ccall unsafe "rdkafka.h rd_kafka_metadata_destroy"
-    rdKafkaMetadataDestroy :: Ptr RdKafkaMetadataT -> IO ()
+foreign import ccall unsafe "rdkafka.h &rd_kafka_metadata_destroy"
+    rdKafkaMetadataDestroy :: FinalizerPtr RdKafkaMetadataT
 
 rdKafkaMetadata :: RdKafkaTPtr -> Bool -> Maybe RdKafkaTopicTPtr -> Int -> IO (Either RdKafkaRespErrT RdKafkaMetadataTPtr)
 rdKafkaMetadata k allTopics mt timeout = do
     tptr <- maybe (newForeignPtr_ nullPtr) pure mt
     (err, res) <- rdKafkaMetadata' k allTopics tptr timeout
     case err of
-        RdKafkaRespErrNoError -> Right <$> newForeignPtr res (rdKafkaMetadataDestroy res)
+        RdKafkaRespErrNoError -> Right <$> newForeignPtr rdKafkaMetadataDestroy res
         e -> return (Left e)
 
 {#fun rd_kafka_poll as ^
@@ -1146,6 +1161,87 @@ rdKafkaErrorIsRetriable ptr = boolFromCInt <$> rdKafkaErrorIsRetriable' ptr
 rdKafkaErrorTxnRequiresAbort :: RdKafkaErrorTPtr -> IO Bool
 rdKafkaErrorTxnRequiresAbort ptr = boolFromCInt <$> rdKafkaErrorTxnRequiresAbort' ptr
 
+-- Admin API
+{#enum rd_kafka_admin_op_t as ^ {underscoreToCase} deriving (Show, Eq) #}
+
+data RdKafkaTopicResultT
+{#pointer *rd_kafka_topic_result_t as RdKafkaTopicResultTPtr foreign -> RdKafkaTopicResultT #}
+
+data RdKafkaAdminOptionsT
+{#pointer *rd_kafka_AdminOptions_t as RdKafkaAdminOptionsTPtr foreign -> RdKafkaAdminOptionsT #}
+
+{#fun rd_kafka_AdminOptions_new as ^
+    {`RdKafkaTPtr', enumToCInt `RdKafkaAdminOpT'} -> `RdKafkaAdminOptionsTPtr' #}
+
+data RdKafkaNewTopicT
+{#pointer *rd_kafka_NewTopic_t as RdKafkaNewTopicTPtr foreign -> RdKafkaNewTopicT #}
+
+{#fun rd_kafka_NewTopic_new as ^ {`String', `Int', `Int', id `Ptr CChar', cIntConv `CSize'} -> `RdKafkaNewTopicTPtr' #}
+
+foreign import ccall unsafe "rdkafka.h &rd_kafka_AdminOptions_destroy" -- prevent memory leak
+    finalRdKafkaAdminOptionsDestroy :: FinalizerPtr RdKafkaAdminOptionsT
+
+newRdKAdminOptions :: RdKafkaTPtr -> RdKafkaAdminOpT -> IO RdKafkaAdminOptionsTPtr
+newRdKAdminOptions kafkaPtr opt = do
+  res <- rdKafkaAdminOptionsNew kafkaPtr opt
+  addForeignPtrFinalizer finalRdKafkaAdminOptionsDestroy res
+  pure res
+
+rdKafkaNewTopicDestroy :: RdKafkaNewTopicTPtr -> IO () -- prevent memory leak
+rdKafkaNewTopicDestroy tPtr = do
+  withForeignPtr tPtr {#call rd_kafka_NewTopic_destroy#}
+
+foreign import ccall "&rd_kafka_NewTopic_destroy"
+  rdKafkaNewTopicDestroyFinalizer :: FinalizerPtr RdKafkaNewTopicT
+
+newRdKafkaNewTopic :: String -> Int -> Int -> IO (Either String RdKafkaNewTopicTPtr)
+newRdKafkaNewTopic topicName topicPartitions topicReplicationFactor = do
+  allocaBytes nErrorBytes $ \ptr -> do
+    res <- rdKafkaNewTopicNew topicName topicPartitions topicReplicationFactor ptr (fromIntegral nErrorBytes)
+    withForeignPtr res $ \realPtr -> do
+      if realPtr == nullPtr
+        then peekCString ptr >>= pure . Left
+        else addForeignPtrFinalizer rdKafkaNewTopicDestroyFinalizer res >> pure (Right res)
+
+rdKafkaCreateTopic :: RdKafkaTPtr
+                    -> RdKafkaNewTopicTPtr
+                    -> RdKafkaAdminOptionsTPtr
+                    -> RdKafkaQueueTPtr
+                    -> IO ()
+rdKafkaCreateTopic kafkaPtr topic opts queue = do
+  let topics = [topic]
+  withForeignPtrs kafkaPtr opts queue $ \kPtr oPtr qPtr ->
+    withForeignPtrsArrayLen topics $ \tLen tPtr -> do
+      {#call rd_kafka_CreateTopics#} kPtr tPtr (fromIntegral tLen) oPtr qPtr
+
+rdKafkaEventCreateTopicsResult :: RdKafkaEventTPtr -> IO (Maybe RdKafkaTopicResultTPtr)
+rdKafkaEventCreateTopicsResult evtPtr =
+  withForeignPtr evtPtr $ \evtPtr' -> do
+    res <- {#call rd_kafka_event_CreateTopics_result#} (castPtr evtPtr')
+    if (res == nullPtr)
+      then pure Nothing
+      else Just <$> newForeignPtr_ (castPtr res)
+
+rdKafkaCreateTopicsResultTopics :: RdKafkaTopicResultTPtr
+                                -> IO [Either (String, RdKafkaRespErrT, String) String]
+rdKafkaCreateTopicsResultTopics tRes =
+  withForeignPtr tRes $ \tRes' ->
+    alloca $ \sPtr -> do
+      res <- {#call rd_kafka_CreateTopics_result_topics#} (castPtr tRes') sPtr
+      size <- peekIntConv sPtr
+      array <- peekArray size res
+      traverse unpackRdKafkaTopicResult array
+
+unpackRdKafkaTopicResult :: Ptr RdKafkaTopicResultT
+                         -> IO (Either (String, RdKafkaRespErrT, String) String)
+unpackRdKafkaTopicResult resPtr = do
+  name <- {#call rd_kafka_topic_result_name#} resPtr >>= peekCString
+  err <- {#call rd_kafka_topic_result_error#} resPtr
+  case cIntToEnum err of
+    respErr -> do
+      errMsg <- {#call rd_kafka_topic_result_error_string#} resPtr >>= peekCString
+      pure $ Left (name, respErr, errMsg)
+    RdKafkaRespErrNoError -> pure $ Right name
 
 -- Marshall / Unmarshall
 enumToCInt :: Enum a => a -> CInt
@@ -1169,6 +1265,9 @@ boolFromCInt :: CInt -> Bool
 boolFromCInt (CInt 0) = False
 boolFromCInt (CInt _) = True
 {-# INLINE boolFromCInt #-}
+
+peekIntConv :: (Storable a, Integral a, Integral b) => Ptr a -> IO b
+peekIntConv = liftM fromIntegral . peek
 
 peekInt64Conv :: (Storable a, Integral a) =>  Ptr a -> IO Int64
 peekInt64Conv  = liftM cIntConv . peek
@@ -1194,3 +1293,26 @@ c_stdout :: IO CFilePtr
 c_stdout = handleToCFile stdout "w"
 c_stderr :: IO CFilePtr
 c_stderr = handleToCFile stderr "w"
+
+
+withForeignPtrs :: ForeignPtr kafkaPtr
+                -> ForeignPtr optPtr
+                -> ForeignPtr queuePtr
+                -> (Ptr kafkaPtr -> Ptr optPtr -> Ptr queuePtr -> IO x)
+                -> IO x
+withForeignPtrs kafkaPtr optPtr queuePtr f =
+  withForeignPtr kafkaPtr $ \kafkaPtr' ->
+    withForeignPtr optPtr $ \optPtr' ->
+      withForeignPtr queuePtr $ \queuePtr' -> f kafkaPtr' optPtr' queuePtr'
+
+withForeignPtrsArrayLen :: [ForeignPtr a] 
+                        -> (Int -> Ptr (Ptr a) -> IO b)
+                        -> IO b
+withForeignPtrsArrayLen as f =
+  let withForeignPtrsList [] g = g []
+      withForeignPtrsList (x:xs) g =
+        withForeignPtr x $ \x' ->
+          withForeignPtrsList xs $ \xs' ->
+            g (x' : xs')
+  in withForeignPtrsList as $ \ptrs ->
+       withArrayLen ptrs $ \llen pptrs -> f llen pptrs
