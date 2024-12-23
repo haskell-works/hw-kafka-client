@@ -160,6 +160,7 @@ mkMessage k v = ProducerRecord
                   , prPartition = UnassignedPartition
                   , prKey = k
                   , prValue = v
+                  , prHeaders = mempty
                   }
 ```
 
