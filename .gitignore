@@ -71,3 +71,6 @@ TAGS
 ### Haddock
 src/highlight.js
 src/style.css
+
+# Direnv
+.direnv
