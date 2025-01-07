@@ -270,9 +270,9 @@ instance Storable RdKafkaMetadataT where
 {#fun rd_kafka_topic_partition_list_new as ^
     {`Int'} -> `RdKafkaTopicPartitionListTPtr' #}
 
-foreign import ccall unsafe "rdkafka.h &rd_kafka_topic_partition_list_destroy"
+foreign import ccall "rdkafka.h &rd_kafka_topic_partition_list_destroy"
     rdKafkaTopicPartitionListDestroyF :: FinalizerPtr RdKafkaTopicPartitionListT
-foreign import ccall unsafe "rdkafka.h rd_kafka_topic_partition_list_destroy"
+foreign import ccall "rdkafka.h rd_kafka_topic_partition_list_destroy"
     rdKafkaTopicPartitionListDestroy :: Ptr RdKafkaTopicPartitionListT -> IO ()
 
 newRdKafkaTopicPartitionListT :: Int -> IO RdKafkaTopicPartitionListTPtr
@@ -528,7 +528,7 @@ data RdKafkaQueueT
 {#fun rd_kafka_queue_new as ^
     {`RdKafkaTPtr'} -> `RdKafkaQueueTPtr' #}
 
-foreign import ccall unsafe "rdkafka.h &rd_kafka_queue_destroy"
+foreign import ccall "rdkafka.h &rd_kafka_queue_destroy"
     rdKafkaQueueDestroyF :: FinalizerPtr RdKafkaQueueT
 
 {#fun rd_kafka_queue_destroy as ^
@@ -748,10 +748,10 @@ rdKafkaListGroups k g t = case g of
 -------------------------------------------------------------------------------------------------
 
 -- rd_kafka_message
-foreign import ccall unsafe "rdkafka.h &rd_kafka_message_destroy"
+foreign import ccall "rdkafka.h &rd_kafka_message_destroy"
     rdKafkaMessageDestroyF :: FinalizerPtr RdKafkaMessageT
 
-foreign import ccall unsafe "rdkafka.h rd_kafka_message_destroy"
+foreign import ccall "rdkafka.h rd_kafka_message_destroy"
     rdKafkaMessageDestroy :: Ptr RdKafkaMessageT -> IO ()
 
 {#fun rd_kafka_query_watermark_offsets as rdKafkaQueryWatermarkOffsets'
@@ -789,7 +789,7 @@ instance Storable RdKafkaTimestampTypeT where
 {#fun rd_kafka_conf_new as ^
     {} -> `RdKafkaConfTPtr' #}
 
-foreign import ccall unsafe "rdkafka.h &rd_kafka_conf_destroy"
+foreign import ccall "rdkafka.h &rd_kafka_conf_destroy"
     rdKafkaConfDestroy :: FinalizerPtr RdKafkaConfT
 
 {#fun rd_kafka_conf_dup as ^
@@ -821,7 +821,7 @@ newRdKafkaConfT = do
 {#fun rd_kafka_topic_conf_dup as ^
     {`RdKafkaTopicConfTPtr'} -> `RdKafkaTopicConfTPtr' #}
 
-foreign import ccall unsafe "rdkafka.h &rd_kafka_topic_conf_destroy"
+foreign import ccall "rdkafka.h &rd_kafka_topic_conf_destroy"
     rdKafkaTopicConfDestroy :: FinalizerPtr RdKafkaTopicConfT
 
 {#fun rd_kafka_topic_conf_set as ^
@@ -924,7 +924,7 @@ rdKafkaConsumeStop topicPtr partition = do
     alloca- `Ptr RdKafkaMetadataT' peekPtr*, `Int'}
    -> `RdKafkaRespErrT' cIntToEnum #}
 
-foreign import ccall unsafe "rdkafka.h rd_kafka_metadata_destroy"
+foreign import ccall "rdkafka.h rd_kafka_metadata_destroy"
     rdKafkaMetadataDestroy :: Ptr RdKafkaMetadataT -> IO ()
 
 rdKafkaMetadata :: RdKafkaTPtr -> Bool -> Maybe RdKafkaTopicTPtr -> Int -> IO (Either RdKafkaRespErrT RdKafkaMetadataTPtr)
@@ -958,7 +958,7 @@ destroyUnmanagedRdKafkaTopic :: RdKafkaTopicTPtr -> IO ()
 destroyUnmanagedRdKafkaTopic ptr =
   withForeignPtr ptr rdKafkaTopicDestroy
 
-foreign import ccall unsafe "rdkafka.h &rd_kafka_topic_destroy"
+foreign import ccall "rdkafka.h &rd_kafka_topic_destroy"
     rdKafkaTopicDestroy' :: FinalizerPtr RdKafkaTopicT
 
 newUnmanagedRdKafkaTopicT :: RdKafkaTPtr -> String -> Maybe RdKafkaTopicConfTPtr -> IO (Either String RdKafkaTopicTPtr)
