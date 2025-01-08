@@ -177,12 +177,40 @@ spec = do
     describe "Kafka.Admin.Spec" $ do
         let topicName = addRandomChars "admin.topic.created." 5
 
+        topicsMVar <- runIO newEmptyMVar
+        
         specWithAdmin "Create topic" $ do
     
           it "should create a new topic" $ \(admin :: KAdmin) -> do
               tName <- topicName
               let newTopic = mkNewTopic (TopicName ( T.pack(tName) ))
               result <- createTopic admin newTopic
+              result `shouldSatisfy` isRight
+
+        specWithConsumer "Read all topics" consumerProps $ do
+
+          it "should return all the topics" $ \(consumer :: KafkaConsumer) -> do
+            res <- allTopicsMetadata consumer (Timeout 1000)
+            res `shouldSatisfy` isRight
+            let filterUserTopics m = m { kmTopics = filter (\t -> topicType (tmTopicName t) == User) (kmTopics m) }
+            let res' = fmap filterUserTopics res
+            length . kmBrokers <$> res' `shouldBe` Right 1
+
+            let topics = either (const []) (map tmTopicName . kmTopics) res'
+            putMVar topicsMVar topics
+
+            let topicsLen = either (const 0) (length . kmTopics) res'
+            let hasTopic = either (const False) (any (\t -> tmTopicName t == testTopic) . kmTopics) res'
+
+            topicsLen `shouldSatisfy` (>0)
+            hasTopic `shouldBe` True
+
+        specWithAdmin "Remove topics" $ do
+          
+          it "should delete all the topics currently existing" $ \(admin ::KAdmin) -> do
+            topics <- takeMVar topicsMVar
+            forM_ topics $ \topic -> do
+              result <- deleteTopic admin topic
               result `shouldSatisfy` isRight
 ----------------------------------------------------------------------------------------------------------------
 

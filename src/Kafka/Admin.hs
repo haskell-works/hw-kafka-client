@@ -2,20 +2,16 @@ module Kafka.Admin(
 module X
 , newKAdmin
 , createTopic
+, deleteTopic
 , closeKAdmin
 ) where
 
 import Control.Monad
-import Control.Monad.Trans.Class
-import Control.Monad.Trans.Maybe
 import Control.Monad.IO.Class
 import Data.Text
-import Data.Maybe
-import Data.Bifunctor
 import Data.List.NonEmpty
 import qualified Data.List.NonEmpty as NEL
 import qualified Data.Text as T
-import qualified Data.Set as S
 
 import Kafka.Internal.RdKafka
 import Kafka.Internal.Setup
@@ -53,11 +49,27 @@ createTopic kAdmin topic = liftIO $ do
     Right _ -> do
       pure $ Right $ topicName topic
 
+--- DELETE TOPIC ---
+deleteTopic :: KAdmin
+              -> TopicName
+              -> IO (Either KafkaError TopicName)
+deleteTopic kAdmin topic = liftIO $ do
+  let kafkaPtr = getRdKafka kAdmin
+  queue <- newRdKafkaQueue kafkaPtr
+  opts <- newRdKAdminOptions kafkaPtr RdKafkaAdminOpAny
+
+  topicRes <- withOldTopic topic $ \topic' -> rdKafkaDeleteTopics kafkaPtr [topic'] opts queue
+  case topicRes of
+    Left err -> do
+      pure $ Left (NEL.head err)
+    Right _ -> do
+      pure $ Right topic
+
 withNewTopic :: NewTopic 
                 -> (RdKafkaNewTopicTPtr ->  IO a)
                 -> IO (Either (NonEmpty KafkaError) a)
 withNewTopic t transform = do
-  mkNewTopicRes <- mkNewTopic t topicPtr
+  mkNewTopicRes <- mkNewTopic t newTopicPtr
   case mkNewTopicRes of
     Left err -> do
       return $ Left err
@@ -65,10 +77,29 @@ withNewTopic t transform = do
       res <- transform topic
       return $ Right res
 
-topicPtr :: NewTopic -> IO (Either KafkaError RdKafkaNewTopicTPtr)
-topicPtr topic = do
+withOldTopic :: TopicName
+                -> (RdKafkaDeleteTopicTPtr -> IO a)
+                -> IO (Either (NonEmpty KafkaError) a)
+withOldTopic tName transform = do
+  rmOldTopicRes <- rmOldTopic tName oldTopicPtr
+  case rmOldTopicRes of
+    Left err -> do
+      return $ Left err
+    Right topic -> do
+      res <- transform topic
+      return $ Right res
+
+newTopicPtr :: NewTopic -> IO (Either KafkaError RdKafkaNewTopicTPtr)
+newTopicPtr topic = do
   ptrRes <- newRdKafkaNewTopic (unpack $ unTopicName $ topicName topic) (unPartitionCount $ topicPartitionCount topic) (unReplicationFactor $ topicReplicationFactor topic)
   case ptrRes of
+    Left str -> pure $ Left (KafkaError $ T.pack str)
+    Right ptr -> pure $ Right ptr
+
+oldTopicPtr :: TopicName -> IO (Either KafkaError RdKafkaDeleteTopicTPtr)
+oldTopicPtr tName = do
+  res <- newRdKafkaDeleteTopic $ unpack . unTopicName $ tName
+  case res of
     Left str -> pure $ Left (KafkaError $ T.pack str)
     Right ptr -> pure $ Right ptr
 
@@ -78,6 +109,14 @@ mkNewTopic :: NewTopic
 mkNewTopic topic create = do
   res <- create topic
   case res of
-    Left err -> pure $ Left (Data.List.NonEmpty.singleton err)
+    Left err -> pure $ Left (NEL.singleton err)
     Right resource -> pure $ Right resource
 
+rmOldTopic :: TopicName
+            -> (TopicName -> IO (Either KafkaError a))
+            -> IO (Either (NonEmpty KafkaError) a)
+rmOldTopic tName remove = do
+  res <- remove tName
+  case res of
+    Left err -> pure $ Left (NEL.singleton err)
+    Right resource -> pure $ Right resource
