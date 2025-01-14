@@ -1161,11 +1161,10 @@ rdKafkaErrorIsRetriable ptr = boolFromCInt <$> rdKafkaErrorIsRetriable' ptr
 rdKafkaErrorTxnRequiresAbort :: RdKafkaErrorTPtr -> IO Bool
 rdKafkaErrorTxnRequiresAbort ptr = boolFromCInt <$> rdKafkaErrorTxnRequiresAbort' ptr
 
--- Admin API
+-- Topics
 {#enum rd_kafka_admin_op_t as ^ {underscoreToCase} deriving (Show, Eq) #}
 
-data RdKafkaTopicResultT
-{#pointer *rd_kafka_topic_result_t as RdKafkaTopicResultTPtr foreign -> RdKafkaTopicResultT #}
+
 
 data RdKafkaAdminOptionsT
 {#pointer *rd_kafka_AdminOptions_t as RdKafkaAdminOptionsTPtr foreign -> RdKafkaAdminOptionsT #}
