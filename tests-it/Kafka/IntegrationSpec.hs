@@ -18,7 +18,7 @@ import Kafka.Consumer
 import qualified Data.Text as T
 import Kafka.Metadata
 import Kafka.Producer
-import Kafka.Admin
+import Kafka.Topic
 import Kafka.TestEnv
 import Test.Hspec
 
@@ -174,20 +174,19 @@ spec = do
                   forM_ res $ \rcs ->
                     forM_ rcs ((`shouldBe` Set.fromList (headersToList testHeaders)) . Set.fromList . headersToList . crHeaders)
 
-    describe "Kafka.Admin.Spec" $ do
+    describe "Kafka.Topic.Spec" $ do
         let topicName = addRandomChars "admin.topic.created." 5
 
         topicsMVar <- runIO newEmptyMVar
         
-        specWithAdmin "Create topic" $ do
-    
-          it "should create a new topic" $ \(admin :: KAdmin) -> do
+        specWithConsumer "Read all topics" consumerProps $ do
+
+          it "should create a topic" $ \(consumer :: KafkaConsumer) -> do
               tName <- topicName
               let newTopic = mkNewTopic (TopicName ( T.pack(tName) ))
-              result <- createTopic admin newTopic
+              result <- createTopic consumer newTopic
               result `shouldSatisfy` isRight
 
-        specWithConsumer "Read all topics" consumerProps $ do
 
           it "should return all the topics" $ \(consumer :: KafkaConsumer) -> do
             res <- allTopicsMetadata consumer (Timeout 1000)
@@ -205,13 +204,12 @@ spec = do
             topicsLen `shouldSatisfy` (>0)
             hasTopic `shouldBe` True
 
-        specWithAdmin "Remove topics" $ do
-          
-          it "should delete all the topics currently existing" $ \(admin ::KAdmin) -> do
+          it "should delete all the topics currently existing" $ \(consumer :: KafkaConsumer) -> do
             topics <- takeMVar topicsMVar
             forM_ topics $ \topic -> do
-              result <- deleteTopic admin topic
+              result <- deleteTopic consumer topic
               result `shouldSatisfy` isRight
+
 ----------------------------------------------------------------------------------------------------------------
 
 data ReadState = Skip | Read

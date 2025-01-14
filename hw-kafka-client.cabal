@@ -55,9 +55,8 @@ library
   build-tool-depends:   c2hs:c2hs
   if impl(ghc <8.0)
     build-depends:      semigroups
-  exposed-modules:      Kafka.Admin
-                        Kafka.Admin.AdminProperties
-                        Kafka.Admin.Types
+  exposed-modules:      Kafka.Topic
+                        Kafka.Topic.Types
                         Kafka.Consumer
                         Kafka.Consumer.ConsumerProperties
                         Kafka.Consumer.Subscription
