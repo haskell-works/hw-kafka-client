@@ -25,7 +25,7 @@ extra-source-files:     README.md
 
 source-repository head
   type: git
-  location: git://github.com/haskell-works/hw-kafka-client.git
+  location: https://github.com/haskell-works/hw-kafka-client.git
 
 flag examples
   description: Also compile examples
