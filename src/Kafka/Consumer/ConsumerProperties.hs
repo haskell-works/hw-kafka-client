@@ -6,7 +6,7 @@
 -----------------------------------------------------------------------------
 module Kafka.Consumer.ConsumerProperties
 ( ConsumerProperties(..)
-, CallbackPollMode(..)
+, CallbackPollMode(..), getCallbackPollMode
 , brokersList
 , autoCommit
 , noAutoCommit
@@ -30,6 +30,7 @@ where
 import           Control.Monad        (MonadPlus (mplus))
 import           Data.Map             (Map)
 import qualified Data.Map             as M
+import           Data.Maybe           (fromMaybe)
 import           Data.Semigroup       as Sem
 import           Data.Text            (Text)
 import qualified Data.Text            as Text
@@ -53,12 +54,12 @@ data ConsumerProperties = ConsumerProperties
   { cpProps            :: Map Text Text
   , cpLogLevel         :: Maybe KafkaLogLevel
   , cpCallbacks        :: [Callback]
-  , cpCallbackPollMode :: CallbackPollMode
+  , cpCallbackPollMode :: Maybe CallbackPollMode
   }
 
 instance Sem.Semigroup ConsumerProperties where
-  (ConsumerProperties m1 ll1 cb1 _) <> (ConsumerProperties m2 ll2 cb2 cup2) =
-    ConsumerProperties (M.union m2 m1) (ll2 `mplus` ll1) (cb1 `mplus` cb2) cup2
+  (ConsumerProperties m1 ll1 cb1 cup1) <> (ConsumerProperties m2 ll2 cb2 cup2) =
+    ConsumerProperties (M.union m2 m1) (ll2 `mplus` ll1) (cb1 `mplus` cb2) (cup1 `mplus` cup2)
   {-# INLINE (<>) #-}
 
 -- | /Right biased/ so we prefer newer properties over older ones.
@@ -67,11 +68,15 @@ instance Monoid ConsumerProperties where
     { cpProps             = M.empty
     , cpLogLevel          = Nothing
     , cpCallbacks         = []
-    , cpCallbackPollMode  = CallbackPollModeAsync
+    , cpCallbackPollMode  = Nothing
     }
   {-# INLINE mempty #-}
   mappend = (Sem.<>)
   {-# INLINE mappend #-}
+
+-- | The actual poll mode, or async if non set explicitly.
+getCallbackPollMode :: ConsumerProperties -> CallbackPollMode
+getCallbackPollMode cp = fromMaybe CallbackPollModeAsync (cpCallbackPollMode cp)
 
 -- | Set the <https://kafka.apache.org/documentation/#bootstrap.servers list of brokers> to contact to connect to the Kafka cluster.
 brokersList :: [BrokerAddress] -> ConsumerProperties
@@ -170,4 +175,4 @@ queuedMaxMessagesKBytes kBytes =
 
 -- | Set the callback poll mode. Default value is 'CallbackPollModeAsync'.
 callbackPollMode :: CallbackPollMode -> ConsumerProperties
-callbackPollMode mode = mempty { cpCallbackPollMode = mode }
+callbackPollMode mode = mempty { cpCallbackPollMode = Just mode }
