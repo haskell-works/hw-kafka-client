@@ -1164,7 +1164,8 @@ rdKafkaErrorTxnRequiresAbort ptr = boolFromCInt <$> rdKafkaErrorTxnRequiresAbort
 -- Topics
 {#enum rd_kafka_admin_op_t as ^ {underscoreToCase} deriving (Show, Eq) #}
 
-
+data RdKafkaTopicResultT
+{#pointer *rd_kafka_topic_result_t as RdKafkaTopicResultTPtr foreign -> RdKafkaTopicResultT#}
 
 data RdKafkaAdminOptionsT
 {#pointer *rd_kafka_AdminOptions_t as RdKafkaAdminOptionsTPtr foreign -> RdKafkaAdminOptionsT #}
@@ -1180,6 +1181,9 @@ data RdKafkaNewTopicT
 foreign import ccall unsafe "rdkafka.h &rd_kafka_AdminOptions_destroy" -- prevent memory leak
     finalRdKafkaAdminOptionsDestroy :: FinalizerPtr RdKafkaAdminOptionsT
 
+{#fun rd_kafka_NewTopic_set_config as ^
+  {`RdKafkaNewTopicTPtr', `String', `String'} -> `Either RdKafkaRespErrT ()' cIntToRespEither #}
+
 newRdKAdminOptions :: RdKafkaTPtr -> RdKafkaAdminOpT -> IO RdKafkaAdminOptionsTPtr
 newRdKAdminOptions kafkaPtr opt = do
   res <- rdKafkaAdminOptionsNew kafkaPtr opt
@@ -1193,6 +1197,9 @@ rdKafkaNewTopicDestroy tPtr = do
 foreign import ccall "&rd_kafka_NewTopic_destroy"
   rdKafkaNewTopicDestroyFinalizer :: FinalizerPtr RdKafkaNewTopicT
 
+data RdKafkaCreateTopicsResultT
+{#pointer *rd_kafka_CreateTopics_result_t as RdKafkaCreateTopicsResultTPtr foreign -> RdKafkaCreateTopicsResultT #}
+
 newRdKafkaNewTopic :: String -> Int -> Int -> IO (Either String RdKafkaNewTopicTPtr)
 newRdKafkaNewTopic topicName topicPartitions topicReplicationFactor = do
   allocaBytes nErrorBytes $ \ptr -> do
@@ -1201,6 +1208,46 @@ newRdKafkaNewTopic topicName topicPartitions topicReplicationFactor = do
       if realPtr == nullPtr
         then peekCString ptr >>= pure . Left
         else addForeignPtrFinalizer rdKafkaNewTopicDestroyFinalizer res >> pure (Right res)
+
+newRdKafkaNewTopicUnsafe :: String -> Int -> Int -> IO (Either String RdKafkaNewTopicTPtr)
+newRdKafkaNewTopicUnsafe topicName topicPartition topicReplicationFactor = do
+  allocaBytes nErrorBytes $ \ptr -> do
+    res <- rdKafkaNewTopicNew topicName topicPartition topicReplicationFactor ptr (fromIntegral nErrorBytes)
+    withForeignPtr res $ \realPtr -> do
+      if realPtr == nullPtr
+        then peekCString ptr >>= pure . Left
+        else pure (Right res)
+
+rdKafkaEventCreateTopicsResult :: RdKafkaEventTPtr -> IO (Maybe RdKafkaCreateTopicsResultTPtr)
+rdKafkaEventCreateTopicsResult evtPtr =
+  withForeignPtr evtPtr $ \evtPtr' -> do
+    res <- {#call rd_kafka_event_CreateTopics_result#} (castPtr evtPtr')
+    if (res == nullPtr)
+      then pure Nothing
+      else Just <$> newForeignPtr_ (castPtr res)
+
+rdKafkaCreateTopicsResultTopics :: RdKafkaCreateTopicsResultTPtr
+                                -> IO [Either (String, RdKafkaRespErrT, String) String]
+rdKafkaCreateTopicsResultTopics tRes =
+  withForeignPtr tRes $ \tRes' ->
+    alloca $ \sPtr -> do
+      res <- {#call rd_kafka_CreateTopics_result_topics#} (castPtr tRes') sPtr
+      size <- peekIntConv sPtr
+      arr <- peekArray size res
+      traverse unpackRdKafkaTopicResult arr
+
+-- | Unpacks raw result into
+-- 'Either (topicName, errorType, errorMsg) topicName'
+unpackRdKafkaTopicResult :: Ptr RdKafkaTopicResultT
+                         -> IO (Either (String, RdKafkaRespErrT, String) String)
+unpackRdKafkaTopicResult resPtr = do
+  name <- {#call rd_kafka_topic_result_name#} resPtr >>= peekCString
+  err <- {#call rd_kafka_topic_result_error#} resPtr
+  case cIntToEnum err of
+    RdKafkaRespErrNoError -> pure $ Right name
+    respErr -> do
+      errMsg <- {#call rd_kafka_topic_result_error_string#} resPtr >>= peekCString
+      pure $ Left (name, respErr, errMsg)
 
 --- Create topic
 rdKafkaCreateTopic :: RdKafkaTPtr
@@ -1222,7 +1269,7 @@ data RdKafkaDeleteTopicT
 {#pointer *rd_kafka_DeleteTopic_t as RdKafkaDeleteTopicTPtr foreign -> RdKafkaDeleteTopicT #}
 
 data RdKafkaDeleteTopicsResultT
-{#pointer *rd_kafka_DeleteTopics_result_t as RdKafkaDeleteTopicResultTPtr foreign -> RdKafkaDeleteTopicsResultT #}
+{#pointer *rd_kafka_DeleteTopics_result_t as RdKafkaDeleteTopicsResultTPtr foreign -> RdKafkaDeleteTopicsResultT #}
 
 newRdKafkaDeleteTopic :: String -> IO (Either String RdKafkaDeleteTopicTPtr)
 newRdKafkaDeleteTopic topicNameStr =
@@ -1231,6 +1278,14 @@ newRdKafkaDeleteTopic topicNameStr =
     if (res == nullPtr)
       then return $ Left $ "Something went wrong while deleting topic " ++ topicNameStr
       else Right <$> newForeignPtr rdKafkaDeleteTopicDestroy res
+
+rdKafkaEventDeleteTopicsResult :: RdKafkaEventTPtr -> IO (Maybe RdKafkaDeleteTopicsResultTPtr)
+rdKafkaEventDeleteTopicsResult evtPtr =
+  withForeignPtr evtPtr $ \evtPtr' -> do
+    res <- {#call rd_kafka_event_DeleteTopics_result#} (castPtr evtPtr')
+    if (res == nullPtr)
+      then pure Nothing
+      else Just <$> newForeignPtr_ (castPtr res)
 
 rdKafkaDeleteTopics :: RdKafkaTPtr
                     -> [RdKafkaDeleteTopicTPtr]
@@ -1241,6 +1296,16 @@ rdKafkaDeleteTopics kafkaPtr topics opts queue = do
   withForeignPtrs kafkaPtr opts queue $ \kPtr oPtr qPtr ->
     withForeignPtrsArrayLen topics $ \tLen tPtr -> do
       {#call rd_kafka_DeleteTopics#} kPtr tPtr (fromIntegral tLen) oPtr qPtr
+
+rdKafkaDeleteTopicsResultTopics :: RdKafkaDeleteTopicsResultTPtr
+                                -> IO [Either (String, RdKafkaRespErrT, String) String]
+rdKafkaDeleteTopicsResultTopics tRes =
+  withForeignPtr tRes $ \tRes' ->
+    alloca $ \sPtr -> do
+      res <- {#call rd_kafka_DeleteTopics_result_topics#} (castPtr tRes') sPtr
+      size <- peekIntConv sPtr
+      arr <- peekArray size res
+      traverse unpackRdKafkaTopicResult arr
 
 -- Marshall / Unmarshall
 enumToCInt :: Enum a => a -> CInt
@@ -1254,6 +1319,12 @@ cIntToEnum = toEnum . fromIntegral
 cIntConv :: (Integral a, Num b) =>  a -> b
 cIntConv = fromIntegral
 {-# INLINE cIntConv #-}
+
+cIntToRespEither err =
+  case cIntToEnum err of
+    RdKafkaRespErrNoError -> Right ()
+    respErr -> Left respErr
+{-# INLINE cIntToRespEither #-}
 
 boolToCInt :: Bool -> CInt
 boolToCInt True = CInt 1
