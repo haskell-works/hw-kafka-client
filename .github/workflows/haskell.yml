@@ -32,7 +32,7 @@ jobs:
       - name: Build librdkafka
         run: ./scripts/build-librdkafka
 
-      - uses: haskell/actions/setup@v1
+      - uses: haskell-actions/setup@v2
         id: setup-haskell
         with:
           ghc-version: ${{ matrix.ghc }}
@@ -45,10 +45,15 @@ jobs:
       - name: Configure project
         run: cabal configure --enable-tests --enable-benchmarks --write-ghc-environment-files=ghc8.4.4+
 
-      - uses: action-works/cabal-cache@v1
-        name: Cache cabal store
+      - name: Cache ~/.cabal/packages, ~/.cabal/store and dist-newstyle
+        uses: actions/cache@v4
         with:
-          key-prefix: CwBTpnRd
+          path: |
+            ~/.cabal/packages
+            ~/.cabal/store
+            dist-newstyle
+          key: ${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/*.cabal', '**/cabal.project', '**/cabal.project.freeze') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.ghc }}-
 
       - name: Build
         # Try building it twice in case of flakey builds on Windows
@@ -98,7 +103,8 @@ jobs:
             if git push origin "v$package_version"; then
               echo "Tagged with new version "v$package_version""
 
-              echo "::set-output name=tag::v$package_version"
+              echo "tag=v$package_version" >> $GITHUB_OUTPUT
+
             fi
           fi
 
